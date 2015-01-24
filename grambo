@@ -24,23 +24,25 @@ grep "by Codership" $1 | awk -F"by Codership" '{print $1}' | awk '{print " Versi
 #grep -i "base_host" $1 | awk -F"base_host = " '{print $2}' | awk -F";" '{print " Address: " $1}' | sort | uniq
 ip_address=$(grep -i "base_host" $1 | awk -F"base_host = " '{print $2}' | awk -F";" '{print $1}' | sort | uniq)
 echo " Address: $ip_address"
+ipax=$ip_address
+echo $ipax
 grep -i "base_port" $1 | awk -F"base_port = " '{print $2}' | awk -F";" '{print " Port: " $1}' | sort | uniq
 echo "========================================================================"
 echo " IST EVENTS"
 echo "--------------------------------------------------------"
-egrep "WSREP: IST request|WSREP: async IST sender starting|WSREP: async IST sender served" $1  | awk -v ipa=$ip_address '{print ipa" "$0}'
+egrep "WSREP: IST request|WSREP: async IST sender starting|WSREP: async IST sender served" $1  | awk -v ipa=$ipax '{print ipa" 20"$0}'
 echo "========================================================================"
 echo " SST EVENTS"
 echo "--------------------------------------------------------"
-grep "^WSREP_SST" $1  | awk -F'(' '{print $2" "$1}' | awk -v ipa=$ip_address -F') ' '{print ipa" "$1" "$2}'
+grep "^WSREP_SST" $1  | awk -F'(' '{print $2" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}'
 echo "========================================================================"
 echo " GCOMM EVENTS"
 echo "--------------------------------------------------------"
-grep "WSREP: gcomm:" $1 | awk -v ipa=$ip_address '{print ipa" "$0}'
+grep "WSREP: gcomm:" $1 | awk -v ipa=$ipax '{print ipa" 20"$0}'
 echo "========================================================================"
 echo " STATUS TRANSITIONS"
 echo "--------------------------------------------------------"
-grep -hi SHIFTING $1 | awk -v ipa=$ip_address '{print ipa" "$1" "$2" "$6"\t\t"$8}'
+grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6"\t\t"$8}'
 echo "========================================================================"
 echo "  "
 echo "  "
