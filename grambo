@@ -1,0 +1,38 @@
+echo "  "
+echo "========================================================"
+echo "  "
+echo " G A L E R A: Log Summary"
+echo "  "
+echo "========================================================"
+echo " [MYSQL/MARIADB]"
+grep ^Version $1 | sort | uniq | awk '{print " "$0}'
+echo " "
+echo " [GALERA]"
+grep "\[Note\] WSREP: (" $1 | awk '{print $5}' | sort | uniq | awk -F"(" '{print $2}' | awk -F"," '{ print " Node UUID: "$1}'
+grep "by Codership" error.log-mariauth1 | awk -F"by Codership" '{print $1}' | awk '{print " Version: "$7}' |sort | uniq 
+grep -i "base_host" $1 | awk -F"base_host = " '{print $2}' | awk -F";" '{print " Address: " $1}' | sort | uniq
+grep -i "base_port" $1 | awk -F"base_port = " '{print $2}' | awk -F";" '{print " Port: " $1}' | sort | uniq
+echo "========================================================"
+echo " STATUS TRANSITIONS"
+echo "--------------------------------------------------------"
+grep -hi SHIFTING $1 | awk '{print " "$1" "$2" "$6"\t\t"$8}'
+echo "========================================================"
+echo " IST EVENTS"
+echo "--------------------------------------------------------"
+#grep "WSREP: async IST sender starting" $1| awk -F"tcp://" '{print $2}' | awk -F"sending" '{print " IST Starting from: "$1}'
+#grep "WSREP: async IST sender starting" $1| awk -F"tcp://" '{print $2}' | awk -F"sending" '{print " IST Starting from: "$1}'
+#grep "\[Note\] WSREP:" $1 | grep -i " ist " | grep "WSREP: IST request"
+#grep "\[Note\] WSREP:" $1 | grep -i " ist " | grep "WSREP: async IST sender starting"
+#grep "\[Note\] WSREP:" $1 | grep -i " ist " | grep "WSREP: async IST sender served"
+egrep "WSREP: IST request|WSREP: async IST sender starting|WSREP: async IST sender served" $1
+echo "========================================================"
+echo " SST EVENTS"
+echo "--------------------------------------------------------"
+grep "^WSREP_SST" $1  | awk -F'(' '{print $2" "$1}' | awk -F') ' '{print " "$1" "$2}'
+echo "========================================================"
+echo " GCOMM EVENTS"
+echo "--------------------------------------------------------"
+grep "WSREP: gcomm:" $1
+echo "========================================================"
+echo "  "
+echo "  "
