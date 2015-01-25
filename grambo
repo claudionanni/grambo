@@ -40,8 +40,8 @@ echo "========================================================================"
 echo " [SST EVENTS] #### TRICKY"
 echo "--------------------------------------------------------"
 #grep "SST" $1 | awk -v ipa=$ipax '{print ipa" "$0}'  #| grep SST| grep -oP '(?<= \().*?(?=\))'
-grep "SST" $1  | awk -F'(' '{print $2" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' 
-#grep "^WSREP_SST" $1  | awk -F'(' '{print $2" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' | column -t
+#grep "SST" $1  | awk -F'(' '{print $2" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' 
+(grep "^WSREP_SST" $1  | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' ;grep -i sst $1 | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" 20"$0}') | sort
 echo "========================================================================"
 echo " [GCOMM EVENTS]"
 echo "--------------------------------------------------------"
