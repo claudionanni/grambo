@@ -1,3 +1,5 @@
+# !!Need to add flags to enable disable sections
+
 echo "  "
 echo "========================================================================"
 echo "  "
@@ -22,6 +24,7 @@ grep ^Version $1 | sort | uniq | awk '{print "[info] [server] Socket: "$4}'
 grep ^Version $1 | sort | uniq | awk '{print "[info] [server] Port: "$6}'
 grep ^Version $1 | sort | uniq | awk -F"wsrep_" '{print "[info] [server] Wsrep: "$2}'
 echo "========================================================================"
+echo "  "
 echo " [GALERA]"
 echo "--------------------------------------------------------"
 grep -i "\[Note\] WSREP: " $1 | grep "listening at tcp"  |awk '{print $5}' | sort | uniq | awk -F"(" '{print $2}' | awk -F"," '{ print "[info] [galera] Node UUID: "$1}'
@@ -34,21 +37,35 @@ echo "[info] [galera] Address: $ip_address"
 ipax=$ip_address
 grep -i "base_port" $1 | awk -F"base_port = " '{print $2}' | awk -F";" '{print "[info] [galera] Port: " $1}' | sort | uniq
 echo "========================================================================"
+echo "  "
 echo " [IST EVENTS]"
 echo "--------------------------------------------------------"
-egrep "WSREP: IST request|WSREP: async IST sender starting|WSREP: async IST sender served" $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
+#egrep "WSREP: IST request|WSREP: async IST sender starting|WSREP: async IST sender served" $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
+egrep -i " ist " $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
 echo "========================================================================"
-echo " [SST EVENTS] #### TRICKY"
+echo "  "
+echo " [SST EVENTS] #### TRICKY -> Currently RC=( \${PIPESTATUS[@]} ) is cut (if present) -- problem with ( as FS in awk"
 echo "--------------------------------------------------------"
 (grep "^WSREP_SST" $1  | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' ;grep -i sst $1 | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" 20"$0}') | sort  | awk '{print "[event] [sst] "$0}'
 echo "========================================================================"
+echo "  "
 echo " [GCOMM EVENTS]"
 echo "--------------------------------------------------------"
 grep "WSREP: gcomm:" $1 | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [gco] "$0}'
 echo "========================================================================"
+echo "  "
 echo " [STATUS TRANSITIONS]"
 echo "--------------------------------------------------------"
 grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6"\t\t"$8}' | awk '{print "[event] [stt] "$0}'
 echo "========================================================================"
 echo "  "
+echo " [WARNINGS]"
+echo "--------------------------------------------------------"
+grep -i warning $1 | awk -v ipa=$ipax '{print "[event] [warning] "ipa" "$0}'
+echo "========================================================================"
+echo "  "
+echo " [ERRORS]"
+echo "--------------------------------------------------------"
+grep -i "error " $1 | awk -v ipa=$ipax '{print "[event] [error] "ipa" "$0}'
+echo "========================================================================"
 echo "  "
