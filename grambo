@@ -16,21 +16,18 @@ if [ "$#" -ne 1 ]; then
     if [ -t 0 ]; then
        echo "You did not send a Galera node error log as input, exiting now."
        exit
+    else
+        ReadStdin=1
+        Piped=$(</dev/stdin)
     fi
     else
+    ReadStdin=0
     echo "Using filepath mode, ($1)"
 fi
     echo "  "
     echo "================================================================================"
     echo "  "
     echo "  "
-
-
-ReadStdin=0
-if [ $# -eq 0 ]; then
-	ReadStdin=1
-	Piped=$(</dev/stdin)
-fi
 
 echo " [MYSQL/MARIADB]"
 echo "--------------------------------------------------------------------------------"
@@ -101,15 +98,18 @@ else
 
 fi
 
+# To format with tabs only the first 5 columns
+#  awk '{out="";for(i=1;i<=NF;i++){if (i<=5) {out=out""$i"\t"} else {out=out" "$i}};print out}'
+
 echo "================================================================================"
 echo "  "
 echo " [IST EVENTS]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | egrep -i " ist " | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
+	echo "$Piped" | egrep -i " ist " | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
 else
-	egrep -i " ist " $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
+	egrep -i " ist " $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
 fi
 
 
