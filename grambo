@@ -144,9 +144,9 @@ echo " [STATUS TRANSITIONS]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6"\t\t"$8}' | awk '{print "[event] [stt] "$0}'
+	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6" "$8}' | awk '{print "[event] [stt] "$0}'
 else
-	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6"\t\t"$8}' | awk '{print "[event] [stt] "$0}'
+	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6" "$8}' | awk '{print "[event] [stt] "$0}'
 fi
 
 echo "================================================================================"
