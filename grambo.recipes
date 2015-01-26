@@ -1,0 +1,11 @@
+#Given 1 2 3 the three output from grambo for the three log files
+
+
+# Get and sort all status transitions from all nodes
+(grambo /tmp/error.log-mariauth1; grambo /tmp/error.log-mariauth2; grambo /tmp/error.log-mariauth3 ) | grep "\[event\] \[stt\]" | sort -k4,5
+
+# Get only [info] class rows
+(grambo /tmp/error.log-mariauth1; grambo /tmp/error.log-mariauth2; grambo /tmp/error.log-mariauth3 ) | grep "\[info\]"
+
+# Get only [event] class rows
+(grambo /tmp/error.log-mariauth1; grambo /tmp/error.log-mariauth2; grambo /tmp/error.log-mariauth3 ) | grep "\[event\]"| sort -k4,5

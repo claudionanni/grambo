@@ -1,32 +1,33 @@
 # !!Need to add flags to enable disable sections
 
 echo "  "
-echo "========================================================================"
+echo "================================================================================"
+echo "|                                                                              |"
+echo "| G R A M B O - Galera Log Deforester                                          |"
+echo "|                                                                              |"
+echo "| Usage: grambo <galera node error log>                                        |"
+echo "|                                                                              |"
+echo "================================================================================"
 echo "  "
-echo " G R A M B O - Galera Log Deforester"
-echo "  "
-echo " Usage: grambo <galera node error log>"
-echo "  "
-echo "========================================================================"
 if [ "$#" -ne 1 ]; then
     echo "  "
     echo "You have to provide the path to the MySQL/MariaDB Galera node error log."
     echo "  "
-    echo "========================================================================"
+    echo "================================================================================"
     echo "  "
     echo "  "
     exit
 fi
 echo " [MYSQL/MARIADB]"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 grep ^Version $1 | sort | uniq | awk '{print "[info] [server] Version: "$2}'
 grep ^Version $1 | sort | uniq | awk '{print "[info] [server] Socket: "$4}'
 grep ^Version $1 | sort | uniq | awk '{print "[info] [server] Port: "$6}'
 grep ^Version $1 | sort | uniq | awk -F"wsrep_" '{print "[info] [server] Wsrep: "$2}'
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
 echo " [GALERA]"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 grep -i "\[Note\] WSREP: " $1 | grep "listening at tcp"  |awk '{print $5}' | sort | uniq | awk -F"(" '{print $2}' | awk -F"," '{ print "[info] [galera] Node UUID: "$1}'
 grep -i "group uuid" $1 | sort | uniq | awk '{print "[info] [galera] Group UUID: "$4}' 
 grep "connecting to group" $1 | awk -F"connecting to group" '{print $2}' | awk '{print "[info] [galera] Group name: "$1}'
@@ -36,36 +37,36 @@ ip_address=$(grep -i "base_host" $1 | awk -F"base_host = " '{print $2}' | awk -F
 echo "[info] [galera] Address: $ip_address"
 ipax=$ip_address
 grep -i "base_port" $1 | awk -F"base_port = " '{print $2}' | awk -F";" '{print "[info] [galera] Port: " $1}' | sort | uniq
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
 echo " [IST EVENTS]"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 #egrep "WSREP: IST request|WSREP: async IST sender starting|WSREP: async IST sender served" $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
 egrep -i " ist " $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}'
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
 echo " [SST EVENTS] #### TRICKY -> Currently RC=( \${PIPESTATUS[@]} ) is cut (if present) -- problem with ( as FS in awk"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 (grep "^WSREP_SST" $1  | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' ;grep -i sst $1 | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" 20"$0}') | sort  | awk '{print "[event] [sst] "$0}'
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
 echo " [GCOMM EVENTS]"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 grep "WSREP: gcomm:" $1 | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [gco] "$0}'
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
 echo " [STATUS TRANSITIONS]"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6"\t\t"$8}' | awk '{print "[event] [stt] "$0}'
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
 echo " [WARNINGS]"
-echo "--------------------------------------------------------"
-grep -i warning $1 | awk -v ipa=$ipax '{print "[event] [warning] "ipa" "$0}'
-echo "========================================================================"
+echo "--------------------------------------------------------------------------------"
+grep -i warning $1 | awk -v ipa=$ipax '{print "[event] [warning] "ipa" 20"$0}'
+echo "================================================================================"
 echo "  "
 echo " [ERRORS]"
-echo "--------------------------------------------------------"
+echo "--------------------------------------------------------------------------------"
 grep -i "error " $1 | awk -v ipa=$ipax '{print "[event] [error] "ipa" "$0}'
-echo "========================================================================"
+echo "================================================================================"
 echo "  "
