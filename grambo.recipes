@@ -2,10 +2,16 @@
 
 
 # Get and sort all status transitions from all nodes
-(grambo /tmp/error.log-mariauth1; grambo /tmp/error.log-mariauth2; grambo /tmp/error.log-mariauth3 ) | grep "\[event\] \[stt\]" | sort -k4,5
+(grambo <error log>1; grambo <error log>2; grambo <error log>3 ) | grep "\[event\] \[stt\]" | sort -k4,5
 
 # Get only [info] class rows
-(grambo /tmp/error.log-mariauth1; grambo /tmp/error.log-mariauth2; grambo /tmp/error.log-mariauth3 ) | grep "\[info\]"
+(grambo <error log>1; grambo <error log>2; grambo <error log>3 ) | grep "\[info\]"
 
 # Get only [event] class rows
-(grambo /tmp/error.log-mariauth1; grambo /tmp/error.log-mariauth2; grambo /tmp/error.log-mariauth3 ) | grep "\[event\]"| sort -k4,5
+(grambo <error log>1; grambo <error log>2; grambo <error log>3 ) | grep "\[event\]"| sort -k4,5
+
+# Get time stayed in each status - need to fix the time difference
+cat <error log> | grambo  | grep "\[event\] \[stt\]"  | awk '{if (NR>1) printf $4" "$5" ";}{gsub(/[-:]/," ",$5);$4=substr($4,0,4)" "substr($4,4,2)" "substr($4,6,2);times=$4" "$5}{if (NR==1) start=$4" "$5}{if (NR>1) {print " "$6": \t\t"mktime(times)-mktime(start)" seconds";start=times}}'
+
+# Times this node was a donor for another node
+cat error.log-mariauth1 | grep wsrep_sst_xtrabackup | grep "role 'donor'" | awk -F"--address" '{print $2}' | awk -F"'" '{print $2}' | awk -F":" '{print "times acted as DONOR for: "$1}' | sort | uniq -c
