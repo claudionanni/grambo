@@ -107,9 +107,9 @@ echo " [IST EVENTS]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | egrep -i " ist " | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
+	echo "$Piped" | egrep -i " ist |incremental state transfer" | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
 else
-	egrep -i " ist " $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
+	egrep -i " ist |incremental state transfer" $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
 fi
 
 
@@ -147,6 +147,22 @@ if [ $ReadStdin -eq 1 ]; then
 	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6" "$8}' | awk '{print "[event] [stt] "$0}'
 else
 	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6" "$8}' | awk '{print "[event] [stt] "$0}'
+fi
+
+echo "================================================================================"
+echo "  "
+
+
+echo "================================================================================"
+echo "  "
+
+echo " [CLUSTER VIEWS/STATUSES]"
+echo "--------------------------------------------------------------------------------"
+
+if [ $ReadStdin -eq 1 ]; then
+        echo "$Piped" | grep -i "New cluster view" | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" This node index:"$20}' | awk '{print "[event] [clv] "$0}'
+else
+        grep -i "New cluster view" $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" This node index: "$20}' | awk '{print "[event] [clv] "$0}'
 fi
 
 echo "================================================================================"
