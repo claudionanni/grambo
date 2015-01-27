@@ -160,9 +160,9 @@ echo " [CLUSTER VIEWS/STATUSES]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-        echo "$Piped" | grep -i "New cluster view" | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" This node index:"$20}' | awk '{print "[event] [clv] "$0}'
+        echo "$Piped" | grep -i "New cluster view" | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" ThisNodeIndex: "$20" ProtocolVersion: "$23 }' | awk '{print "[event] [clv] "$0}'
 else
-        grep -i "New cluster view" $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" This node index: "$20}' | awk '{print "[event] [clv] "$0}'
+        grep -i "New cluster view" $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" ThisNodeIndex: "$20" ProtocolVersion: "$23 }' | awk '{print "[event] [clv] "$0}'
 fi
 
 echo "================================================================================"
