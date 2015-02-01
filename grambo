@@ -143,10 +143,12 @@ echo "  "
 echo " [STATUS TRANSITIONS]"
 echo "--------------------------------------------------------------------------------"
 
+
+### Why 35? Some Galera adds an extra column (process id?) so that the columns shift. (To improve counting the columns not the characters)
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6" "$8}' | awk '{print "[event] [stt] "$0}'
+	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax 'if(index($0,"Shifting")>35) {print ipa" 20"$1" "$2" "$7" "$9" KKK"}; if(index($0,"Shifting")<35) {print ipa" 20"$1" "$2" "$6" "$8" DDD"};' | awk '{print "[event] [stt] "$0}'
 else
-	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" "$6" "$8}' | awk '{print "[event] [stt] "$0}'
+	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{if(index($0,"Shifting")>35) {print ipa" 20"$1" "$2" "$7" "$9}; if(index($0,"Shifting")<35) {print ipa" 20"$1" "$2" "$6" "$8};}' | awk '{print "[event] [stt] "$0}'
 fi
 
 echo "================================================================================"
@@ -184,9 +186,9 @@ echo " [ERRORS]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep -i "error " | awk -v ipa=$ipax '{print "[event] [error] "ipa" "$0}'
+	echo "$Piped" | egrep -i "error |\[error\]" | awk -v ipa=$ipax '{print "[event] [error] "ipa" "$0}'
 else
-	grep -i "error " $1 | awk -v ipa=$ipax '{print "[event] [error] "ipa" "$0}'
+	egrep -i "error |\[error\]" $1 | awk -v ipa=$ipax '{print "[event] [error] "ipa" "$0}'
 fi
 
 echo "================================================================================"
