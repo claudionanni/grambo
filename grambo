@@ -121,11 +121,26 @@ echo "  "
 echo " [SST JOINS/DONATIONS *ATTEMPTS*]"
 echo "  "
 if [ $ReadStdin -eq 1 ]; then
-	#echo "$Piped" | grep "Running: 'wsrep_sst" | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g"
-	echo "$Piped" | grep "Running: 'wsrep_sst" | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst] "$0}'
+	echo "$Piped" | grep "Running: 'wsrep_sst" | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join] "$0}'
 else
-	#grep "Running: 'wsrep_sst" $1 | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g"
-	grep "Running: 'wsrep_sst" $1 | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst] "$0}'
+	grep "Running: 'wsrep_sst" $1 | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join] "$0}'
+fi
+echo "  "
+echo "  "
+echo " [SST SUCCESSFULLY COMPLETED]"
+echo "  "
+if [ $ReadStdin -eq 1 ]; then
+	echo "$Piped" | grep "State transfer to " | grep "complete" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-success] "$0}'
+else
+	grep  "State transfer to " $1 | grep "complete" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-success] "$0}'
+fi
+echo "  "
+echo " [SST FAILED]"
+echo "  "
+if [ $ReadStdin -eq 1 ]; then
+	echo "$Piped" | grep "State transfer to " | grep "failed" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-fail] "$0}'
+else
+	grep  "State transfer to " $1 | grep "failed" |awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-fail] "$0}'
 fi
 echo "  "
 echo " [SST EVENTS] #### TRICKY -> Currently RC=( \${PIPESTATUS[@]} )  is cut (if present, or any other open parenthesis stuff before the timestamp) -- problem with ( as FS in awk"
