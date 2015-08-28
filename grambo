@@ -70,10 +70,11 @@ if [ $ReadStdin -eq 1 ]; then
 	echo "$Piped" | grep "connecting to group" | awk -F"connecting to group" '{print $2}' | awk '{print "[info] [galera] Peers: "$3}'
 # Version:
 	echo "$Piped" | grep "by Codership" | awk -F"by Codership" '{print $1}' | awk '{print "[info] [galera] Version: "$7}' |sort | uniq 
-	ip_address=$(echo "$Piped" | grep -i "base_host" | awk -F"base_host = " '{print $2}' | awk -F";" '{print $1}' | sort | uniq)
+# Host: NOTE! Taking the first ip address, MUST CHECK THIS
+	ip_address=$(echo "$Piped" | grep -i "base_host" | awk -F"base_host = " '{print $2}' | awk -F";" '{print $1}' | sort | uniq | awk '{print $1}' | head -1)
+	ipax=$ip_address
 # Host:
 	echo "$Piped" | grep -i "base_host" | awk -F"base_host = " '{print $2}' | awk -F";" '{print "[info] [galera] "$1}' | sort | uniq
-	ipax=$ip_address
 # Port:
 	echo "$Piped" | grep -i "base_port" | awk -F"base_port = " '{print $2}' | awk -F";" '{print "[info] [galera] Port: " $1}' | sort | uniq
 
@@ -89,8 +90,8 @@ else
 	grep "connecting to group" $1 | awk -F"connecting to group" '{print $2}' | awk '{print "[info] [galera] Peers: "$3}'
 # Version:
 	grep "by Codership" $1 | awk -F"by Codership" '{print $1}' | awk '{print "[info] [galera] Version: "$7}' |sort | uniq 
-# Host:
-	ip_address=$(grep -i "base_host" $1 | awk -F"base_host = " '{print $2}' | awk -F";" '{print $1}' | sort | uniq)
+# Host: NOTE! Taking the first ip address, MUST CHECK THIS
+	ip_address=$(grep -i "base_host" $1 | awk -F"base_host = " '{print $2}' | awk -F";" '{print $1}' | sort | uniq | awk '{print $1}' | head -1)
 	echo "[info] [galera] Address: $ip_address"
 	ipax=$ip_address
 # Port:
@@ -115,7 +116,18 @@ fi
 
 echo "================================================================================"
 echo "  "
-
+echo " [SST]"
+echo "  "
+echo " [SST JOINS/DONATIONS *ATTEMPTS*]"
+echo "  "
+if [ $ReadStdin -eq 1 ]; then
+	#echo "$Piped" | grep "Running: 'wsrep_sst" | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g"
+	echo "$Piped" | grep "Running: 'wsrep_sst" | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst] "$0}'
+else
+	#grep "Running: 'wsrep_sst" $1 | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g"
+	grep "Running: 'wsrep_sst" $1 | awk '{print $1"\t"$2" \t"$6"  \t"$8"  \t"$10}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst] "$0}'
+fi
+echo "  "
 echo " [SST EVENTS] #### TRICKY -> Currently RC=( \${PIPESTATUS[@]} )  is cut (if present, or any other open parenthesis stuff before the timestamp) -- problem with ( as FS in awk"
 echo "--------------------------------------------------------------------------------"
 
