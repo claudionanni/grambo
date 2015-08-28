@@ -15,3 +15,7 @@ cat <error log> | grambo  | grep "\[event\] \[stt\]"  | awk '{if (NR>1) printf $
 
 # Times this node was a donor for another node
 cat error.log-mariauth1 | grep wsrep_sst_xtrabackup | grep "role 'donor'" | awk -F"--address" '{print $2}' | awk -F"'" '{print $2}' | awk -F":" '{print "times acted as DONOR for: "$1}' | sort | uniq -c
+
+# SST requests bot as donor and as joiner(wsrep_sst_% script launching), and also failed or succeeded messages
+
+(grambo <error log>1; grambo <error log>2; grambo <error log>3)  | grep sst-join | sort -n -k4,5
