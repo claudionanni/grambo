@@ -4,6 +4,7 @@ Try to make sense of galera logs.
 Install:
 
 $ chmod +x grambo
+
 $ sudo cp grambo /usr/bin
 
 Use:
