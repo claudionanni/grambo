@@ -108,9 +108,9 @@ echo " [IST EVENTS]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | egrep -i " ist |incremental state transfer" | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
+	echo "$Piped" | egrep -i " ist |incremental state transfer" | awk -v ipa=$ipax '{print ipa" "$0}' | awk '{print "[event] [ist] "$0}' 
 else
-	egrep -i " ist |incremental state transfer" $1  | awk -v ipa=$ipax '{print ipa" 20"$0}' | awk '{print "[event] [ist] "$0}' 
+	egrep -i " ist |incremental state transfer" $1  | awk -v ipa=$ipax '{print ipa" "$0}' | awk '{print "[event] [ist] "$0}' 
 fi
 
 
@@ -130,35 +130,35 @@ echo "  "
 echo " [SST SUCCESSFULLY COMPLETED]"
 echo "  "
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep "State transfer to " | grep "complete" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-success] "$0}'
+	echo "$Piped" | grep "State transfer to " | grep "complete" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" "$0}'  | awk '{print "[event] [sst-join-success] "$0}'
 else
-	grep  "State transfer to " $1 | grep "complete" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-success] "$0}'
+	grep  "State transfer to " $1 | grep "complete" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" "$0}'  | awk '{print "[event] [sst-join-success] "$0}'
 fi
 echo "  "
 echo " [SST FAILED]"
 echo "  "
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep "State transfer to " | grep "failed" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-fail] "$0}'
+	echo "$Piped" | grep "State transfer to " | grep "failed" | awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" "$0}'  | awk '{print "[event] [sst-join-fail] "$0}'
 else
-	grep  "State transfer to " $1 | grep "failed" |awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" 20"$0}'  | awk '{print "[event] [sst-join-fail] "$0}'
+	grep  "State transfer to " $1 | grep "failed" |awk '{print $0}'|sed "s/'/ /g" | awk -v ipa=$ipax '{print ipa" "$0}'  | awk '{print "[event] [sst-join-fail] "$0}'
 fi
 echo "  "
 echo " [SST EVENTS] #### TRICKY -> Currently RC=( \${PIPESTATUS[@]} )  is cut (if present, or any other open parenthesis stuff before the timestamp) -- problem with ( as FS in awk"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	(echo "$Piped" | grep "^WSREP_SST" | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}'; echo "$Piped" | grep -i sst | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" 20"$0}') | sort  | awk '{print "[event] [sst] "$0}'
+	(echo "$Piped" | grep "^WSREP_SST" | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}'; echo "$Piped" | grep -i sst | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" "$0}') | sort  | awk '{print "[event] [sst] "$0}'
 else
-	(grep "^WSREP_SST" $1  | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' ;grep -i sst $1 | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" 20"$0}') | sort  | awk '{print "[event] [sst] "$0}'
+	(grep "^WSREP_SST" $1  | awk -F'(' '{print $NF" "$1}' | awk -v ipa=$ipax -F') ' '{print ipa" "$1" "$2}' ;grep -i sst $1 | grep -v ^WSREP_SST  | awk -v ipa=$ipax '{print ipa" "$0}') | sort  | awk '{print "[event] [sst] "$0}'
 fi
 
 echo "================================================================================"
 echo "  "
 
 echo " [POSSIBLE COMMUNICATION PROBLEMS]"
+echo "  "
+echo " [NODES SUSPECTED & EVENTUALLY DECLARED INACTIVE]"
 echo "--------------------------------------------------------------------------------"
-
-echo "--[Nodes suspected of partitioning]"
 
 if [ $ReadStdin -eq 1 ]; then
 
@@ -200,9 +200,9 @@ echo "--------------------------------------------------------------------------
 
 ### Why 35? Some Galera adds an extra column (process id?) so that the columns shift. (To improve counting the columns not the characters)
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax 'if(index($0,"Shifting")>35) {print ipa" 20"$1" "$2" "$7" "$9" KKK"}; if(index($0,"Shifting")<35) {print ipa" 20"$1" "$2" "$6" "$8" DDD"};' | awk '{print "[event] [stt] "$0}'
+	echo "$Piped" | grep -hi SHIFTING | awk -v ipa=$ipax '{if(index($0,"Shifting")>35) print ipa" "$1" "$2" "$7" "$9; if(index($0,"Shifting")<35) print ipa" 20"$1" "$2" "$6" "$8;}' | awk '{print "[event] [stt] "$0}'
 else
-	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{if(index($0,"Shifting")>35) {print ipa" 20"$1" "$2" "$7" "$9}; if(index($0,"Shifting")<35) {print ipa" 20"$1" "$2" "$6" "$8};}' | awk '{print "[event] [stt] "$0}'
+	grep -hi SHIFTING $1 | awk -v ipa=$ipax '{if(index($0,"Shifting")>35) print ipa" "$1" "$2" "$7" "$9; if(index($0,"Shifting")<35) print ipa" 20"$1" "$2" "$6" "$8;}' | awk '{print "[event] [stt] "$0}'
 fi
 
 echo "================================================================================"
@@ -216,9 +216,9 @@ echo " [CLUSTER VIEWS/STATUSES]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-        echo "$Piped" | grep -i "New cluster view" | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" ThisNodeIndex: "$20" ProtocolVersion: "$23 }' | awk '{print "[event] [clv] "$0}'
+        echo "$Piped" | grep -i "New cluster view" | awk -v ipa=$ipax '{print ipa" "$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$18" ThisNodeIndex: "$21" ProtocolVersion: "$24 }' | awk '{print "[event] [clv] "$0}'
 else
-        grep -i "New cluster view" $1 | awk -v ipa=$ipax '{print ipa" 20"$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$17" ThisNodeIndex: "$20" ProtocolVersion: "$23 }' | awk '{print "[event] [clv] "$0}'
+        grep -i "New cluster view" $1 | awk -v ipa=$ipax '{print ipa" "$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$18" ThisNodeIndex: "$21" ProtocolVersion: "$24 }' | awk '{print "[event] [clv] "$0}'
 fi
 
 echo "================================================================================"
@@ -228,9 +228,9 @@ echo " [WARNINGS]"
 echo "--------------------------------------------------------------------------------"
 
 if [ $ReadStdin -eq 1 ]; then
-	echo "$Piped" | grep -i warning | awk -v ipa=$ipax '{print "[event] [warning] "ipa" 20"$0}'
+	echo "$Piped" | grep -i warning | awk -v ipa=$ipax '{print "[event] [warning] "ipa" "$0}'
 else
-	grep -i warning $1 | awk -v ipa=$ipax '{print "[event] [warning] "ipa" 20"$0}'
+	grep -i warning $1 | awk -v ipa=$ipax '{print "[event] [warning] "ipa" "$0}'
 fi
 
 echo "================================================================================"
