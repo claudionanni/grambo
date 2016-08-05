@@ -164,13 +164,13 @@ if [ $ReadStdin -eq 1 ]; then
 
         {
 	  (echo "$Piped" | grep "suspecting node:" | awk '{print $1" "$2" "$11}') | sort | awk '{print "[event] [cmp_suspect] "$0}' ; \
-(echo "$Piped" | grep "marked with nil" n03-auth-enid-cims-cluster.mer.error.log | awk '{print $1" "$2" "$7" Declaring inactive"}') | sort | awk '{print "[event] [cmp_suspect_inactive] "$0}'
+(echo "$Piped" | grep "marked with nil" $1 | awk '{print $1" "$2" "$7" Declaring inactive"}') | sort | awk '{print "[event] [cmp_suspect_inactive] "$0}'
 	} | awk '{print "[event] [cmp_suspect] "$3" "$4" "$5" "$6" "$7}' | sort -n
 
 else
 	{
 	  (grep "suspecting node:" $1  | awk '{print $1" "$2" "$11}') | sort | awk '{print "[event] [cmp_suspect] "$0}'; \
-(grep "marked with nil" n03-auth-enid-cims-cluster.mer.error.log | awk '{print $1" "$2" "$7" Declaring inactive"}') | sort | awk '{print "[event] [cmp_suspect_inactive] "$0}'
+(grep "marked with nil" $1 | awk '{print $1" "$2" "$7" Declaring inactive"}') | sort | awk '{print "[event] [cmp_suspect_inactive] "$0}'
 	} | awk '{print "[event] [cmp_suspect] "$3" "$4" "$5" "$6" "$7}' | sort -n
 
 fi
