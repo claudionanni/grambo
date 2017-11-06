@@ -217,8 +217,10 @@ echo "--------------------------------------------------------------------------
 
 if [ $ReadStdin -eq 1 ]; then
         echo "$Piped" | grep -i "New cluster view" | awk -v ipa=$ipax '{print ipa" "$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$18" ThisNodeIndex: "$21" ProtocolVersion: "$24 }' | awk '{print "[event] [clv] "$0}'
+	echo "$Piped" | awk '/view\(view_id/{flag=1}/^})$/{print;flag=0}flag'  | awk -v ipa=$ipax '{print "[event] [clvgroup] "ipa" "$0}'
 else
         grep -i "New cluster view" $1 | awk -v ipa=$ipax '{print ipa" "$1" "$2" GlobalState: "$10" "$11" "$12" "$13" Nodes: "$18" ThisNodeIndex: "$21" ProtocolVersion: "$24 }' | awk '{print "[event] [clv] "$0}'
+	awk '/view\(view_id/{flag=1}/^})$/{print;flag=0}flag' $1 | awk -v ipa=$ipax '{print "[event] [clvgroup] "ipa" "$0}'
 fi
 
 echo "================================================================================"
