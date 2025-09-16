@@ -11,6 +11,10 @@ Grambo Python Edition provides a clean, organized analysis of Galera cluster log
 ### 🎯 **Organized Event Categories**
 - **📊 Server Information** - Version, socket, port, configuration
 - **🔗 Galera Cluster Info** - Node UUID, group UUID, cluster details
+  - Now with explicit labeling:
+    - Node Instance UUID (My UUID): full 36-char per-node identity
+    - Group UUID: short 8-4 view/cluster UUID with current seqno
+    - Local State: provider state UUID:seqno on this node
 - **🔄 State Transitions** - Node state changes (JOINED→SYNCED, etc.)
 - **👥 Cluster Views** - Membership changes, nodes joining/leaving
 - **💾 SST Events** - State Snapshot Transfer operations
@@ -100,6 +104,12 @@ python3 grambo.py --format=json --filter=cluster_view error.log
   Node UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
   Group UUID: 378cdc73-9236-11f0-a8d4-426872f4d003
   Group Name: my_wsrep_cluster
+🧭 GROUP STATE
+--------------------------------------------------
+  Group UUID: 378c0ec7-a3db (seqno: 22)
+  Local State: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d:1776
+  Node Instance UUID (My UUID): 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+
 
 🔄 STATE TRANSITIONS
 --------------------------------------------------

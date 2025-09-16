@@ -50,10 +50,21 @@ class Node:
 class Cluster:
     """Represents the entire Galera cluster state"""
     name: Optional[str] = None
-    uuid: Optional[str] = None
+    uuid: Optional[str] = None  # Deprecated: not used; prefer node/group/local fields below
+    # Group/view state (cluster-level)
+    group_uuid: Optional[str] = None
+    group_seqno: Optional[int] = None
+    # Local provider state on this node
+    local_state_uuid: Optional[str] = None
+    local_seqno: Optional[int] = None
+    # Node instance UUID ("My UUID") for this node
+    node_instance_uuid: Optional[str] = None
+    local_node_name: Optional[str] = None
     nodes: Dict[str, Node] = field(default_factory=dict)
     current_view: Optional['ClusterView'] = None
     views_history: List['ClusterView'] = field(default_factory=list)
+    # Group change timeline (old->new)
+    group_changes: List[Dict[str, Any]] = field(default_factory=list)
     
     def add_node(self, node: Node) -> None:
         """Add a node to the cluster"""
@@ -249,25 +260,30 @@ class GaleraLogAnalyzer:
             uuid = uuid_name_match.group(1)
             name = uuid_name_match.group(2)
             if name and not name.upper() in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'TRACE', 'NOTE']:
-                self.current_node_name = name
+                # Ensure the node exists with the given UUID/name
                 self._ensure_node_exists_with_uuid(name, uuid)
+                # If this UUID matches our local instance UUID, capture local node name
+                if self.cluster.node_instance_uuid and uuid == self.cluster.node_instance_uuid:
+                    self.cluster.local_node_name = name
+                # Do NOT set current_node_name from membership lines to avoid misattribution
                 return
         
         # Extract just node names from context (less reliable, don't update current_node_name)
         node_patterns = [
             r'members\(\d+\):\s*\d+:\s*[0-9a-f-]+,\s*([A-Za-z0-9_-]+)',  # member lines
         ]
-        
         for pattern in node_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
                 node_name = match.group(1)
                 # Filter out false positives and ensure it looks like a hostname
-                if (node_name and 
-                    not node_name.upper() in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'TRACE', 'NOTE'] and
-                    len(node_name) > 2 and
-                    not node_name.isdigit() and
-                    not node_name == 'tcp'):  # Exclude 'tcp' which appears in addresses
+                if (
+                    node_name
+                    and not node_name.upper() in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'TRACE', 'NOTE']
+                    and len(node_name) > 2
+                    and not node_name.isdigit()
+                    and node_name != 'tcp'  # Exclude 'tcp' which appears in addresses
+                ):
                     # Don't set current_node_name here, just ensure the node exists
                     self._ensure_node_exists(node_name)
                     break
@@ -313,6 +329,27 @@ class GaleraLogAnalyzer:
         if self.current_node_name:
             return self.cluster.get_node_by_name(self.current_node_name)
         return None
+
+    def _get_local_node(self) -> Optional[Node]:
+        """Resolve the local node (the owner of this log)."""
+        # Prefer by UUID if known
+        if self.cluster.node_instance_uuid:
+            node = self.cluster.get_node_by_uuid(self.cluster.node_instance_uuid)
+            if node:
+                # If we learned the local name later, keep nodes in sync
+                if self.cluster.local_node_name and node.name != self.cluster.local_node_name:
+                    node.name = self.cluster.local_node_name
+                return node
+            # Create a placeholder local node if not present yet
+            name = self.cluster.local_node_name or f"Local-{self.cluster.node_instance_uuid[:8]}"
+            node = Node(uuid=self.cluster.node_instance_uuid, name=name)
+            self.cluster.add_node(node)
+            return node
+        # Fallback: use local name if known
+        if self.cluster.local_node_name:
+            return self._ensure_node_exists(self.cluster.local_node_name)
+        # Last resort: use current node if set
+        return self._get_current_node()
     
     def _parse_cluster_view(self, line: str) -> bool:
         """Parse cluster view/membership changes"""
@@ -329,6 +366,12 @@ class GaleraLogAnalyzer:
                 status='primary' if status == 'prim' else 'non-primary',
                 timestamp=self.current_timestamp
             )
+            # Track group/view state at cluster level
+            self.cluster.group_uuid = view_uuid
+            try:
+                self.cluster.group_seqno = int(view_seq)
+            except Exception:
+                self.cluster.group_seqno = None
             
             # Store for member parsing that follows
             self.cluster.update_view(view)
@@ -382,43 +425,24 @@ class GaleraLogAnalyzer:
     
     def _parse_state_transition(self, line: str) -> bool:
         """Parse state transition events"""
-        # Look for explicit node state changes (these are cluster states like prim/non_prim)
+        # Cluster state lines like: "Node <group_uuid> state PRIM/NON_PRIM" are cluster-level, not node-level
         cluster_state_match = re.search(r'Node\s+([0-9a-f-]+)\s+state\s+(\w+)', line, re.IGNORECASE)
         if cluster_state_match:
-            node_uuid = cluster_state_match.group(1)
+            group_or_state_uuid = cluster_state_match.group(1)
             cluster_state = cluster_state_match.group(2)  # prim, non_prim
-            
-            # Try to find existing node by UUID (handles short UUID matching)
-            node = self.cluster.get_node_by_uuid(node_uuid)
-            if not node:
-                # Check if this is a short UUID that should not create a new node
-                # Short UUIDs like "378c0ec7-a3db" should not create separate nodes
-                if len(node_uuid) < 36:
-                    # Don't create nodes for short UUIDs, they should match existing ones
-                    return False
-                    
-                # Create node with full UUID only
-                temp_name = f"Node-{node_uuid[:8]}"
-                node = Node(uuid=node_uuid, name=temp_name)
-                self.cluster.add_node(node)
-            
+            # Do not create/alter nodes here; record as server info event and update group/local as appropriate
             if self.current_timestamp:
-                transition = StateTransition(
-                    node=node,
-                    from_state="unknown",
-                    to_state=cluster_state,
-                    timestamp=self.current_timestamp,
-                    reason="Cluster state transition"
-                )
-                
-                self.health_metrics.total_state_transitions += 1
-                
+                # Heuristic: treat the UUID here as group/state UUID
+                self.cluster.group_uuid = group_or_state_uuid
                 event = LogEvent(
-                    event_type=EventType.STATE_TRANSITION,
+                    event_type=EventType.SERVER_INFO,
                     timestamp=self.current_timestamp,
                     raw_message=line.strip(),
-                    state_transition=transition,
-                    node=node
+                    metadata={
+                        'subtype': 'cluster_state',
+                        'group_or_state_uuid': group_or_state_uuid,
+                        'state': cluster_state
+                    }
                 )
                 self.events.append(event)
                 return True
@@ -427,7 +451,8 @@ class GaleraLogAnalyzer:
         # "Shifting SYNCED -> DONOR/DESYNCED (TO: 1625)"
         shifting_match = re.search(r'Shifting\s+([A-Z/]+)\s*->\s*([A-Z/]+)\s*\(TO:\s*(\d+)\)', line, re.IGNORECASE)
         if shifting_match:
-            current_node = self._get_current_node()
+            # WSREP shifting transitions are local-node events; attribute to local node
+            current_node = self._get_local_node()
             if current_node and self.current_timestamp:
                 from_state = shifting_match.group(1)
                 to_state = shifting_match.group(2)
@@ -466,7 +491,8 @@ class GaleraLogAnalyzer:
         for pattern in other_wsrep_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
-                current_node = self._get_current_node()
+                # Treat WSREP state changes as local unless explicitly qualified otherwise
+                current_node = self._get_local_node()
                 if current_node and self.current_timestamp:
                     from_state = match.group(1)
                     to_state = match.group(2)
@@ -730,6 +756,160 @@ class GaleraLogAnalyzer:
     
     def _parse_server_info(self, line: str) -> bool:
         """Parse server information"""
+        # Process first view: <group_uuid> my uuid: <node_uuid>
+        first_view_match = re.search(r'Process\s+first\s+view:\s+([0-9a-f-]+)\s+my\s+uuid:\s+([0-9a-f-]+)', line, re.IGNORECASE)
+        if first_view_match and self.current_timestamp:
+            group_uuid = first_view_match.group(1)
+            node_uuid = first_view_match.group(2)
+            self.cluster.group_uuid = group_uuid
+            self.cluster.node_instance_uuid = node_uuid
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'first_view', 'group_uuid': group_uuid, 'node_uuid': node_uuid}
+            )
+            self.events.append(event)
+            return True
+
+        # Process group change: old -> new
+        group_change_match = re.search(r'Process\s+group\s+change:\s+([0-9a-f-]+)\s*->\s*([0-9a-f-]+)', line, re.IGNORECASE)
+        if group_change_match and self.current_timestamp:
+            old_uuid = group_change_match.group(1)
+            new_uuid = group_change_match.group(2)
+            self.cluster.group_uuid = new_uuid
+            self.cluster.group_changes.append({
+                'timestamp': self.current_timestamp,
+                'from': old_uuid,
+                'to': new_uuid
+            })
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'group_change', 'from': old_uuid, 'to': new_uuid}
+            )
+            self.events.append(event)
+            return True
+
+        # State transfer required: parse Group state and Local state lines
+        group_state_line = re.search(r'Group\s+state:\s+([0-9a-f-]+):(\-?\d+)', line, re.IGNORECASE)
+        if group_state_line and self.current_timestamp:
+            self.cluster.group_uuid = group_state_line.group(1)
+            try:
+                self.cluster.group_seqno = int(group_state_line.group(2))
+            except Exception:
+                self.cluster.group_seqno = None
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'st_group_state', 'group_uuid': self.cluster.group_uuid, 'group_seqno': self.cluster.group_seqno}
+            )
+            self.events.append(event)
+            return True
+
+        local_state_line = re.search(r'Local\s+state:\s+([0-9a-f-]+):(\-?\d+)', line, re.IGNORECASE)
+        if local_state_line and self.current_timestamp:
+            self.cluster.local_state_uuid = local_state_line.group(1)
+            try:
+                self.cluster.local_seqno = int(local_state_line.group(2))
+            except Exception:
+                self.cluster.local_seqno = None
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'st_local_state', 'local_state_uuid': self.cluster.local_state_uuid, 'local_seqno': self.cluster.local_seqno}
+            )
+            self.events.append(event)
+            return True
+
+        # Provider paused/resume lines
+        provider_paused = re.search(r'Provider\s+paused\s+at\s+([0-9a-f-]+):(\-?\d+)', line, re.IGNORECASE)
+        if provider_paused and self.current_timestamp:
+            self.cluster.local_state_uuid = provider_paused.group(1)
+            try:
+                self.cluster.local_seqno = int(provider_paused.group(2))
+            except Exception:
+                self.cluster.local_seqno = None
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'provider_paused', 'uuid': self.cluster.local_state_uuid, 'seqno': self.cluster.local_seqno}
+            )
+            self.events.append(event)
+            return True
+
+        provider_resuming = re.search(r'resuming\s+provider\s+at\s+(\-?\d+)', line, re.IGNORECASE)
+        if provider_resuming and self.current_timestamp:
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'provider_resuming', 'seqno': int(provider_resuming.group(1))}
+            )
+            self.events.append(event)
+            return True
+
+        provider_resumed = re.search(r'Provider\s+resumed\.', line, re.IGNORECASE)
+        if provider_resumed and self.current_timestamp:
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'provider_resumed'}
+            )
+            self.events.append(event)
+            return True
+
+        # CC processing logs
+        processing_cc = re.search(r'#######\s+processing\s+CC\s+(\d+).*(ordered|unordered)', line, re.IGNORECASE)
+        if processing_cc and self.current_timestamp:
+            cc_seq = int(processing_cc.group(1))
+            order = processing_cc.group(2).lower()
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'processing_cc', 'seqno': cc_seq, 'order': order}
+            )
+            self.events.append(event)
+            return True
+
+        skipping_cc = re.search(r'#######\s+skipping\s+local\s+CC\s+(\d+),\s+keep\s+in\s+cache:\s+(true|false)', line, re.IGNORECASE)
+        if skipping_cc and self.current_timestamp:
+            cc_seq = int(skipping_cc.group(1))
+            keep = skipping_cc.group(2).lower() == 'true'
+            event = LogEvent(
+                event_type=EventType.SERVER_INFO,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'skipping_cc', 'seqno': cc_seq, 'keep': keep}
+            )
+            self.events.append(event)
+            return True
+
+        # Identity mismatch fatal
+        identity_mismatch = re.search(r'Node\s+UUID\s+([0-9a-f-]+)\s+is\s+absent\s+from\s+the\s+view', line, re.IGNORECASE)
+        if identity_mismatch and self.current_timestamp:
+            missing_uuid = identity_mismatch.group(1)
+            event = LogEvent(
+                event_type=EventType.ERROR,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                metadata={'subtype': 'identity_mismatch', 'node_uuid': missing_uuid}
+            )
+            self.events.append(event)
+            self.health_metrics.errors += 1
+            return True
+
+        # "####### My UUID: <uuid>"
+        my_uuid_line = re.search(r'My\s+UUID:\s+([0-9a-f-]{36})', line, re.IGNORECASE)
+        if my_uuid_line:
+            self.cluster.node_instance_uuid = my_uuid_line.group(1)
+            return True
         # STATE_EXCHANGE messages with state transaction UUIDs
         state_exchange_match = re.search(r'STATE_EXCHANGE:\s+(sent|got)\s+state\s+(UUID|msg):\s+([0-9a-f-]+)', line, re.IGNORECASE)
         if state_exchange_match:
@@ -773,6 +953,11 @@ class GaleraLogAnalyzer:
             # Update node status
             node = self._ensure_node_exists(node_name)
             node.status = 'SYNCED'
+            # If this server name matches our local node, record it
+            if node_name and (self.cluster.local_node_name is None):
+                # Prefer to set local node name only if we already know My UUID
+                if self.cluster.node_instance_uuid:
+                    self.cluster.local_node_name = node_name
             
             if self.current_timestamp:
                 event = LogEvent(
@@ -835,7 +1020,13 @@ class GaleraLogAnalyzer:
                 "total_nodes": self.cluster.node_count,
                 "active_nodes": len(self.cluster.active_nodes),
                 "current_view": asdict(self.cluster.current_view) if self.cluster.current_view else None,
-                "total_views": len(self.cluster.views_history)
+                "total_views": len(self.cluster.views_history),
+                "group_uuid": self.cluster.group_uuid,
+                "group_seqno": self.cluster.group_seqno,
+                "local_state_uuid": self.cluster.local_state_uuid,
+                "local_seqno": self.cluster.local_seqno,
+                "node_instance_uuid": self.cluster.node_instance_uuid,
+                "group_changes": self.cluster.group_changes[-5:]  # recent
             },
             "nodes": {node.name: asdict(node) for node in self.cluster.nodes.values()},
             "health_metrics": asdict(self.health_metrics),
@@ -877,6 +1068,25 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     lines.append(f"Active Nodes: {cluster_info['active_nodes']}")
     lines.append(f"Total View Changes: {cluster_info['total_views']}")
     
+    # Group/Local State section
+    lines.append("\n🧭 GROUP STATE")
+    lines.append("-" * 50)
+    if cluster_info.get('group_uuid'):
+        gseq = cluster_info.get('group_seqno')
+        gseq_str = str(gseq) if gseq is not None else "?"
+        lines.append(f"Group UUID: {cluster_info['group_uuid']} (seqno: {gseq_str})")
+    if cluster_info.get('local_state_uuid') or cluster_info.get('local_seqno') is not None:
+        lseq = cluster_info.get('local_seqno')
+        lseq_str = str(lseq) if lseq is not None else "?"
+        luuid = cluster_info.get('local_state_uuid') or 'unknown'
+        lines.append(f"Local State: {luuid}:{lseq_str}")
+    if cluster_info.get('node_instance_uuid'):
+        lines.append(f"Node Instance UUID (My UUID): {cluster_info['node_instance_uuid']}")
+    if cluster_info.get('group_changes'):
+        lines.append("Recent Group Changes:")
+        for gc in cluster_info['group_changes']:
+            lines.append(f"  {gc['timestamp']}: {gc['from']} -> {gc['to']}")
+
     # Current cluster view - fix the view ID display
     if cluster_info['current_view']:
         view = cluster_info['current_view']
