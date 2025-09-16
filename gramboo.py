@@ -806,7 +806,7 @@ class GaleraLogAnalyzer:
     def _parse_cluster_view(self, line: str) -> bool:
         """Parse cluster view/membership changes"""
         # Look for view definitions with detailed membership
-        view_match = re.search(r'view\(view_id\((\w+),([^,]+),(\d+)\)', line)
+        view_match = re.search(r'view\(view_id\((\w+),\s*([^,]+),\s*(\d+)\)', line)
         if view_match and self.current_timestamp:
             status = view_match.group(1).lower()  # PRIM or NON_PRIM
             view_uuid = view_match.group(2)
@@ -2874,62 +2874,88 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     lines.append(f"Warnings: {metrics['warnings']}")
     lines.append(f"Errors: {metrics['errors']}")
     
-    # Node Details - only show real nodes and display full UUIDs
+    # Node Details - show only physical nodes with a single consolidated entry
     lines.append("\n🖥️  CLUSTER NODES (UUID changes upon restart, see section below)")
     lines.append("-" * 50)
-    real_nodes = {name: info for name, info in summary["nodes"].items() 
-                  if not name.isdigit() and len(name) > 2 and 
-                  name not in ['Note', 'INFO', 'WARN', 'ERROR', 'tcp', 'offset'] and
-                  not name.startswith('Node-') and
-                  not name.startswith('node_')}  # Also filter generated node names
-    
-    if real_nodes:
-        for node_name, node_info in real_nodes.items():
-            display_name = 'N/A' if node_name.startswith('Temp-') else node_name
-            uuid = node_info.get('uuid', 'N/A')
-            addr = node_info.get('address') or 'ip:unknown'
-            lines.append(f"• {display_name} (UUID: {uuid}) [{addr}]")
-    
-    # Show additional UUID-only nodes only if they have meaningful information  
-    uuid_nodes = {name: info for name, info in summary["nodes"].items()
-                  if (name.startswith('Node-') or (len(name) > 10 and '-' in name and name.count('-') >= 2)) and
-                  name not in real_nodes and
-                  len(name) >= 36}  # Only show full UUIDs, not short ones
-    
-    if uuid_nodes:
-        lines.append("\n   Additional Node UUIDs:")
-        for node_name, node_info in uuid_nodes.items():
-            status = node_info.get('status', 'Unknown')
-            uuid = node_info.get('uuid', 'N/A')
-            if uuid != node_name:  # Don't repeat if UUID is the name
-                lines.append(f"   • UUID {uuid}: {status}")
-    
-    if not real_nodes and not uuid_nodes:
+    # Build mapping physical_name -> list of node objects
+    phys_map: Dict[str, List[Node]] = {}
+    for n in analyzer.cluster.nodes.values():
+        if not n.name or n.name in ['offset']:
+            continue
+        # Treat these as transient / restart-scoped identities; skip for primary list
+        transient = (
+            n.name.startswith('Temp-') or n.name.startswith('Node-') or
+            n.name.startswith('node_') or n.name.startswith('Local-')
+        )
+        if transient:
+            continue
+        phys_map.setdefault(n.name, []).append(n)
+
+    # Helper to choose a deterministic final UUID: pick the last chronological full UUID across histories
+    def pick_final_uuid(nodes: List[Node]) -> Optional[str]:
+        # Collect (uuid, first_seen_index) preserving order of appearance inferred from history order
+        ordered: List[str] = []
+        for nd in nodes:
+            # Build combined sequence: historical then current, maintaining original order
+            seq = []
+            if nd.uuid_history:
+                seq.extend(nd.uuid_history)
+            if nd.uuid and nd.uuid not in seq:
+                seq.append(nd.uuid)
+            for u in seq:
+                if not u or u in ordered:
+                    continue
+                if u.count('-') == 4 and len(u) >= 36:
+                    ordered.append(u)
+        if not ordered:
+            return None
+        return ordered[-1]  # Last observed full UUID
+
+    if phys_map:
+        for pname, plist in phys_map.items():
+            final_uuid = pick_final_uuid(plist)
+            addr = None
+            # Prefer a non-placeholder address if available
+            for cand in plist:
+                if cand.address and cand.address != 'ip:unknown':
+                    addr = cand.address
+            addr = addr or 'ip:unknown'
+            if final_uuid:
+                lines.append(f"• {pname} (UUID: {final_uuid}) [{addr}]")
+            else:
+                lines.append(f"• {pname} (UUID: <not deterministically inferred>) [{addr}]")
+    else:
         lines.append("• No distinct cluster nodes identified")
 
-    # Move UUID History section directly below CLUSTER NODES
+    # UUID history section directly below
     lines.append("\n🗂️  CLUSTER NODES UUID HISTORY")
     lines.append("-" * 50)
-    for node in analyzer.cluster.nodes.values():
-        if node.name.startswith('Temp-'):
+    for pname, plist in phys_map.items():
+        # Gather ordered unique full UUIDs
+        ordered_full: List[str] = []
+        for nd in plist:
+            seq = []
+            if nd.uuid_history:
+                seq.extend(nd.uuid_history)
+            if nd.uuid and nd.uuid not in seq:
+                seq.append(nd.uuid)
+            for u in seq:
+                if u and u.count('-') == 4 and len(u) >= 36 and u not in ordered_full:
+                    ordered_full.append(u)
+        if not ordered_full:
+            lines.append(f"• {pname} UUIDs <not deterministically inferred>")
             continue
-        if node.name == 'offset':
-            continue
-        patterns = []
-        for fu in node.uuid_history:
-            if fu.count('-') == 4:
-                parts = fu.split('-')
-                patterns.append(f"{parts[0]}-{parts[3][:4]}")
-            else:
-                patterns.append(fu[:8])
-        seen = set()
-        uniq = []
-        for p in patterns:
-            if p not in seen:
-                seen.add(p)
-                uniq.append(p)
-        if uniq:
-            lines.append(f"• {node.name} UUIDs {' '.join(uniq)}")
+        # Build compact representations
+        seen_short = set()
+        compacts: List[str] = []
+        for fu in ordered_full:
+            parts = fu.split('-')
+            short = f"{parts[0]}-{parts[3][:4]}"
+            if short in seen_short:
+                continue
+            seen_short.add(short)
+            compacts.append(short)
+        lines.append(f"• {pname} UUIDs {', '.join(compacts)}")
     
     # Node State Transition Timelines
     wsrep_transitions = [t for t in analyzer.get_state_transitions() 
