@@ -210,13 +210,36 @@ class ClusterHealthMetrics:
 class GaleraLogAnalyzer:
     """Galera log analyzer that maintains full cluster state"""
     
-    def __init__(self):
+    def __init__(self, dialect: str = 'auto', report_unknown: bool = False,
+                 mariadb_version: Optional[str] = None,
+                 mariadb_edition: Optional[str] = None,
+                 galera_version: Optional[str] = None):
         self.cluster = Cluster()
         self.events: List[LogEvent] = []
         self.health_metrics = ClusterHealthMetrics()
         self.current_node_name: Optional[str] = None
         self.current_timestamp: Optional[str] = None
         self.line_number = 0
+        self.dialect = dialect  # 'auto' | 'galera-26' | 'mariadb-10' | 'pxc-8' | 'unknown'
+        self.report_unknown = report_unknown
+        self._unknown_lines: List[str] = []
+        # Software/version info discovered while parsing
+        self.software: Dict[str, Optional[str]] = {
+            'mariadb_version': None,          # e.g., 10.6.16 or 11.4.7-4
+            'mariadb_edition': None,          # 'enterprise' | 'community'
+            'wsrep_provider_version': None,   # e.g., 26.4.23
+            'wsrep_provider_path': None,      # full path to libgalera*.so if observed
+            'galera_variant': None,           # 'enterprise' | 'community'
+            'galera_vendor': None,            # e.g., 'Codership Oy'
+            'galera_version_inferred': None,  # bool-like flag as string 'true' when inferred
+        }
+        # Apply CLI overrides if provided
+        if mariadb_version:
+            self.software['mariadb_version'] = mariadb_version
+        if mariadb_edition:
+            self.software['mariadb_edition'] = mariadb_edition
+        if galera_version:
+            self.software['wsrep_provider_version'] = galera_version
         # Precompiled IST-related patterns (from ist.cpp)
         self._ist_patterns = {
             'recv_addr': re.compile(r'IST\s+receiver\s+addr\s+using\s+(\S+)', re.IGNORECASE),
@@ -234,19 +257,60 @@ class GaleraLogAnalyzer:
             'async_failed': re.compile(r'async\s+IST\s+sender\s+failed\s+to\s+serve\s+(\S+):\s+(.+)', re.IGNORECASE),
             'async_served': re.compile(r'async\s+IST\s+sender\s+served', re.IGNORECASE),
         }
+
+    def infer_galera_from_mariadb(self) -> None:
+        """Infer Galera provider version and variant from MariaDB version/edition when missing.
+        This uses a simple heuristic map keyed by MariaDB major.minor series.
+        """
+        mver = self.software.get('mariadb_version') or ''
+        if mver and not self.software.get('wsrep_provider_version'):
+            m = re.match(r'^(\d+\.(?:\d+))', mver)
+            series = m.group(1) if m else None
+            default_map = {
+                # Heuristic defaults; can be extended with more series
+                '10.6': '26.4.22',
+                '11.4': '26.4.23',
+            }
+            if series and series in default_map:
+                self.software['wsrep_provider_version'] = default_map[series]
+                self.software['galera_version_inferred'] = 'true'
+    # Infer Galera variant (enterprise/community) from MariaDB edition if missing
+        if not self.software.get('galera_variant') and self.software.get('mariadb_edition'):
+            self.software['galera_variant'] = self.software['mariadb_edition']
         
     def parse_log(self, log_lines: List[str]) -> None:
         """Parse log lines and build complete cluster state"""
+        # Auto-detect dialect from the first ~200 lines if needed
+        if self.dialect == 'auto':
+            self.dialect = self._detect_dialect(log_lines[:200])
         for line in log_lines:
             self.line_number += 1
             self._parse_line(line)
+
+    def _detect_dialect(self, lines: List[str]) -> str:
+        text = "\n".join(lines)
+        # Simple heuristics; extend as needed
+        if re.search(r'PXC|Percona XtraDB Cluster', text, re.IGNORECASE):
+            return 'pxc-8'
+        if re.search(r'Galera\s+26\.', text, re.IGNORECASE):
+            return 'galera-26'
+        if re.search(r'Maria(DB)?\s+10\.', text, re.IGNORECASE):
+            return 'mariadb-10'
+        if re.search(r'WSREP', text):
+            return 'galera'
+        return 'unknown'
     
     def _parse_line(self, line: str) -> None:
         """Parse a single log line and extract all relevant information"""
         # Extract timestamp
-        timestamp_match = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
-        if timestamp_match:
-            self.current_timestamp = timestamp_match.group(1)
+        # Support single or double digit hour and flexible spacing, normalize to HH:MM:SS
+        ts_match = re.search(r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
+        if ts_match:
+            date_part = ts_match.group(1)
+            hour = int(ts_match.group(2))
+            minute = ts_match.group(3)
+            second = ts_match.group(4)
+            self.current_timestamp = f"{date_part} {hour:02d}:{minute}:{second}"
         
         # Extract and track node information
         self._extract_node_info(line)
@@ -645,7 +709,29 @@ class GaleraLogAnalyzer:
                 self.events.append(event)
                 return True
         
-        # Pattern 2: SST Started on donor
+        # Pattern 2a: Initiating SST/IST transfer with address (donor/joiner side)
+        init_match = re.search(
+            r"Initiating\s+SST/IST\s+transfer\s+on\s+(DONOR|JOINER)\s+side\s*\((wsrep_sst_[a-z0-9_]+)\s+.*?--role\s+'(donor|joiner)'.*?--address\s+'([^']+)'",
+            line, re.IGNORECASE
+        )
+        if init_match and self.current_timestamp:
+            side = init_match.group(1).lower()
+            tool = init_match.group(2)
+            role = init_match.group(3).lower()
+            address = init_match.group(4)
+            method = tool.replace('wsrep_sst_', '')
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_initiated', 'role': role, 'side': side, 'method': method, 'address': address}
+            )
+            self.events.append(event)
+            return True
+
+        # Pattern 2b: SST Started on donor/joiner (WSREP_SST helper)
         # "WSREP_SST: [INFO] mariabackup SST started on donor (20250915 13:45:56.276)"
         started_match = re.search(
             r'WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+started\s+on\s+(donor|joiner)\s+\(([^)]+)\)',
@@ -676,6 +762,74 @@ class GaleraLogAnalyzer:
                 )
                 self.events.append(event)
                 return True
+
+        # Pattern 2c: SST Completed on donor/joiner
+        completed_match = re.search(
+            r"WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+completed\s+on\s+(donor|joiner)\s+\(([^)]+)\)",
+            line, re.IGNORECASE
+        )
+        if completed_match and self.current_timestamp:
+            method = completed_match.group(1)
+            role = completed_match.group(2)
+            sst_timestamp = completed_match.group(3)
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_completed', 'method': method, 'role': role, 'sst_timestamp': sst_timestamp, 'status': 'completed'}
+            )
+            self.events.append(event)
+            return True
+
+        # Pattern 2d: Provider notice of state transfer complete (to/from)
+        complete_notice = re.search(r"State\s+transfer\s+(to|from)\s+(\d+\.\d+)\s+\(([^)]+)\)\s+complete\.", line, re.IGNORECASE)
+        if complete_notice and self.current_timestamp:
+            direction = complete_notice.group(1).lower()
+            peer_id = complete_notice.group(2)
+            peer_name = complete_notice.group(3)
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_complete_notice', 'direction': direction, 'peer_id': peer_id, 'peer_name': peer_name}
+            )
+            self.events.append(event)
+            return True
+
+        # Pattern 2e: Streaming the backup to joiner at <addr>
+        stream_addr = re.search(r"WSREP_SST:\s+\[INFO\]\s+Streaming\s+the\s+backup\s+to\s+joiner\s+at\s+(\S+)", line, re.IGNORECASE)
+        if stream_addr and self.current_timestamp:
+            addr = stream_addr.group(1)
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_stream_addr', 'joiner_addr': addr}
+            )
+            self.events.append(event)
+            return True
+
+        # Pattern 2f: SST sent uuid:seqno
+        sst_sent = re.search(r"SST\s+sent:\s+([0-9a-f-]+):(\-?\d+)", line, re.IGNORECASE)
+        if sst_sent and self.current_timestamp:
+            uuid = sst_sent.group(1)
+            seqno = int(sst_sent.group(2))
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_sent', 'uuid': uuid, 'seqno': seqno}
+            )
+            self.events.append(event)
+            return True
         
         # Pattern 3: SST Failures
         # "SST sending failed: -32"
@@ -724,7 +878,37 @@ class GaleraLogAnalyzer:
                 
             return True
         
-        # Pattern 5: General SST status events
+        # Pattern 5a: Total time on donor
+        total_time = re.search(r"WSREP_SST:\s+\[INFO\]\s+Total\s+time\s+on\s+donor:\s+(\d+)\s+seconds", line, re.IGNORECASE)
+        if total_time and self.current_timestamp:
+            secs = int(total_time.group(1))
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_total_time', 'seconds': secs}
+            )
+            self.events.append(event)
+            return True
+
+        # Pattern 5b: Donor monitor total time
+        donor_mon = re.search(r"Donor\s+monitor\s+thread\s+ended\s+with\s+total\s+time\s+(\d+)\s+sec", line, re.IGNORECASE)
+        if donor_mon and self.current_timestamp:
+            secs = int(donor_mon.group(1))
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'donor_monitor_time', 'seconds': secs}
+            )
+            self.events.append(event)
+            return True
+
+        # Pattern 5c: General SST status events
         # "SST completed" or other SST status messages
         status_patterns = [
             (r'SST\s+(completed|success)', 'completed'),
@@ -946,10 +1130,37 @@ class GaleraLogAnalyzer:
                 metadata={'subtype': 'ist_generic'}
             ))
             return True
+        # Track unknown WSREP/IST mentions if reporting enabled
+        if self.report_unknown and re.search(r'WSREP|IST', line, re.IGNORECASE):
+            self._unknown_lines.append(line.strip())
         return False
     
     def _parse_communication_issue(self, line: str) -> bool:
         """Parse communication and network issues"""
+        # Structured: Aborted connection (client info)
+        m = re.search(r"Aborted\s+connection\s+(\d+)\s+to\s+db:\s+'([^']*)'\s+user:\s+'([^']*)'\s+host:\s+'([^']*)'", line, re.IGNORECASE)
+        if m and self.current_timestamp:
+            conn_id = int(m.group(1))
+            db = m.group(2) or ''
+            user = m.group(3) or ''
+            host = m.group(4) or ''
+            self.health_metrics.communication_issues += 1
+            event = LogEvent(
+                event_type=EventType.COMMUNICATION_ISSUE,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_current_node(),
+                metadata={
+                    'subtype': 'aborted_connection',
+                    'connection_id': conn_id,
+                    'db': db,
+                    'user': user,
+                    'host': host
+                }
+            )
+            self.events.append(event)
+            return True
+
         comm_patterns = [
             r'(timeout|failed to connect|connection.*lost|network.*error)',
             r'(gcomm|Protocol.*failed|handshake.*failed)',
@@ -975,7 +1186,6 @@ class GaleraLogAnalyzer:
         if re.search(r'\b(ERROR|FATAL)\b', line, re.IGNORECASE):
             if self.current_timestamp:
                 self.health_metrics.errors += 1
-                
                 event = LogEvent(
                     event_type=EventType.ERROR,
                     timestamp=self.current_timestamp,
@@ -991,7 +1201,6 @@ class GaleraLogAnalyzer:
         if re.search(r'\b(WARN|WARNING)\b', line, re.IGNORECASE):
             if self.current_timestamp:
                 self.health_metrics.warnings += 1
-                
                 event = LogEvent(
                     event_type=EventType.WARNING,
                     timestamp=self.current_timestamp,
@@ -1004,6 +1213,68 @@ class GaleraLogAnalyzer:
     
     def _parse_server_info(self, line: str) -> bool:
         """Parse server information"""
+        # Capture MariaDB version from common patterns
+        ver1 = re.search(r'Server\s+version:\s*([^\s]+)', line, re.IGNORECASE)
+        if ver1:
+            raw = ver1.group(1)
+            # Extract numeric prefix if present (e.g., 10.6.16-MariaDB-... -> 10.6.16)
+            m = re.match(r'([0-9]+(?:\.[0-9]+){1,3})', raw)
+            if m and not self.software.get('mariadb_version'):
+                self.software['mariadb_version'] = m.group(1)
+            if 'mariadb' in raw.lower() and not self.software.get('mariadb_edition'):
+                # assume community unless other evidence of enterprise appears
+                self.software['mariadb_edition'] = self.software['mariadb_edition'] or 'community'
+            # fallthrough to continue parsing other info on same line
+
+        ver2 = re.search(r"Version:\s*'([^']+)'", line, re.IGNORECASE)
+        if ver2:
+            raw = ver2.group(1)
+            m = re.match(r'([0-9]+(?:\.[0-9]+){1,3})', raw)
+            if m and not self.software.get('mariadb_version'):
+                self.software['mariadb_version'] = m.group(1)
+            if 'mariadb-enterprise' in raw.lower():
+                self.software['mariadb_edition'] = 'enterprise'
+            elif 'mariadb' in raw.lower() and not self.software.get('mariadb_edition'):
+                self.software['mariadb_edition'] = 'community'
+
+        # MariaDB Enterprise path hints (from SST helper lines or mysqld args)
+        ent_path = re.search(r'mariadb-enterprise-([0-9][0-9\.-]+)', line, re.IGNORECASE)
+        if ent_path:
+            if not self.software.get('mariadb_version'):
+                ver = ent_path.group(1).rstrip('-.')
+                self.software['mariadb_version'] = ver
+            self.software['mariadb_edition'] = 'enterprise'
+
+        # wsrep provider path (detect enterprise/community variant)
+        prov_path = re.search(r"(--wsrep_provider=|wsrep_provider=)('?)([^\s']+libgalera[^\s']*?\.so)\2", line)
+        if prov_path:
+            self.software['wsrep_provider_path'] = prov_path.group(3)
+            if 'enterprise' in prov_path.group(3).lower():
+                self.software['galera_variant'] = 'enterprise'
+            else:
+                self.software['galera_variant'] = self.software['galera_variant'] or 'community'
+
+        # wsrep provider version (typical Galera provider banner)
+        prov_ver = re.search(r'WSREP:\s+Provider:\s+Galera\s+([0-9][0-9\.]+)', line)
+        if prov_ver and not self.software.get('wsrep_provider_version'):
+            self.software['wsrep_provider_version'] = prov_ver.group(1)
+
+        # Alternative generic version hint (fallback)
+        if not self.software.get('wsrep_provider_version'):
+            m = re.search(r'wsrep[_\s-]*provider[_\s-]*version[^0-9]*([0-9]+(?:\.[0-9]+)+)', line, re.IGNORECASE)
+            if m:
+                self.software['wsrep_provider_version'] = m.group(1)
+
+        # wsrep_load() provider banner with vendor
+        # Example: wsrep_load(): Galera 26.4.22-1(rb31b549) by Codership Oy
+        m = re.search(r'wsrep_load\(\):\s*Galera\s+([0-9][\w\.-]+)(?:\([^)]*\))?\s+by\s+([^\r\n]+)', line, re.IGNORECASE)
+        if m:
+            self.software['wsrep_provider_version'] = self.software.get('wsrep_provider_version') or m.group(1)
+            vendor = m.group(2).strip()
+            # Clean trailing punctuation
+            vendor = vendor.rstrip('. ')
+            self.software['galera_vendor'] = vendor
+
         # Process first view: <group_uuid> my uuid: <node_uuid>
         first_view_match = re.search(r'Process\s+first\s+view:\s+([0-9a-f-]+)\s+my\s+uuid:\s+([0-9a-f-]+)', line, re.IGNORECASE)
         if first_view_match and self.current_timestamp:
@@ -1417,18 +1688,26 @@ class GaleraLogAnalyzer:
             sst_requests = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_requested']
             sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_started']
             sst_failures = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_failed']
+            sst_completed = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_completed']
             # IST indicators
             ist_sender_nothing = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_sender_nothing']
             ist_send_failed = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_send_failed']
             ist_async_start = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'async_ist_start']
             ist_completed = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_completed']
+            ist_async_served = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'async_ist_served']
+            ist_recv_prepared = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_receiver_prepared']
 
             # Simple time-based correlation: for each SST request (implies IST was not possible or insufficient),
             # collect surrounding IST failures before it, SST start/failure after, and IST async after SST.
             def ts_to_dt(ts: str) -> datetime:
                 return datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
 
-            for req in sst_requests[-10:]:  # inspect recent ones
+            # Work through requests chronologically and assign IST events once
+            sst_requests_sorted = sorted(sst_requests[-10:], key=lambda e: ts_to_dt(e.timestamp))
+            used_async_ids: Set[int] = set()
+            used_completed_ids: Set[int] = set()
+
+            for req in sst_requests_sorted:  # inspect recent ones
                 req_dt = ts_to_dt(req.timestamp)
                 joiner = req.metadata.get('joiner')
                 donor = req.metadata.get('donor')
@@ -1453,7 +1732,7 @@ class GaleraLogAnalyzer:
                 # Find nearest SST start or failure within 5 minutes after request
                 nearest_sst = None
                 nearest_dt = None
-                for ev in (sst_starts + sst_failures):
+                for ev in (sst_starts + sst_failures + sst_completed):
                     try:
                         dt = ts_to_dt(ev.timestamp)
                         if 0 <= (dt - req_dt).total_seconds() <= 300:
@@ -1466,31 +1745,86 @@ class GaleraLogAnalyzer:
                     subtype = nearest_sst.metadata.get('subtype')
                     wf['sst'] = {
                         'timestamp': nearest_sst.timestamp,
-                        'status': 'started' if subtype == 'sst_started' else 'failed'
+                        'status': 'started' if subtype == 'sst_started' else ('failed' if subtype == 'sst_failed' else 'completed')
                     }
-                # Post-SST IST async start and completion within 10 minutes
+                # If we found a start, look for a completion shortly after
+                if nearest_dt and sst_completed:
+                    best_comp = None
+                    best_comp_dt = None
+                    for ev in sst_completed:
+                        try:
+                            cdt = ts_to_dt(ev.timestamp)
+                            if cdt and 0 <= (cdt - nearest_dt).total_seconds() <= 900:
+                                if best_comp_dt is None or cdt < best_comp_dt:
+                                    best_comp = ev
+                                    best_comp_dt = cdt
+                        except Exception:
+                            pass
+                    if best_comp:
+                        wf.setdefault('sst', {})['completed_at'] = best_comp.timestamp
+                # Try to infer joiner listen address from nearest receiver_prepared before/after the SST request
+                joiner_addr = None
+                if req_dt:
+                    best_gap = None
+                    for ev in ist_recv_prepared:
+                        try:
+                            dt = ts_to_dt(ev.timestamp)
+                            if dt and abs((dt - req_dt).total_seconds()) <= 600:
+                                gap = abs((dt - req_dt).total_seconds())
+                                if best_gap is None or gap < best_gap:
+                                    best_gap = gap
+                                    joiner_addr = ev.metadata.get('listen_addr')
+                        except Exception:
+                            pass
+                if joiner_addr:
+                    wf['joiner_addr'] = joiner_addr
+                # Post-SST IST async start and completion within windows; assign each IST event only once
                 post_start = None
+                post_start_dt = None
                 for ev in ist_async_start:
                     try:
-                        if nearest_dt and 0 <= (ts_to_dt(ev.timestamp) - nearest_dt).total_seconds() <= 600:
-                            post_start = ev
+                        ev_dt = ts_to_dt(ev.timestamp)
+                        if ev_dt and nearest_dt and 0 <= (ev_dt - nearest_dt).total_seconds() <= 600 and id(ev) not in used_async_ids:
+                            if post_start_dt is None or ev_dt < post_start_dt:
+                                # If we know joiner_addr, prefer events whose peer matches that address
+                                peer = ev.metadata.get('peer')
+                                if joiner_addr and peer and joiner_addr.split(':')[1:] and peer.endswith(joiner_addr.split(':')[1]):
+                                    post_start = ev
+                                    post_start_dt = ev_dt
+                                elif not joiner_addr:
+                                    post_start = ev
+                                post_start_dt = ev_dt
                     except Exception:
                         pass
                 if post_start:
+                    used_async_ids.add(id(post_start))
                     wf['post_ist']['async_start'] = {
                         'timestamp': post_start.timestamp,
                         'peer': post_start.metadata.get('peer'),
                         'first_seqno': post_start.metadata.get('first_seqno'),
                         'last_seqno': post_start.metadata.get('last_seqno')
                     }
+                    if joiner_addr:
+                        peer_val = post_start.metadata.get('peer') if post_start.metadata else None
+                        try:
+                            # Compare by ':port' suffix to be robust (tcp://host:port)
+                            joiner_suffix = joiner_addr.split(':')[1] if ':' in joiner_addr else joiner_addr
+                        except Exception:
+                            joiner_suffix = None
+                        wf['post_ist']['peer_matched'] = bool(peer_val and joiner_suffix and peer_val.endswith(joiner_suffix))
                 post_comp = None
-                for ev in ist_completed:
+                post_comp_dt = None
+                for ev in (ist_completed + ist_async_served):
                     try:
-                        if nearest_dt and 0 <= (ts_to_dt(ev.timestamp) - nearest_dt).total_seconds() <= 900:
-                            post_comp = ev
+                        ev_dt = ts_to_dt(ev.timestamp)
+                        if ev_dt and nearest_dt and 0 <= (ev_dt - nearest_dt).total_seconds() <= 900 and id(ev) not in used_completed_ids:
+                            if post_comp_dt is None or ev_dt < post_comp_dt:
+                                post_comp = ev
+                                post_comp_dt = ev_dt
                     except Exception:
                         pass
                 if post_comp:
+                    used_completed_ids.add(id(post_comp))
                     wf['post_ist']['completed_at'] = post_comp.timestamp
                 st_workflows.append(wf)
         except Exception:
@@ -1567,6 +1901,7 @@ class GaleraLogAnalyzer:
 
         return {
             "cluster_info": {
+                "dialect": self.dialect,
                 "total_nodes": self.cluster.node_count,
                 "active_nodes": len(self.cluster.active_nodes),
                 "current_view": asdict(self.cluster.current_view) if self.cluster.current_view else None,
@@ -1578,6 +1913,14 @@ class GaleraLogAnalyzer:
                 "node_instance_uuid": self.cluster.node_instance_uuid,
                 "local_node_name": self.cluster.local_node_name,
                 "group_changes": self.cluster.group_changes[-5:]  # recent
+            },
+            "software": {
+                "mariadb_version": self.software.get('mariadb_version'),
+                "mariadb_edition": self.software.get('mariadb_edition'),
+                "galera_version": self.software.get('wsrep_provider_version'),
+                "galera_variant": self.software.get('galera_variant'),
+                "wsrep_provider_path": self.software.get('wsrep_provider_path'),
+                "galera_vendor": self.software.get('galera_vendor'),
             },
             "nodes": {node.name: asdict(node) for node in self.cluster.nodes.values()},
             "health_metrics": asdict(self.health_metrics),
@@ -1591,7 +1934,11 @@ class GaleraLogAnalyzer:
                 "total_events": len(self.events),
                 "events_by_type": {event_type.value: len([e for e in self.events if e.event_type == event_type]) 
                                  for event_type in EventType}
-            }
+            },
+            "unknown": {
+                "count": len(self._unknown_lines) if self.report_unknown else 0,
+                "samples": self._unknown_lines[:5] if self.report_unknown else []
+            } if self.report_unknown else None
         }
     
     def get_state_transitions(self) -> List[StateTransition]:
@@ -1607,19 +1954,60 @@ class GaleraLogAnalyzer:
 def output_text(analyzer: GaleraLogAnalyzer) -> str:
     """Generate human-readable text output"""
     lines = []
+    # Build summary first so we can show dialect in the header banner
+    summary = analyzer.get_cluster_summary()
+    cluster_info = summary["cluster_info"]
+    software = summary.get("software", {})
+
+    # Header banner
     lines.append("="*70)
     lines.append("GALERA CLUSTER LOG ANALYSIS")
     lines.append("="*70)
-    
-    summary = analyzer.get_cluster_summary()
+    # Header quick info (Dialect)
+    # Compose dialect as: MariaDB <version>[ (<edition>)] [ + Galera <version>]
+    mver = software.get('mariadb_version') if software else None
+    med = software.get('mariadb_edition') if software else None
+    gver = software.get('galera_version') if software else None
+    if mver:
+        dialect_display = f"MariaDB {mver}" + (f" ({med})" if med else "")
+        if gver:
+            dialect_display += f" + Galera {gver}"
+    else:
+        # Without MariaDB version, don't claim a dialect; show unknown
+        dialect_display = 'unknown'
+    lines.append(f"Dialect: {dialect_display}")
     
     # Cluster Overview
     lines.append("\n📊 CLUSTER OVERVIEW")
     lines.append("-" * 50)
-    cluster_info = summary["cluster_info"]
     lines.append(f"Total Nodes Detected: {cluster_info['total_nodes']}")
     lines.append(f"Active Nodes: {cluster_info['active_nodes']}")
     lines.append(f"Total View Changes: {cluster_info['total_views']}")
+    lines.append(f"Dialect: {dialect_display}")
+    # Software versions
+    if software:
+        mver = software.get('mariadb_version')
+        med = software.get('mariadb_edition')
+        gver = software.get('galera_version')
+        gvar = software.get('galera_variant')
+        gvend = software.get('galera_vendor')
+        if mver or med:
+            if med:
+                lines.append(f"MariaDB: {mver or '?'} ({med})")
+            else:
+                lines.append(f"MariaDB: {mver}")
+        if gver or gvar or gvend:
+            parts = [gver or '?']
+            extras = []
+            if gvar:
+                extras.append(gvar)
+            if gvend:
+                extras.append(gvend)
+            if software.get('galera_version_inferred') == 'true' and not gvend:
+                extras.append('inferred')
+            if extras:
+                parts.append(f"({' / '.join(extras)})")
+            lines.append("Galera: " + " ".join(parts))
     
     # Group/Local State section
     lines.append("\n🧭 GROUP STATE")
@@ -1785,6 +2173,13 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     for event_type, count in timeline["events_by_type"].items():
         if count > 0:
             lines.append(f"• {event_type.replace('_', ' ').title()}: {count}")
+    # Unknown lines
+    if summary.get('unknown'):
+        unk = summary['unknown']
+        lines.append(f"Unknown WSREP/IST lines: {unk.get('count', 0)}")
+        samples = unk.get('samples') or []
+        for s in samples:
+            lines.append(f"   ? {s[:120]}...")
     
     # Flow Control summary (derived from gcs.cpp patterns)
     fc_events = [e for e in analyzer.events if e.event_type == EventType.SERVER_INFO and e.metadata]
@@ -1831,67 +2226,92 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     ist_events = [e for e in analyzer.events if e.event_type == EventType.IST_EVENT]
     
     if sst_events or ist_events:
-        lines.append("\n💾 STATE TRANSFER EVENTS")
-        lines.append("-" * 50)
-        
+        # Pretty SST section like in README
         if sst_events:
-            lines.append(f"SST Events ({len(sst_events)}):")
-            
-            # Group SST events by type for better presentation
+            lines.append("\n💾 STATE SNAPSHOT TRANSFER (SST)")
+            lines.append("-" * 50)
             sst_requests = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_requested']
             sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_started']
             sst_failures = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_failed']
-            
-            # Show SST requests with donor selection
-            if sst_requests:
-                lines.append("  📋 SST Requests:")
-                for event in sst_requests[-5:]:  # Show last 5
-                    meta = event.metadata
-                    joiner = meta.get('joiner', 'Unknown')
-                    donor = meta.get('donor', 'Unknown') 
-                    donor_status = meta.get('donor_status', '')
-                    requested_from = meta.get('requested_from', '*any*')
-                    
-                    lines.append(f"    {event.timestamp}: {joiner} requested SST from '{requested_from}'")
-                    lines.append(f"      → Donor selected: {donor} ({donor_status})")
-            
-            # Show SST starts
-            if sst_starts:
-                lines.append("  🚀 SST Started:")
-                for event in sst_starts[-5:]:  # Show last 5
-                    meta = event.metadata
-                    method = meta.get('method', 'unknown')
-                    role = meta.get('role', 'unknown')
-                    sst_time = meta.get('sst_timestamp', '')
-                    node_name = event.node.name if event.node else "Unknown"
-                    
-                    lines.append(f"    {event.timestamp}: [{node_name}] {method} SST started as {role}")
-                    if sst_time:
-                        lines.append(f"      SST Timestamp: {sst_time}")
-            
-            # Show SST failures
-            if sst_failures:
-                lines.append("  ❌ SST Failures:")
-                for event in sst_failures[-5:]:  # Show last 5
-                    meta = event.metadata
-                    operation = meta.get('operation', 'unknown')
-                    error_code = meta.get('error_code', 'unknown')
-                    node_name = event.node.name if event.node else "Unknown"
-                    
-                    lines.append(f"    {event.timestamp}: [{node_name}] SST {operation} failed (error: {error_code})")
-            
-            # Show other SST events
-            other_sst = [e for e in sst_events if not e.metadata or 
-                        e.metadata.get('subtype') not in ['sst_requested', 'sst_started', 'sst_failed']]
-            if other_sst:
-                lines.append("  📊 Other SST Events:")
-                for event in other_sst[-3:]:
-                    node_name = event.node.name if event.node else "Unknown"
-                    meta = event.metadata or {}
-                    status = meta.get('status', 'unknown')
-                    method = meta.get('method', 'unknown')
-                    lines.append(f"    {event.timestamp}: [{node_name}] SST {status} ({method})")
-        
+
+            # Helper to find nearest event after a given timestamp within a window
+            def _ts_to_dt(ts: str):
+                try:
+                    return datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    return None
+
+            for req in sst_requests[-5:]:
+                meta = req.metadata or {}
+                joiner = meta.get('joiner', 'Unknown')
+                donor = meta.get('donor', 'Unknown')
+                # Correlate with nearest SST start to get method
+                req_dt = _ts_to_dt(req.timestamp)
+                method = None
+                nearest_start = None
+                nearest_start_dt = None
+                # Try to find a recent stream address near the request
+                nearest_addr = None
+                nearest_addr_dt = None
+                if req_dt:
+                    for st in sst_starts:
+                        st_dt = _ts_to_dt(st.timestamp)
+                        if st_dt and 0 <= (st_dt - req_dt).total_seconds() <= 600:
+                            if not nearest_start_dt or st_dt < nearest_start_dt:
+                                nearest_start = st
+                                nearest_start_dt = st_dt
+                if nearest_start and nearest_start.metadata:
+                    method = nearest_start.metadata.get('method')
+
+                lines.append(f"  {req.timestamp} | SST REQUEST")
+                if method:
+                    lines.append(f"    └─ Method: {method}")
+                lines.append(f"    └─ Donor: {donor}")
+                lines.append(f"    └─ Joiner: {joiner}")
+                # If we saw a recent streaming address, show it
+                # Search in all SST stream_addr events
+                stream_addrs = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_stream_addr']
+                if req_dt and stream_addrs:
+                    for ev in stream_addrs:
+                        try:
+                            dt = _ts_to_dt(ev.timestamp)
+                            if dt and 0 <= (dt - req_dt).total_seconds() <= 600:
+                                if not nearest_addr_dt or dt < nearest_addr_dt:
+                                    nearest_addr = ev.metadata.get('joiner_addr')
+                                    nearest_addr_dt = dt
+                        except Exception:
+                            pass
+                if nearest_addr:
+                    lines.append(f"    └─ Joiner Addr: {nearest_addr}")
+
+                # Also show the first failure or start following the request
+                # Prefer failures if they exist; otherwise show started
+                nearest_fail = None
+                nearest_fail_dt = None
+                if req_dt:
+                    for fl in sst_failures:
+                        fl_dt = _ts_to_dt(fl.timestamp)
+                        if fl_dt and 0 <= (fl_dt - req_dt).total_seconds() <= 900:
+                            if not nearest_fail_dt or fl_dt < nearest_fail_dt:
+                                nearest_fail = fl
+                                nearest_fail_dt = fl_dt
+                if nearest_fail:
+                    lines.append(f"  {nearest_fail.timestamp} | SST FAILED")
+                elif nearest_start:
+                    lines.append(f"  {nearest_start.timestamp} | SST STARTED")
+
+            # If no requests parsed, still show standalone starts/failures
+            if not sst_requests:
+                for st in sst_starts[-3:]:
+                    method = (st.metadata or {}).get('method', 'unknown')
+                    lines.append(f"  {st.timestamp} | SST STARTED ({method})")
+                for fl in sst_failures[-3:]:
+                    op = (fl.metadata or {}).get('operation', '')
+                    code = (fl.metadata or {}).get('error_code', '')
+                    extra = f" {op} {code}".strip()
+                    lines.append(f"  {fl.timestamp} | SST FAILED{(' ('+extra+')') if extra else ''}")
+
+        # Keep existing IST presentation next
         if ist_events:
             lines.append(f"\nIST Events ({len(ist_events)}):")
             # Compact summary (latest highlights)
@@ -1980,7 +2400,14 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                 if post:
                     if 'async_start' in post:
                         a = post['async_start']
-                        lines.append(f"  Post-IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')}")
+                        # Address and match indicator
+                        addr = wf.get('joiner_addr')
+                        match = post.get('peer_matched')
+                        match_str = ' ✓' if match else (' ×' if match is False else '')
+                        if addr:
+                            lines.append(f"  Post-IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')} (joiner {addr}{match_str})")
+                        else:
+                            lines.append(f"  Post-IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')}{match_str}")
                     if 'completed_at' in post:
                         lines.append(f"  Post-IST: completed at {post['completed_at']}")
     
@@ -1990,10 +2417,23 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     if critical_events:
         lines.append("\n⚠️  CRITICAL EVENTS")
         lines.append("-" * 50)
-        for event in critical_events[-5:]:  # Show last 5
+        for event in critical_events[-8:]:  # Show last 8
             node_name = event.node.name if event.node else "Unknown"
+            meta = event.metadata or {}
+            subtype = meta.get('subtype')
             lines.append(f"{event.timestamp}: [{node_name}] {event.event_type.value.upper()}")
-            lines.append(f"   {event.raw_message[:80]}...")
+            if subtype == 'aborted_connection':
+                db = meta.get('db') or ''
+                user = meta.get('user') or ''
+                host = meta.get('host') or ''
+                cid = meta.get('connection_id')
+                lines.append(f"  └─ Aborted connection #{cid}")
+                lines.append(f"     └─ DB: {db if db else '-'}")
+                lines.append(f"     └─ User: {user if user else '-'}")
+                lines.append(f"     └─ Host: {host if host else '-'}")
+            else:
+                # Fallback: show truncated raw line
+                lines.append(f"   {event.raw_message[:120]}...")
     
     return "\n".join(lines)
 
@@ -2005,6 +2445,11 @@ def main():
     parser.add_argument('--format', choices=['text', 'json'], default='text',
                         help='Output format (default: text)')
     parser.add_argument('--filter', help='Filter events by type (comma-separated)')
+    parser.add_argument('--dialect', default='auto', help='Log dialect: auto|galera-26|mariadb-10|pxc-8|galera|unknown')
+    parser.add_argument('--report-unknown', action='store_true', help='Report unknown WSREP/IST lines')
+    parser.add_argument('--mariadb-version', help='MariaDB server version (e.g., 10.6.16, 11.4.7-4)')
+    parser.add_argument('--mariadb-edition', choices=['enterprise', 'community'], help='MariaDB edition')
+    parser.add_argument('--galera-version', help='Galera wsrep provider version (e.g., 26.4.22)')
     
     args = parser.parse_args()
     
@@ -2020,8 +2465,24 @@ def main():
         log_lines = sys.stdin.readlines()
     
     # Analyze logs
-    analyzer = GaleraLogAnalyzer()
+    analyzer = GaleraLogAnalyzer(
+        dialect=args.dialect,
+        report_unknown=bool(getattr(args, 'report_unknown', False)),
+        mariadb_version=getattr(args, 'mariadb_version', None),
+        mariadb_edition=getattr(args, 'mariadb_edition', None),
+        galera_version=getattr(args, 'galera_version', None),
+    )
     analyzer.parse_log(log_lines)
+
+    # Infer Galera from MariaDB if missing
+    analyzer.infer_galera_from_mariadb()
+
+    # Require MariaDB version known; Galera optional/inferred
+    sw = analyzer.software
+    have_mariadb = bool(sw.get('mariadb_version'))
+    if not have_mariadb:
+        print("Error: MariaDB version unknown. Provide via --mariadb-version (and optionally --mariadb-edition), or include version lines in the log.", file=sys.stderr)
+        sys.exit(2)
     
     # Output results
     if args.format == 'json':
