@@ -49,6 +49,17 @@ chmod +x gramboo.py
 ## Usage
 
 ### Basic Usage
+# Analyze a log file (recommended: specify MariaDB version and edition)
+python3 gramboo.py --mariadb-version 11.4.7-4 --mariadb-edition enterprise /var/log/mysql/error.log
+
+# For MariaDB Community edition
+python3 gramboo.py --mariadb-version 10.6.16 --mariadb-edition community /var/log/mysql/error.log
+
+# You can also use stdin
+cat /var/log/mysql/error.log | python3 gramboo.py --mariadb-version 11.4.7-4 --mariadb-edition enterprise
+
+# Make it executable and use directly
+./gramboo.py --mariadb-version 11.4.7-4 --mariadb-edition enterprise /var/log/mysql/error.log
 
 ```bash
 # Analyze a log file
