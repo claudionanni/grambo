@@ -114,6 +114,8 @@ class Cluster:
     group_changes: List[Dict[str, Any]] = field(default_factory=list)
     # Alias mapping: short patterns -> full UUID (e.g., first8-first4th)
     uuid_aliases: Dict[str, str] = field(default_factory=dict)
+    # Candidate local UUIDs gleaned from 'listening at' lines before a deterministic mapping to physical name
+    candidate_local_uuids: List[str] = field(default_factory=list)
     
     def add_node(self, node: Node) -> None:
         """Add a node to the cluster"""
@@ -591,6 +593,11 @@ class GaleraLogAnalyzer:
             minute = ts_match.group(3)
             second = ts_match.group(4)
             self.current_timestamp = f"{date_part} {hour:02d}:{minute}:{second}"
+        # Early local node detection from state transfer request lines
+        if not self.cluster.local_node_name and 'requested state transfer' in line:
+            m_local = re.search(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', line)
+            if m_local:
+                self.cluster.local_node_name = m_local.group(1)
         
         # Extract and track node information
         self._extract_node_info(line)
@@ -612,6 +619,10 @@ class GaleraLogAnalyzer:
             return
         if self._parse_server_info(line):
             return
+        if not self.cluster.local_node_name:
+            m_local = re.search(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer from', line)
+            if m_local:
+                self.cluster.local_node_name = m_local.group(1)
         # Always attempt passive IP evidence collection (non-blocking)
         try:
             self._parse_ip_evidence(line)
@@ -635,10 +646,24 @@ class GaleraLogAnalyzer:
             return  # fast path
         ts = self.current_timestamp
         # (UUID,'tcp://IP') listening at tcp://IP
-        m = re.search(r"\(([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}), *'tcp://([0-9a-fA-F:.]+)'\) listening at tcp://\2", line)
+        m = re.search(r"\(([0-9a-f]{8}(?:-[0-9a-f]{4}){0,3}-?[0-9a-f]{0,12}), *'tcp://([0-9a-fA-F:.]+)'\) listening at tcp://\2", line)
         if m:
-            self._record_ip(m.group(1), m.group(2), 'listening', ts)
+            uuid_like = m.group(1)
+            ip = m.group(2)
+            self._record_ip(uuid_like, ip, 'listening', ts)
+            # Always treat 'listening at' UUID as local candidate (highest certainty about local endpoint)
+            if uuid_like and uuid_like not in self.cluster.candidate_local_uuids:
+                self.cluster.candidate_local_uuids.append(uuid_like)
             return
+        # Server <NAME> connected to cluster ... with ID <UUID>
+        m = re.search(r"Server ([A-Za-z0-9_.-]+) connected to cluster at position [0-9a-f:-]+ with ID ([0-9a-f]{8}-[0-9a-f]{4,})", line)
+        if m:
+            name = m.group(1)
+            raw_uuid = m.group(2)
+            if not self.cluster.local_node_name:
+                self.cluster.local_node_name = name
+            if raw_uuid not in self.cluster.candidate_local_uuids:
+                self.cluster.candidate_local_uuids.append(raw_uuid)
         # connection established to <short/composite> tcp://IP:PORT
         m = re.search(r'connection established to ([0-9a-f]{8}(?:-[0-9a-f]{4})?) tcp://([0-9a-fA-F:.]+)', line)
         if m:
@@ -678,6 +703,11 @@ class GaleraLogAnalyzer:
     
     def _extract_node_info(self, line: str) -> None:
         """Extract and maintain node information from log line"""
+        # Secondary local node detection (redundant safeguard)
+        if not self.cluster.local_node_name and 'requested state transfer' in line:
+            m_local2 = re.search(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', line)
+            if m_local2:
+                self.cluster.local_node_name = m_local2.group(1)
         # Extract UUID and node name pairs from member lists (most accurate)
         uuid_name_match = re.search(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}),\s*([A-Za-z0-9_-]+)', line)
         if uuid_name_match:
@@ -2931,7 +2961,8 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     lines.append("\n🗂️  CLUSTER NODES UUID HISTORY")
     lines.append("-" * 50)
     for pname, plist in phys_map.items():
-        # Gather ordered unique full UUIDs
+        # We need to recompute a final_uuid here for suffix logic (mirror earlier selection)
+        recomputed_final = pick_final_uuid(plist)
         ordered_full: List[str] = []
         for nd in plist:
             seq = []
@@ -2942,20 +2973,67 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             for u in seq:
                 if u and u.count('-') == 4 and len(u) >= 36 and u not in ordered_full:
                     ordered_full.append(u)
+        # Candidate transient UUID collection for local node
+        if not ordered_full and cluster_info.get('local_node_name') == pname:
+            candidate_full: List[str] = []
+            for n in analyzer.cluster.nodes.values():
+                nm = n.name or ''
+                if nm.startswith('Local-') or nm.startswith('Temp-') or nm.startswith('Node-'):
+                    seq2 = []
+                    if n.uuid_history:
+                        seq2.extend(n.uuid_history)
+                    if n.uuid and n.uuid not in seq2:
+                        seq2.append(n.uuid)
+                    for u2 in seq2:
+                        if u2 and u2.count('-') == 4 and len(u2) >= 36 and u2 not in candidate_full:
+                            candidate_full.append(u2)
+            if candidate_full:
+                ordered_full = candidate_full
+        # Fallback to raw listening candidates (more permissive)
+        if not ordered_full and analyzer.cluster.candidate_local_uuids:
+            local_name = cluster_info.get('local_node_name')
+            sole_physical = len(phys_map) == 1
+            target_name = local_name
+            if not target_name:
+                # Heuristic: choose name containing '01' else first alphabetically
+                for candidate_name in sorted(phys_map.keys()):
+                    if re.search(r'(?:^|[^0-9])01(?:[^0-9]|$)', candidate_name):
+                        target_name = candidate_name
+                        break
+                if not target_name and phys_map:
+                    target_name = sorted(phys_map.keys())[0]
+                if target_name:
+                    # We are in rendering context; 'analyzer' holds the instance
+                    analyzer.cluster.local_node_name = target_name
+            if target_name == pname or sole_physical:
+                seen_raw = set()
+                ordered_full = []
+                for u in analyzer.cluster.candidate_local_uuids:
+                    if u in seen_raw:
+                        continue
+                    seen_raw.add(u)
+                    ordered_full.append(u)
+        # Nothing found
         if not ordered_full:
             lines.append(f"• {pname} UUIDs <not deterministically inferred>")
             continue
-        # Build compact representations
-        seen_short = set()
+        # Build compact list
+        seen_short: Set[str] = set()
         compacts: List[str] = []
         for fu in ordered_full:
-            parts = fu.split('-')
-            short = f"{parts[0]}-{parts[3][:4]}"
+            if fu.count('-') >= 4 and len(fu) >= 36:
+                parts = fu.split('-')
+                short = f"{parts[0]}-{parts[3][:4]}"
+            else:
+                # Partial/short form: display as-is (use full captured short form)
+                short = fu
             if short in seen_short:
                 continue
             seen_short.add(short)
             compacts.append(short)
-        lines.append(f"• {pname} UUIDs {', '.join(compacts)}")
+        local_name = cluster_info.get('local_node_name')
+        suffix = " (candidates)" if ((local_name == pname) or (not local_name and len(phys_map)==1)) and recomputed_final is None else ""
+        lines.append(f"• {pname} UUIDs {', '.join(compacts)}{suffix}")
     
     # Node State Transition Timelines
     wsrep_transitions = [t for t in analyzer.get_state_transitions() 
