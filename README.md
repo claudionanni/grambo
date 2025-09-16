@@ -48,6 +48,8 @@ chmod +x gramboo.py
 
 ## Usage
 
+The --mariadb-version and --mariadb-edition parameters are there to keep the tool open to multiple intepretations of the logs which we have seen changing format along the years.
+
 ### Analyze a log file (recommended: specify MariaDB version and edition)
 ```
 python3 gramboo.py --mariadb-version 11.4 --mariadb-edition enterprise /var/log/mysql/error.log
