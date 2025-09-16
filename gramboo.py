@@ -37,6 +37,7 @@ class Node:
     address: Optional[str] = None
     index: Optional[int] = None
     status: Optional[str] = None  # SYNCED, DONOR, JOINED, JOINER
+    placeholder: bool = False      # True if this name is a temporary placeholder
     
     def __hash__(self):
         return hash(self.uuid)
@@ -45,6 +46,51 @@ class Node:
         if isinstance(other, Node):
             return self.uuid == other.uuid
         return False
+
+class NodeIdentityRegistry:
+    """Collects evidence for (uuid -> name) mappings and resolves the best name.
+    Evidence sources are weighted; higher score wins. Once a high score (>=80) is set, only higher replaces it."""
+    def __init__(self):
+        self._evidence: Dict[str, Dict[str, Any]] = {}
+        # Weight definitions
+        self._weights = {
+            'sst_request': 90,
+            'member_synced': 85,
+            'server_sync': 85,
+            'membership_view': 70,
+            'donor_selection': 90,
+            'fallback': 10,
+        }
+
+    def add(self, uuid: str, name: str, source: str, timestamp: Optional[str] = None):
+        if not uuid or not name:
+            return
+        score = self._weights.get(source, 50)
+        rec = self._evidence.get(uuid)
+        if rec is None:
+            self._evidence[uuid] = {
+                'name': name,
+                'score': score,
+                'source': source,
+                'first_seen': timestamp,
+                'last_seen': timestamp,
+                'sources': {source}
+            }
+            return
+        # Update existing
+        rec['last_seen'] = timestamp or rec.get('last_seen')
+        rec['sources'].add(source)
+        # Replace name if higher score
+        if score > rec['score']:
+            rec['name'] = name
+            rec['score'] = score
+            rec['source'] = source
+
+    def resolve(self) -> Dict[str, str]:
+        return {u: info['name'] for u, info in self._evidence.items()}
+
+    def get_info(self, uuid: str) -> Optional[Dict[str, Any]]:
+        return self._evidence.get(uuid)
 
 @dataclass
 class Cluster:
@@ -65,10 +111,23 @@ class Cluster:
     views_history: List['ClusterView'] = field(default_factory=list)
     # Group change timeline (old->new)
     group_changes: List[Dict[str, Any]] = field(default_factory=list)
+    # Alias mapping: short patterns -> full UUID (e.g., first8-first4th)
+    uuid_aliases: Dict[str, str] = field(default_factory=dict)
     
     def add_node(self, node: Node) -> None:
         """Add a node to the cluster"""
         self.nodes[node.uuid] = node
+        # Register alias patterns for UUID shortening (first segment + fourth segment)
+        parts = node.uuid.split('-')
+        if len(parts) == 5:
+            first8 = parts[0]
+            fourth = parts[3]
+            composite = f"{first8}-{fourth}"
+            # Map both first8 and composite to full UUID if unique
+            if first8 not in self.uuid_aliases:
+                self.uuid_aliases[first8] = node.uuid
+            if composite not in self.uuid_aliases:
+                self.uuid_aliases[composite] = node.uuid
     
     def get_node_by_name(self, name: str) -> Optional[Node]:
         """Find node by name"""
@@ -240,6 +299,9 @@ class GaleraLogAnalyzer:
             self.software['mariadb_edition'] = mariadb_edition
         if galera_version:
             self.software['wsrep_provider_version'] = galera_version
+        # Identity registry
+        self.identity_registry = NodeIdentityRegistry()
+
         # Precompiled IST-related patterns (from ist.cpp)
         self._ist_patterns = {
             'recv_addr': re.compile(r'IST\s+receiver\s+addr\s+using\s+(\S+)', re.IGNORECASE),
@@ -291,6 +353,63 @@ class GaleraLogAnalyzer:
         for line in log_lines:
             self.line_number += 1
             self._parse_line(line)
+        # Finalize node identities after full pass
+        self._finalize_identities()
+
+    def _finalize_identities(self) -> None:
+        mapping = self.identity_registry.resolve()
+        # Apply mapping to permanent nodes
+        for uuid, best_name in mapping.items():
+            perm = self.cluster.get_node_by_uuid(uuid)
+            if perm and best_name and (perm.placeholder or perm.name.startswith('Temp-')):
+                perm.name = best_name
+                perm.placeholder = False
+            elif not perm:
+                self.cluster.add_node(Node(uuid=uuid, name=best_name, placeholder=False))
+
+        # Helper to expand short UUID if unique
+        def expand_short(u: str) -> str:
+            if len(u) == 12 and u.count('-') == 1:  # pattern like abcd1234-efgh
+                # Fall through; treat as already truncated meaningful id
+                return u
+            if len(u) < 36:
+                candidates = [full for full in self.cluster.nodes.keys() if full.startswith(u)]
+                if len(candidates) == 1:
+                    return candidates[0]
+            return u
+
+        # Patch historical views
+        for view in self.cluster.views_history:
+            updated_members: Dict[str, Node] = {}
+            for muuid, mnode in list(view.members.items()):
+                # First, try alias map (composite or first segment)
+                aliased = self.cluster.uuid_aliases.get(muuid)
+                full_uuid = aliased if aliased else expand_short(muuid)
+                perm = self.cluster.get_node_by_uuid(full_uuid)
+                if perm:
+                    # Replace mapping with permanent node object
+                    updated_members[full_uuid] = perm
+                    # Update name via identity mapping if needed
+                    if full_uuid in mapping:
+                        perm.name = mapping[full_uuid]
+                        perm.placeholder = False
+                    elif (perm.name.startswith('Temp-') or perm.placeholder) and not mnode.name.startswith('Temp-'):
+                        perm.name = mnode.name
+                        perm.placeholder = False
+                else:
+                    # Keep existing temp node (upgrade name if mapping exists)
+                    if muuid in mapping:
+                        mnode.name = mapping[muuid]
+                        mnode.placeholder = False
+                    updated_members[muuid] = mnode
+            view.members = updated_members
+        # Second pass: fill remaining placeholders (N/A or Temp- names) with resolved names if available
+        for view in self.cluster.views_history:
+            for muuid, mnode in view.members.items():
+                perm = self.cluster.get_node_by_uuid(muuid)
+                if perm and (mnode.name == 'N/A' or mnode.name.startswith('Temp-')) and not perm.name.startswith('Temp-'):
+                    mnode.name = perm.name
+                    mnode.placeholder = False
 
     def _detect_dialect(self, lines: List[str]) -> str:
         text = "\n".join(lines)
@@ -353,6 +472,24 @@ class GaleraLogAnalyzer:
                     self.cluster.local_node_name = name
                 # Do NOT set current_node_name from membership lines to avoid misattribution
                 return
+
+        # Pattern: index: fulluuid, NAME  (e.g., '1: 4d718057-923b-11f0-85f2-e281f60451d3, UAT-DB-01')
+        indexed_uuid_name = re.search(r'\b\d+:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}),\s*([A-Za-z0-9_-]+)', line)
+        if indexed_uuid_name:
+            uuid = indexed_uuid_name.group(1)
+            name = indexed_uuid_name.group(2)
+            if name and not name.upper() in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'TRACE', 'NOTE']:
+                self._ensure_node_exists_with_uuid(name, uuid)
+                # Add higher confidence evidence
+                self.identity_registry.add(uuid, name, 'member_synced', self.current_timestamp)
+                # If current view exists and has a placeholder entry matching the short form, update it
+                if self.cluster.current_view:
+                    short_key = uuid.split('-')[0]
+                    for m_uuid, m_node in list(self.cluster.current_view.members.items()):
+                        if m_uuid.startswith(short_key) and (m_node.name.startswith('Temp-') or m_node.name == 'N/A'):
+                            m_node.name = name
+                            m_node.placeholder = False
+                return
         
         # Extract just node names from context (less reliable, don't update current_node_name)
         node_patterns = [
@@ -386,28 +523,27 @@ class GaleraLogAnalyzer:
         return existing_node
     
     def _ensure_node_exists_with_uuid(self, node_name: str, uuid: str) -> Node:
-        """Ensure a node exists with specific UUID"""
+        """Ensure a node exists with specific UUID, collecting identity evidence."""
         existing_node = self.cluster.get_node_by_uuid(uuid)
         if existing_node:
-            # Update name if it's different
             if existing_node.name != node_name:
                 existing_node.name = node_name
+                self.identity_registry.add(uuid, node_name, 'membership_view', self.current_timestamp)
             return existing_node
-        
-        # Check if we have this node by name with different UUID
+
         existing_by_name = self.cluster.get_node_by_name(node_name)
         if existing_by_name:
-            # Remove old entry and re-add with new UUID
             old_uuid = existing_by_name.uuid
-            if old_uuid in self.cluster.nodes:
+            if old_uuid != uuid and old_uuid in self.cluster.nodes:
                 del self.cluster.nodes[old_uuid]
             existing_by_name.uuid = uuid
             self.cluster.nodes[uuid] = existing_by_name
+            self.identity_registry.add(uuid, existing_by_name.name, 'membership_view', self.current_timestamp)
             return existing_by_name
-        
-        # Create new node
+
         new_node = Node(uuid=uuid, name=node_name)
         self.cluster.add_node(new_node)
+        self.identity_registry.add(uuid, node_name, 'membership_view', self.current_timestamp)
         return new_node
     
     def _get_current_node(self) -> Optional[Node]:
@@ -2418,11 +2554,12 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     
     if real_nodes:
         for node_name, node_info in real_nodes.items():
+            display_name = 'N/A' if node_name.startswith('Temp-') else node_name
             status = node_info.get('status', 'Unknown')
             uuid = node_info.get('uuid', 'N/A')
             node_id = node_info.get('node_id', None)
             
-            node_line = f"• {node_name}: {status}"
+            node_line = f"• {display_name}: {status}"
             if node_id:
                 node_line += f" (Node ID: {node_id})"
             node_line += f" (UUID: {uuid})"
@@ -2509,6 +2646,37 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
         for view in views[-5:]:  # Show last 5
             lines.append(f"{view.timestamp}: View {view.view_id} ({view.status})")
             lines.append(f"   Members: {view.member_count}")
+            # Expand member list with names and short UUIDs if available
+            try:
+                if view.members:
+                    # Collect display strings
+                    member_displays = []
+                    for uuid, node in view.members.items():
+                        raw_name = getattr(node, 'name', None) or f"uuid:{uuid[:8]}"
+                        name = 'N/A' if raw_name.startswith('Temp-') else raw_name
+                        short_uuid = uuid[:8] if uuid and len(uuid) >= 8 else uuid
+                        member_displays.append(f"{name}({short_uuid})")
+                    # Wrap line length sensibly
+                    if member_displays:
+                        joined = ", ".join(member_displays)
+                        if len(joined) <= 110:
+                            lines.append(f"     → {joined}")
+                        else:
+                            # Break into multiple lines ~100 chars
+                            current = []
+                            current_len = 0
+                            for part in member_displays:
+                                if current_len + len(part) + (2 if current else 0) > 100:
+                                    lines.append(f"     → {' ,'.replace(' ','') if False else ''}" + ", ".join(current))
+                                    current = [part]
+                                    current_len = len(part)
+                                else:
+                                    current.append(part)
+                                    current_len += len(part) + (2 if current_len else 0)
+                            if current:
+                                lines.append(f"     → {', '.join(current)}")
+            except Exception:
+                pass
     
     # Events by type
     lines.append("\n📈 EVENT SUMMARY")
