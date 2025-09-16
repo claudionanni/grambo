@@ -666,7 +666,7 @@ class GaleraLogAnalyzer:
 
 
         # Pattern 1: SST Request with donor selection
-        # "Member 1.1 (UAT-DB-01) requested state transfer from '*any*'. Selected 0.1 (UAT-DB-03)(SYNCED) as donor."
+    # Example: "Member 1.1 (node-01) requested state transfer from '*any*'. Selected 0.1 (node-03)(SYNCED) as donor."
         request_match = re.search(
             r'Member\s+(\d+\.\d+)\s+\(([^)]+)\)\s+requested\s+state\s+transfer\s+from\s+[\'\"]([^\'\"]+)[\'\"]\.\s+Selected\s+(\d+\.\d+)\s+\(([^)]+)\)\(([^)]+)\)\s+as\s+donor',
             line, re.IGNORECASE
@@ -859,7 +859,7 @@ class GaleraLogAnalyzer:
                 return True
         
         # Pattern 4: General Member messages with node IDs and status
-        # "Member 0.1 (UAT-DB-03) synced with group."
+    # Example: "Member 0.1 (node-03) synced with group."
         member_match = re.search(r'Member\s+(\d+\.\d+)\s+\(([^)]+)\)\s+(\w+)', line)
         if member_match:
             node_id = member_match.group(1)
@@ -1607,7 +1607,7 @@ class GaleraLogAnalyzer:
             return True
         
         # Server node sync status messages
-        # "Server UAT-DB-03 synced with group"
+    # Example: "Server node-03 synced with group"
         server_sync_match = re.search(r'Server\s+([A-Za-z0-9_-]+)\s+synced\s+with\s+group', line, re.IGNORECASE)
         if server_sync_match:
             node_name = server_sync_match.group(1)

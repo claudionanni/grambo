@@ -43,7 +43,7 @@ git clone https://github.com/claudionanni/grambo.git
 cd grambo
 
 # Make the Python script executable (optional)
-chmod +x gramboo.py
+chmod +x grambo.py
 ```
 
 ## Usage
@@ -52,29 +52,29 @@ chmod +x gramboo.py
 
 ```bash
 # Analyze a log file
-python3 gramboo.py /var/log/mysql/error.log
+python3 grambo.py /var/log/mysql/error.log
 
 # Using stdin
-cat /var/log/mysql/error.log | python3 gramboo.py
+cat /var/log/mysql/error.log | python3 grambo.py
 
 # Make it executable and use directly
-./gramboo.py /var/log/mysql/error.log
+./grambo.py /var/log/mysql/error.log
 ```
 
 ### Advanced Options
 
 ```bash
 # JSON output for integration with other tools
-python3 gramboo.py --format=json error.log
+python3 grambo.py --format=json error.log
 
 # Filter specific event types
-python3 gramboo.py --filter=sst_event,state_transition error.log
+python3 grambo.py --filter=sst_event,state_transition error.log
 
 # Filter multiple types (comma-separated)
-python3 gramboo.py --filter=error,warning error.log
+python3 grambo.py --filter=error,warning error.log
 
 # Combine options
-python3 gramboo.py --format=json --filter=cluster_view error.log
+python3 grambo.py --format=json --filter=cluster_view error.log
 ```
 
 ### Available Event Types for Filtering
@@ -90,6 +90,8 @@ python3 gramboo.py --format=json --filter=cluster_view error.log
 
 ## Example Output
 
+The following is a sanitized example. Replace values with those from your environment.
+
 ### Text Format (Default)
 ```
 ================================================================================
@@ -98,23 +100,24 @@ python3 gramboo.py --format=json --filter=cluster_view error.log
 
 📊 SERVER INFORMATION
 --------------------------------------------------
-  Version: 10.6.16-MariaDB-0ubuntu0.22.04.1
+  Version: 10.6.x-MariaDB
   Socket: /run/mysqld/mysqld.sock
   Port: 3306
-  Address: 10.0.1.193
+  Address: 10.0.0.3
 
 🔗 GALERA CLUSTER INFORMATION
 --------------------------------------------------
-  Galera Version: 26.4.23
-  Node UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
-  Group UUID: 378cdc73-9236-11f0-a8d4-426872f4d003
+  Galera Version: 26.4.xx
+  Node UUID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  Group UUID: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
   Group Name: my_wsrep_cluster
+
 🧭 GROUP STATE
 --------------------------------------------------
-  Group UUID: 378c0ec7-a3db (seqno: 22)
-  Local State: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d:1776
-  Node Instance UUID (My UUID): 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
-  Local node: UAT-DB-03
+  Group UUID: bbbbbbbb-bbbb (seqno: 22)
+  Local State: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:1776
+  Node Instance UUID (My UUID): aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  Local node: node-03
 
 
 🔄 STATE TRANSITIONS
@@ -126,9 +129,10 @@ python3 gramboo.py --format=json --filter=cluster_view error.log
 --------------------------------------------------
   2025-09-15 13:45:56 | SST REQUEST
     └─ Method: mariabackup
-    └─ Donor: 10.0.1.192
-    └─ Joiner: 10.0.1.193
+    └─ Donor: 10.0.0.2
+    └─ Joiner: 10.0.0.3
   2025-09-15 13:48:11 | SST FAILED
+
 🛠️  FLOW CONTROL
 --------------------------------------------------
   Interval: [102, 128] (last seen 2025-09-15 13:53:05)
@@ -137,26 +141,26 @@ python3 gramboo.py --format=json --filter=cluster_view error.log
 
 🧩 STATE TRANSFER WORKFLOWS
 --------------------------------------------------
-Request 2025-09-15 13:50:43: UAT-DB-01 ⇐ UAT-DB-03
+Request 2025-09-15 13:50:43: node-01 ⇐ node-03
   SST: started at 2025-09-15 13:50:43
-  Post-IST: async serve tcp://10.0.1.192:4568 1726→1810 at 2025-09-15 13:53:06
+  Post-IST: async serve tcp://10.0.0.2:4568 1726→1810 at 2025-09-15 13:53:06
 ```
 
 ### JSON Format
 ```json
 {
   "server_info": {
-    "version": "10.6.16-MariaDB-0ubuntu0.22.04.1",
+    "version": "10.6.x-MariaDB",
     "socket": "/run/mysqld/mysqld.sock",
     "port": "3306",
-    "address": "10.0.1.193"
+    "address": "10.0.0.3"
   },
   "ist_summary": {
     "receiver": {
       "prepared_range": {
         "first_seqno": 1726,
         "last_seqno": 1810,
-        "listen_addr": "tcp://10.0.1.193:4568",
+        "listen_addr": "tcp://10.0.0.3:4568",
         "timestamp": "2025-09-15 13:53:06"
       },
       "completed_at": "2025-09-15 13:53:07"
@@ -166,7 +170,7 @@ Request 2025-09-15 13:50:43: UAT-DB-01 ⇐ UAT-DB-03
         { "first_seqno": 1726, "last_seqno": 1810, "timestamp": "2025-09-15 13:53:06" }
       ],
       "async": [
-        { "peer": "tcp://10.0.1.192:4568", "first_seqno": 1726, "last_seqno": 1810, "preload_start": 1726, "timestamp": "2025-09-15 13:53:06" }
+        { "peer": "tcp://10.0.0.2:4568", "first_seqno": 1726, "last_seqno": 1810, "preload_start": 1726, "timestamp": "2025-09-15 13:53:06" }
       ],
       "failures": []
     },
@@ -175,14 +179,14 @@ Request 2025-09-15 13:50:43: UAT-DB-01 ⇐ UAT-DB-03
   "st_workflows": [
     {
       "requested_at": "2025-09-15 13:50:43",
-      "joiner": "UAT-DB-01",
-      "donor": "UAT-DB-03",
+      "joiner": "node-01",
+      "donor": "node-03",
       "pre_ist_signals": [],
       "sst": { "timestamp": "2025-09-15 13:50:43", "status": "started" },
       "post_ist": {
         "async_start": {
           "timestamp": "2025-09-15 13:53:06",
-          "peer": "tcp://10.0.1.192:4568",
+          "peer": "tcp://10.0.0.2:4568",
           "first_seqno": 1726,
           "last_seqno": 1810
         },
