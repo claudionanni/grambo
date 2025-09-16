@@ -256,6 +256,11 @@ class GaleraLogAnalyzer:
             'async_start': re.compile(r'async\s+IST\s+sender\s+starting\s+to\s+serve\s+(\S+)\s+sending\s+(-?\d+)\s*-\s*(-?\d+),\s+preload\s+starts\s+from\s+(-?\d+)', re.IGNORECASE),
             'async_failed': re.compile(r'async\s+IST\s+sender\s+failed\s+to\s+serve\s+(\S+):\s+(.+)', re.IGNORECASE),
             'async_served': re.compile(r'async\s+IST\s+sender\s+served', re.IGNORECASE),
+            # Additional authoritative patterns seen in logs
+            'recv_summary_seqnos': re.compile(r'Receiving\s+IST:\s+\d+\s+writesets,\s+seqnos\s+(-?\d+)\s*-\s*(-?\d+)', re.IGNORECASE),
+            'ist_uuid_range': re.compile(r'IST\s+uuid:\s*[0-9a-f-]+,?\s*f:\s*(-?\d+),\s*l:\s*(-?\d+)', re.IGNORECASE),
+            # IST completion via applier progress
+            'processing_complete': re.compile(r'Processing\s+event\s+queue:.*?100\.0%.*?complete\.?', re.IGNORECASE),
         }
 
     def infer_galera_from_mariadb(self) -> None:
@@ -783,6 +788,102 @@ class GaleraLogAnalyzer:
             self.events.append(event)
             return True
 
+        # WSREP_SST proceeding with SST (strong joiner-side indicator of full SST)
+        if re.search(r'WSREP_SST:\s+\[INFO\]\s+Proceeding\s+with\s+SST', line, re.IGNORECASE) and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_proceeding', 'role': 'joiner'}
+            ))
+            return True
+
+        # WSREP_SST joiner housekeeping signals
+        if re.search(r'WSREP_SST:\s+\[INFO\]\s+Cleaning\s+the\s+existing\s+datadir', line, re.IGNORECASE) and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_clean_datadir'}
+            ))
+            return True
+        if re.search(r'WSREP_SST:\s+\[INFO\]\s+Cleaning\s+the\s+old\s+binary\s+logs', line, re.IGNORECASE) and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_clean_binlogs'}
+            ))
+            return True
+        if re.search(r'WSREP_SST:\s+\[INFO\]\s+Waiting\s+for\s+SST\s+streaming\s+to\s+complete', line, re.IGNORECASE) and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_wait_stream'}
+            ))
+            return True
+
+        # WSREP_SST: Galera co-ords from donor: <uuid>:<seqno> <flags>
+        m = re.search(r'WSREP_SST:\s+\[INFO\]\s+Galera\s+co-ords\s+from\s+donor:\s+([0-9a-f-]+):(\-?\d+)\s+\d+', line, re.IGNORECASE)
+        if m and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_galera_coords', 'uuid': m.group(1), 'seqno': int(m.group(2))}
+            ))
+            return True
+
+        # WSREP_SST helper lines that explicitly indicate IST-only path using mariabackup/xtrabackup_ist
+        ist_helper = re.search(r"WSREP_SST:\s+\[INFO\]\s+'?xtrabackup_ist'?\s+received\s+from\s+donor:.*Running\s+IST", line, re.IGNORECASE)
+        if ist_helper and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_helper_ist_path', 'status': 'ist_only'}
+            )
+            self.events.append(event)
+            return True
+
+        # Bookkeeping lines sometimes printed even during IST-only flows
+        # e.g., "SST received", "SST succeeded", "Installed new state from SST" with old seqno
+        if self.current_timestamp and re.search(r'\bSST\s+(received|succeeded)\b', line, re.IGNORECASE):
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_helper_bookkeeping'}
+            )
+            self.events.append(event)
+            return True
+        if self.current_timestamp and re.search(r'Installed\s+new\s+state\s+from\s+SST', line, re.IGNORECASE):
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_helper_installed_state'}
+            )
+            self.events.append(event)
+            return True
+
         # Pattern 2d: Provider notice of state transfer complete (to/from)
         complete_notice = re.search(r"State\s+transfer\s+(to|from)\s+(\d+\.\d+)\s+\(([^)]+)\)\s+complete\.", line, re.IGNORECASE)
         if complete_notice and self.current_timestamp:
@@ -857,6 +958,35 @@ class GaleraLogAnalyzer:
                 )
                 self.events.append(event)
                 return True
+
+        # Provider-side: State transfer to X (name) failed: <reason>
+        prov_fail = re.search(r'State\s+transfer\s+to\s+\d+\.\d+\s+\([^)]+\)\s+failed:\s+(.+)$', line, re.IGNORECASE)
+        if prov_fail and self.current_timestamp:
+            reason = prov_fail.group(1).strip()
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_failed', 'operation': 'provider', 'reason': reason, 'status': 'failed'}
+            )
+            self.events.append(event)
+            return True
+
+        # Fatal abort: Will never receive state. Need to abort. => treat as SST failure for joiner attempt
+        abort_fail = re.search(r'Will\s+never\s+receive\s+state\.\s+Need\s+to\s+abort\.', line, re.IGNORECASE)
+        if abort_fail and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_failed', 'operation': 'abort', 'reason': 'Will never receive state', 'status': 'failed'}
+            )
+            self.events.append(event)
+            return True
         
         # Pattern 4: General Member messages with node IDs and status
     # Example: "Member 0.1 (node-03) synced with group."
@@ -878,17 +1008,18 @@ class GaleraLogAnalyzer:
                 
             return True
         
-        # Pattern 5a: Total time on donor
-        total_time = re.search(r"WSREP_SST:\s+\[INFO\]\s+Total\s+time\s+on\s+donor:\s+(\d+)\s+seconds", line, re.IGNORECASE)
+        # Pattern 5a: Total time on donor/joiner
+        total_time = re.search(r"WSREP_SST:\s+\[INFO\]\s+Total\s+time\s+on\s+(donor|joiner):\s+(\d+)\s+seconds", line, re.IGNORECASE)
         if total_time and self.current_timestamp:
-            secs = int(total_time.group(1))
+            secs = int(total_time.group(2))
+            side = total_time.group(1).lower()
             self.health_metrics.sst_events += 1
             event = LogEvent(
                 event_type=EventType.SST_EVENT,
                 timestamp=self.current_timestamp,
                 raw_message=line.strip(),
                 node=self._get_local_node(),
-                metadata={'subtype': 'sst_total_time', 'seconds': secs}
+                metadata={'subtype': 'sst_total_time', 'seconds': secs, 'side': side}
             )
             self.events.append(event)
             return True
@@ -1030,6 +1161,18 @@ class GaleraLogAnalyzer:
             ))
             return True
 
+        # Applier finished processing queue (100.0% complete) => consider IST completion
+        if self._ist_patterns['processing_complete'].search(line):
+            self.health_metrics.ist_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.IST_EVENT,
+                timestamp=ts,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'ist_completed_applier', 'role': 'receiver'}
+            ))
+            return True
+
         m = self._ist_patterns['incomplete'].search(line)
         if m:
             self.health_metrics.ist_events += 1
@@ -1041,6 +1184,34 @@ class GaleraLogAnalyzer:
                 raw_message=line.strip(),
                 node=self._get_local_node(),
                 metadata={'subtype': 'ist_incomplete', 'expected_last': int(m.group(1)), 'last_received': int(m.group(2)), 'role': 'receiver'}
+            ))
+            return True
+
+        # Authoritative receiver-side range summary
+        m = self._ist_patterns['recv_summary_seqnos'].search(line)
+        if m:
+            first, last = int(m.group(1)), int(m.group(2))
+            self.health_metrics.ist_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.IST_EVENT,
+                timestamp=ts,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'ist_recv_summary', 'first_seqno': first, 'last_seqno': last, 'role': 'receiver'}
+            ))
+            return True
+
+        # IST uuid: f: <first>, l: <last>
+        m = self._ist_patterns['ist_uuid_range'].search(line)
+        if m:
+            first, last = int(m.group(1)), int(m.group(2))
+            self.health_metrics.ist_events += 1
+            self.events.append(LogEvent(
+                event_type=EventType.IST_EVENT,
+                timestamp=ts,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'ist_uuid_range', 'first_seqno': first, 'last_seqno': last, 'role': 'receiver'}
             ))
             return True
 
@@ -1686,9 +1857,19 @@ class GaleraLogAnalyzer:
             # Gather SST and IST subsets with timestamps for correlation
             sst_events = [e for e in self.events if e.event_type == EventType.SST_EVENT]
             sst_requests = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_requested']
-            sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_started']
+            sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') in ('sst_started','sst_proceeding')]
             sst_failures = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_failed']
             sst_completed = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_completed']
+            sst_helper_ist = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_helper_ist_path']
+            sst_bookkeeping = [e for e in sst_events if e.metadata and e.metadata.get('subtype') in ('sst_helper_bookkeeping','sst_helper_installed_state')]
+            sst_proceedings = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_proceeding']
+            sst_clean_datadir = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_clean_datadir']
+            sst_wait_stream = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_wait_stream']
+            sst_stream_addrs = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_stream_addr']
+            sst_sents = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_sent']
+            sst_total_time_donor = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_total_time' and e.metadata.get('side') == 'donor']
+            sst_complete_notices = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_complete_notice']
+            sst_coords = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_galera_coords']
             # IST indicators
             ist_sender_nothing = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_sender_nothing']
             ist_send_failed = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_send_failed']
@@ -1696,6 +1877,7 @@ class GaleraLogAnalyzer:
             ist_completed = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_completed']
             ist_async_served = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'async_ist_served']
             ist_recv_prepared = [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_receiver_prepared']
+            ist_recv_summary = [e for e in ist_events if e.metadata and e.metadata.get('subtype') in ('ist_recv_summary','ist_uuid_range','ist_applying_start')]
 
             # Simple time-based correlation: for each SST request (implies IST was not possible or insufficient),
             # collect surrounding IST failures before it, SST start/failure after, and IST async after SST.
@@ -1717,7 +1899,8 @@ class GaleraLogAnalyzer:
                     'donor': donor,
                     'pre_ist_signals': [],
                     'sst': {},
-                    'post_ist': {}
+                    'post_ist': {},
+                    'decision': None
                 }
                 # Preceding IST failures or sender_nothing within 2 minutes
                 for ev in (ist_sender_nothing + ist_send_failed):
@@ -1729,39 +1912,54 @@ class GaleraLogAnalyzer:
                             })
                     except Exception:
                         pass
-                # Find nearest SST start or failure within 5 minutes after request
-                nearest_sst = None
-                nearest_dt = None
-                for ev in (sst_starts + sst_failures + sst_completed):
+                # Find SST start/failure/complete events in windows after request
+                sst_start_ev = None
+                sst_start_dt = None
+                for ev in sst_starts:
                     try:
                         dt = ts_to_dt(ev.timestamp)
-                        if 0 <= (dt - req_dt).total_seconds() <= 300:
-                            if nearest_dt is None or dt < nearest_dt:
-                                nearest_dt = dt
-                                nearest_sst = ev
+                        if 0 <= (dt - req_dt).total_seconds() <= 600:
+                            if sst_start_dt is None or dt < sst_start_dt:
+                                sst_start_dt = dt
+                                sst_start_ev = ev
                     except Exception:
                         pass
-                if nearest_sst:
-                    subtype = nearest_sst.metadata.get('subtype')
-                    wf['sst'] = {
-                        'timestamp': nearest_sst.timestamp,
-                        'status': 'started' if subtype == 'sst_started' else ('failed' if subtype == 'sst_failed' else 'completed')
-                    }
-                # If we found a start, look for a completion shortly after
-                if nearest_dt and sst_completed:
-                    best_comp = None
-                    best_comp_dt = None
+                sst_fail_ev = None
+                sst_fail_dt = None
+                for ev in sst_failures:
+                    try:
+                        dt = ts_to_dt(ev.timestamp)
+                        if 0 <= (dt - req_dt).total_seconds() <= 1800:
+                            if sst_fail_dt is None or dt < sst_fail_dt:
+                                sst_fail_dt = dt
+                                sst_fail_ev = ev
+                    except Exception:
+                        pass
+                sst_comp_ev = None
+                sst_comp_dt = None
+                if sst_start_dt:
                     for ev in sst_completed:
                         try:
                             cdt = ts_to_dt(ev.timestamp)
-                            if cdt and 0 <= (cdt - nearest_dt).total_seconds() <= 900:
-                                if best_comp_dt is None or cdt < best_comp_dt:
-                                    best_comp = ev
-                                    best_comp_dt = cdt
+                            if cdt and 0 <= (cdt - sst_start_dt).total_seconds() <= 900:
+                                if sst_comp_dt is None or cdt < sst_comp_dt:
+                                    sst_comp_dt = cdt
+                                    sst_comp_ev = ev
                         except Exception:
                             pass
-                    if best_comp:
-                        wf.setdefault('sst', {})['completed_at'] = best_comp.timestamp
+                # Populate SST block if any
+                if sst_start_ev:
+                    wf['sst'] = {
+                        'timestamp': sst_start_ev.timestamp,
+                        'status': 'started'
+                    }
+                if sst_fail_ev:
+                    wf.setdefault('sst', {})
+                    wf['sst'].setdefault('timestamp', sst_fail_ev.timestamp)
+                    wf['sst']['status'] = 'failed'
+                if sst_comp_ev:
+                    wf.setdefault('sst', {})
+                    wf['sst']['completed_at'] = sst_comp_ev.timestamp
                 # Try to infer joiner listen address from nearest receiver_prepared before/after the SST request
                 joiner_addr = None
                 if req_dt:
@@ -1778,24 +1976,120 @@ class GaleraLogAnalyzer:
                             pass
                 if joiner_addr:
                     wf['joiner_addr'] = joiner_addr
+                # Attach nearby Galera coordinates from donor to workflow for clarity
+                if req_dt and sst_coords:
+                    best = None
+                    best_dt = None
+                    for ev in sst_coords:
+                        try:
+                            dt = ts_to_dt(ev.timestamp)
+                            if dt and 0 <= abs((dt - req_dt).total_seconds()) <= 600:
+                                if best_dt is None or abs((dt - req_dt).total_seconds()) < abs((best_dt - req_dt).total_seconds()):
+                                    best_dt = dt
+                                    best = ev
+                        except Exception:
+                            pass
+                    if best:
+                        wf['galera_coords'] = {'uuid': best.metadata.get('uuid'), 'seqno': best.metadata.get('seqno'), 'timestamp': best.timestamp}
+                # Decision: infer IST-only vs SST(+IST) based on signals near the request
+                # If we have strong IST signals (recv_summary/applying_start) within +/-5 minutes of request
+                # and no real SST started (only bookkeeping/helper), mark as IST-only
+                def within_window(ev, center_dt, seconds):
+                    try:
+                        dt = ts_to_dt(ev.timestamp)
+                        return dt and abs((dt - center_dt).total_seconds()) <= seconds
+                    except Exception:
+                        return False
+
+                strong_ist_near = any(within_window(ev, req_dt, 300) for ev in ist_recv_summary)
+                # Consider 'sst_proceeding' and cleanup/wait markers as strong indicators of real SST
+                sst_strong_near = (
+                    any(within_window(ev, req_dt, 600) for ev in sst_proceedings) or
+                    any(within_window(ev, req_dt, 600) for ev in sst_clean_datadir) or
+                    any(within_window(ev, req_dt, 600) for ev in sst_wait_stream) or
+                    any(within_window(ev, req_dt, 600) for ev in sst_stream_addrs) or
+                    any(within_window(ev, req_dt, 900) for ev in sst_sents) or
+                    any(within_window(ev, req_dt, 1800) for ev in sst_total_time_donor) or
+                    any(within_window(ev, req_dt, 900) for ev in sst_complete_notices)
+                )
+                helper_ist_near = any(within_window(ev, req_dt, 300) for ev in sst_helper_ist)
+                bookkeeping_near = any(within_window(ev, req_dt, 300) for ev in sst_bookkeeping)
+
+                # If we detect an SST failure near this request, mark as SST FAILED and block IST
+                block_post_ist = False
+                if sst_fail_ev and (not sst_comp_ev or (sst_fail_dt and sst_start_dt and sst_fail_dt <= sst_comp_dt if sst_comp_dt else True)):
+                    wf['decision'] = 'SST FAILED'
+                    block_post_ist = True
+                elif strong_ist_near and (helper_ist_near or bookkeeping_near) and not sst_strong_near:
+                    wf['decision'] = 'IST'
+                    wf['sst']['note'] = 'SST not needed'
+                elif sst_strong_near:
+                    # Initially mark as SST; we'll promote to SST+IST only if we actually observe IST after SST
+                    wf['decision'] = 'SST'
+                else:
+                    # Fallback: if we later see async IST starts without SST start, call it IST
+                    future_async = any(ev for ev in ist_async_start if within_window(ev, req_dt, 900))
+                    if future_async and not sst_strong_near:
+                        wf['decision'] = 'IST'
+                    else:
+                        if wf.get('sst') and wf['sst'].get('status'):
+                            status = str(wf['sst'].get('status')).lower()
+                            # Map status to readable decision
+                            if status == 'started':
+                                wf['decision'] = 'SST'
+                            elif status == 'failed':
+                                wf['decision'] = 'SST FAILED'
+                            elif status == 'completed':
+                                wf['decision'] = 'SST'
+                            else:
+                                wf['decision'] = status.upper()
+                        else:
+                            wf['decision'] = 'Unknown'
+
+                # Allow IST after SST only if SST completed (strongly) or we're in IST-only decision
+                # Anchor IST correlation to SST completion time when available
+                sst_done_dt = None
+                if sst_comp_dt:
+                    sst_done_dt = sst_comp_dt
+                else:
+                    # Look for provider completion notices near the request
+                    try:
+                        notice_dt = None
+                        for ev in sst_complete_notices:
+                            dt = ts_to_dt(ev.timestamp)
+                            if dt and sst_start_dt and 0 <= (dt - sst_start_dt).total_seconds() <= 1800:
+                                if notice_dt is None or dt < notice_dt:
+                                    notice_dt = dt
+                        if notice_dt:
+                            sst_done_dt = notice_dt
+                    except Exception:
+                        pass
+
+                allow_post_ist = (wf.get('decision') == 'IST') or (sst_done_dt is not None)
+
                 # Post-SST IST async start and completion within windows; assign each IST event only once
                 post_start = None
                 post_start_dt = None
-                for ev in ist_async_start:
-                    try:
-                        ev_dt = ts_to_dt(ev.timestamp)
-                        if ev_dt and nearest_dt and 0 <= (ev_dt - nearest_dt).total_seconds() <= 600 and id(ev) not in used_async_ids:
-                            if post_start_dt is None or ev_dt < post_start_dt:
-                                # If we know joiner_addr, prefer events whose peer matches that address
-                                peer = ev.metadata.get('peer')
-                                if joiner_addr and peer and joiner_addr.split(':')[1:] and peer.endswith(joiner_addr.split(':')[1]):
-                                    post_start = ev
+                if not block_post_ist and allow_post_ist:
+                    for ev in ist_async_start:
+                        try:
+                            ev_dt = ts_to_dt(ev.timestamp)
+                            # Anchor post-IST to SST completion when available; else to request for IST-only
+                            anchor_dt = sst_done_dt or (req_dt if wf.get('decision') == 'IST' else None)
+                            if not anchor_dt:
+                                continue
+                            if ev_dt and 0 <= (ev_dt - anchor_dt).total_seconds() <= 600 and id(ev) not in used_async_ids:
+                                if post_start_dt is None or ev_dt < post_start_dt:
+                                    # If we know joiner_addr, prefer events whose peer matches that address
+                                    peer = ev.metadata.get('peer')
+                                    if joiner_addr and peer and joiner_addr.split(':')[1:] and peer.endswith(joiner_addr.split(':')[1]):
+                                        post_start = ev
+                                        post_start_dt = ev_dt
+                                    elif not joiner_addr:
+                                        post_start = ev
                                     post_start_dt = ev_dt
-                                elif not joiner_addr:
-                                    post_start = ev
-                                post_start_dt = ev_dt
-                    except Exception:
-                        pass
+                        except Exception:
+                            pass
                 if post_start:
                     used_async_ids.add(id(post_start))
                     wf['post_ist']['async_start'] = {
@@ -1814,18 +2108,68 @@ class GaleraLogAnalyzer:
                         wf['post_ist']['peer_matched'] = bool(peer_val and joiner_suffix and peer_val.endswith(joiner_suffix))
                 post_comp = None
                 post_comp_dt = None
-                for ev in (ist_completed + ist_async_served):
-                    try:
-                        ev_dt = ts_to_dt(ev.timestamp)
-                        if ev_dt and nearest_dt and 0 <= (ev_dt - nearest_dt).total_seconds() <= 900 and id(ev) not in used_completed_ids:
-                            if post_comp_dt is None or ev_dt < post_comp_dt:
-                                post_comp = ev
-                                post_comp_dt = ev_dt
-                    except Exception:
-                        pass
+                if not block_post_ist and allow_post_ist:
+                    for ev in (ist_completed + ist_async_served + [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_completed_applier']):
+                        try:
+                            ev_dt = ts_to_dt(ev.timestamp)
+                            anchor_dt = sst_done_dt or (req_dt if wf.get('decision') == 'IST' else None)
+                            if not anchor_dt:
+                                continue
+                            if ev_dt and 0 <= (ev_dt - anchor_dt).total_seconds() <= 900 and id(ev) not in used_completed_ids:
+                                if post_comp_dt is None or ev_dt < post_comp_dt:
+                                    post_comp = ev
+                                    post_comp_dt = ev_dt
+                        except Exception:
+                            pass
                 if post_comp:
                     used_completed_ids.add(id(post_comp))
                     wf['post_ist']['completed_at'] = post_comp.timestamp
+
+                # Joiner-side post-IST signals: only if allowed (after SST completion or IST-only)
+                # Use sst_done_dt as boundary if available; otherwise use req_dt only for IST-only workflows
+                center_dt = (sst_done_dt if allow_post_ist and sst_done_dt else (req_dt if wf.get('decision') == 'IST' else None))
+                # Receiver applying-start
+                try:
+                    receiver_apply = None
+                    receiver_apply_dt = None
+                    for ev in [e for e in ist_events if e.metadata and e.metadata.get('subtype') == 'ist_applying_start']:
+                        dt = ts_to_dt(ev.timestamp)
+                        if not dt or not center_dt:
+                            continue
+                        if 0 <= (dt - center_dt).total_seconds() <= 900:
+                            if receiver_apply_dt is None or dt < receiver_apply_dt:
+                                receiver_apply = ev
+                                receiver_apply_dt = dt
+                    if receiver_apply:
+                        wf['post_ist']['receiver_applying_start'] = {
+                            'timestamp': receiver_apply.timestamp,
+                            'first_seqno': receiver_apply.metadata.get('first_seqno')
+                        }
+                except Exception:
+                    pass
+                # Receiver range summary (Receiving IST: seqnos A-B) if present
+                try:
+                    receiver_summary = None
+                    receiver_summary_dt = None
+                    for ev in [e for e in ist_events if e.metadata and e.metadata.get('subtype') in ('ist_recv_summary','ist_uuid_range')]:
+                        dt = ts_to_dt(ev.timestamp)
+                        if not dt or not center_dt:
+                            continue
+                        if 0 <= (dt - center_dt).total_seconds() <= 900:
+                            if receiver_summary_dt is None or dt < receiver_summary_dt:
+                                receiver_summary = ev
+                                receiver_summary_dt = dt
+                    if receiver_summary:
+                        wf['post_ist']['receiver_range'] = {
+                            'first_seqno': receiver_summary.metadata.get('first_seqno'),
+                            'last_seqno': receiver_summary.metadata.get('last_seqno'),
+                            'timestamp': receiver_summary.timestamp
+                        }
+                except Exception:
+                    pass
+                # If we observed IST after SST completion, promote decision to SST+IST
+                if wf.get('decision') == 'SST' and wf.get('post_ist') and any(k in wf['post_ist'] for k in ('async_start','receiver_applying_start','receiver_range','completed_at')):
+                    wf['decision'] = 'SST+IST'
                 st_workflows.append(wf)
         except Exception:
             # Be resilient; if anything goes wrong, skip workflows
@@ -2233,6 +2577,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             sst_requests = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_requested']
             sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_started']
             sst_failures = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_failed']
+            sst_completions = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_completed']
 
             # Helper to find nearest event after a given timestamp within a window
             def _ts_to_dt(ts: str):
@@ -2241,7 +2586,10 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                 except Exception:
                     return None
 
-            for req in sst_requests[-5:]:
+            req_list = sst_requests[-5:]
+            # Track which START events are already consumed by a prior request block
+            used_start_ids: Set[int] = set()
+            for idx, req in enumerate(req_list):
                 meta = req.metadata or {}
                 joiner = meta.get('joiner', 'Unknown')
                 donor = meta.get('donor', 'Unknown')
@@ -2254,12 +2602,35 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                 nearest_addr = None
                 nearest_addr_dt = None
                 if req_dt:
+                    # First, determine failure time bound (if any) to constrain START selection
+                    nearest_fail = None
+                    nearest_fail_dt = None
+                    for fl in sst_failures:
+                        fl_dt = _ts_to_dt(fl.timestamp)
+                        if fl_dt and 0 <= (fl_dt - req_dt).total_seconds() <= 900:
+                            if not nearest_fail_dt or fl_dt < nearest_fail_dt:
+                                nearest_fail = fl
+                                nearest_fail_dt = fl_dt
+                    # Select START within a small pre-window and up to failure (if present), not reusing previous starts
+                    best_delta = None
                     for st in sst_starts:
+                        if id(st) in used_start_ids:
+                            continue
                         st_dt = _ts_to_dt(st.timestamp)
-                        if st_dt and 0 <= (st_dt - req_dt).total_seconds() <= 600:
-                            if not nearest_start_dt or st_dt < nearest_start_dt:
-                                nearest_start = st
-                                nearest_start_dt = st_dt
+                        if not st_dt:
+                            continue
+                        # Allow START slightly before request (up to 15s) or after (up to 600s)
+                        delta_s = (st_dt - req_dt).total_seconds()
+                        if delta_s < -15 or delta_s > 600:
+                            continue
+                        # Ensure START isn't after failure for this same request
+                        if nearest_fail_dt and st_dt > nearest_fail_dt:
+                            continue
+                        d = abs(delta_s)
+                        if best_delta is None or d < best_delta:
+                            best_delta = d
+                            nearest_start = st
+                            nearest_start_dt = st_dt
                 if nearest_start and nearest_start.metadata:
                     method = nearest_start.metadata.get('method')
 
@@ -2284,21 +2655,60 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                 if nearest_addr:
                     lines.append(f"    └─ Joiner Addr: {nearest_addr}")
 
-                # Also show the first failure or start following the request
-                # Prefer failures if they exist; otherwise show started
-                nearest_fail = None
-                nearest_fail_dt = None
-                if req_dt:
-                    for fl in sst_failures:
-                        fl_dt = _ts_to_dt(fl.timestamp)
-                        if fl_dt and 0 <= (fl_dt - req_dt).total_seconds() <= 900:
-                            if not nearest_fail_dt or fl_dt < nearest_fail_dt:
-                                nearest_fail = fl
-                                nearest_fail_dt = fl_dt
-                if nearest_fail:
-                    lines.append(f"  {nearest_fail.timestamp} | SST FAILED")
-                elif nearest_start:
-                    lines.append(f"  {nearest_start.timestamp} | SST STARTED")
+                # Also show the first failure following the request
+                # (recomputed above if req_dt set)
+                if 'nearest_fail' not in locals():
+                    nearest_fail = None
+                    nearest_fail_dt = None
+                    if req_dt:
+                        for fl in sst_failures:
+                            fl_dt = _ts_to_dt(fl.timestamp)
+                            if fl_dt and 0 <= (fl_dt - req_dt).total_seconds() <= 900:
+                                if not nearest_fail_dt or fl_dt < nearest_fail_dt:
+                                    nearest_fail = fl
+                                    nearest_fail_dt = fl_dt
+                # Build chronological sst_progress entries for this request
+                sst_progress = []
+                # Include STARTED only if it does not occur after a failure in the same request window
+                include_start = bool(nearest_start and nearest_start_dt and (not nearest_fail_dt or nearest_start_dt <= nearest_fail_dt))
+                if include_start and nearest_start:
+                    sst_progress.append((nearest_start_dt, f"  {nearest_start.timestamp} | SST STARTED"))
+                    used_start_ids.add(id(nearest_start))
+                if nearest_fail and nearest_fail_dt:
+                    reason = (nearest_fail.metadata or {}).get('reason')
+                    op = (nearest_fail.metadata or {}).get('operation')
+                    code = (nearest_fail.metadata or {}).get('error_code')
+                    extra_bits = []
+                    if reason:
+                        extra_bits.append(reason)
+                    if op:
+                        extra_bits.append(op)
+                    if code:
+                        extra_bits.append(str(code))
+                    extra = (" (" + ", ".join(extra_bits) + ")") if extra_bits else ""
+                    sst_progress.append((nearest_fail_dt, f"  {nearest_fail.timestamp} | SST FAILED{extra}"))
+                for _, msg in sorted(sst_progress, key=lambda x: x[0]):
+                    lines.append(msg)
+
+                # If a completion happened after the request (and optionally after start), show it
+                nearest_complete = None
+                nearest_complete_dt = None
+                if req_dt and sst_completions:
+                    for ev in sst_completions:
+                        cdt = _ts_to_dt(ev.timestamp)
+                        if cdt and 0 <= (cdt - req_dt).total_seconds() <= 1800:
+                            # If start is present, prefer completions after start
+                            if nearest_start_dt and cdt < nearest_start_dt:
+                                continue
+                            if not nearest_complete_dt or cdt < nearest_complete_dt:
+                                nearest_complete = ev
+                                nearest_complete_dt = cdt
+                if nearest_complete:
+                    lines.append(f"  {nearest_complete.timestamp} | SST COMPLETED")
+
+                # Visual spacing between attempts
+                if idx < len(req_list) - 1:
+                    lines.append("")
 
             # If no requests parsed, still show standalone starts/failures
             if not sst_requests:
@@ -2310,6 +2720,8 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                     code = (fl.metadata or {}).get('error_code', '')
                     extra = f" {op} {code}".strip()
                     lines.append(f"  {fl.timestamp} | SST FAILED{(' ('+extra+')') if extra else ''}")
+                for cm in sst_completions[-3:]:
+                    lines.append(f"  {cm.timestamp} | SST COMPLETED")
 
         # Keep existing IST presentation next
         if ist_events:
@@ -2388,14 +2800,33 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             for wf in st_workflows[-3:]:
                 joiner = wf.get('joiner') or 'joiner'
                 donor = wf.get('donor') or 'donor'
-                lines.append(f"Request {wf.get('requested_at')}: {joiner} ⇐ {donor}")
+                raw_decision = (wf.get('decision') or '').upper()
+                # Normalize display to SST, IST, or SST+IST only
+                if raw_decision in ('SST+IST', 'IST', 'SST'):
+                    display_process = raw_decision
+                elif raw_decision == 'SST FAILED':
+                    display_process = 'SST'
+                else:
+                    # Heuristic fallback: if SST block exists, show SST; else if any post_ist keys, show IST; else SST
+                    display_process = 'SST' if wf.get('sst') else ('IST' if wf.get('post_ist') else 'SST')
+                lines.append(f"Request {wf.get('requested_at')}: {joiner} ⇐ {donor} | Process: {display_process}")
+                # Show donor Galera coordinates if available
+                if wf.get('galera_coords'):
+                    gc = wf['galera_coords']
+                    lines.append(f"  Donor co-ords: {gc.get('uuid')}:{gc.get('seqno')} at {gc.get('timestamp')}")
                 pre = wf.get('pre_ist_signals', [])
                 if pre:
                     kinds = ", ".join(p.get('type', '') for p in pre)
                     lines.append(f"  Pre-IST: {kinds}")
                 sst = wf.get('sst', {})
                 if sst:
-                    lines.append(f"  SST: {sst.get('status','?')} at {sst.get('timestamp','?')}")
+                    start_ts = sst.get('timestamp')
+                    comp_ts = sst.get('completed_at')
+                    note = sst.get('note')
+                    if start_ts:
+                        lines.append(f"  SST: started at {start_ts}" + (f" ({note})" if note else ""))
+                    if comp_ts:
+                        lines.append(f"  SST: completed at {comp_ts}")
                 post = wf.get('post_ist', {})
                 if post:
                     if 'async_start' in post:
@@ -2405,11 +2836,17 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                         match = post.get('peer_matched')
                         match_str = ' ✓' if match else (' ×' if match is False else '')
                         if addr:
-                            lines.append(f"  Post-IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')} (joiner {addr}{match_str})")
+                            lines.append(f"  IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')} (joiner {addr}{match_str})")
                         else:
-                            lines.append(f"  Post-IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')}{match_str}")
+                            lines.append(f"  IST: async serve {a.get('peer')} {a.get('first_seqno')}→{a.get('last_seqno')} at {a.get('timestamp')}{match_str}")
+                    if 'receiver_applying_start' in post:
+                        ra = post['receiver_applying_start']
+                        lines.append(f"  IST: applying starts at {ra.get('first_seqno')} ({ra.get('timestamp')})")
+                    if 'receiver_range' in post:
+                        rr = post['receiver_range']
+                        lines.append(f"  IST: receiving {rr.get('first_seqno')}→{rr.get('last_seqno')} at {rr.get('timestamp')}")
                     if 'completed_at' in post:
-                        lines.append(f"  Post-IST: completed at {post['completed_at']}")
+                        lines.append(f"  IST: completed at {post['completed_at']}")
     
     # Recent Critical Events
     critical_events = [e for e in analyzer.events 
