@@ -15,13 +15,18 @@ Grambo Python Edition provides a clean, organized analysis of Galera cluster log
     - Node Instance UUID (My UUID): full 36-char per-node identity
     - Group UUID: short 8-4 view/cluster UUID with current seqno
     - Local State: provider state UUID:seqno on this node
+  - Local node: resolved node name for this log (when known)
 - **🔄 State Transitions** - Node state changes (JOINED→SYNCED, etc.)
 - **👥 Cluster Views** - Membership changes, nodes joining/leaving
 - **💾 SST Events** - State Snapshot Transfer operations
 - **📈 IST Events** - Incremental State Transfer operations
+  - Now includes ranges, roles (sender/receiver), async serve peer and preload start
+  - Detects receiver prepare/apply start/completion and incomplete ranges
+  - NEW: correlates end-to-end State Transfer workflows (IST attempt → SST fallback → IST catch-up)
 - **⚠️ Communication Issues** - Node suspicions, network problems
 - **⚡ Warnings** - Non-critical issues
 - **🚨 Errors** - Critical problems
+ - **🛠️ Flow Control** - Summary of FC interval, STOP/CONT signals, SYNC decisions (from gcs.cpp)
 
 ### 🔧 **Advanced Features**
 - **Multiple output formats**: Human-readable text and JSON
@@ -109,6 +114,7 @@ python3 grambo.py --format=json --filter=cluster_view error.log
   Group UUID: 378c0ec7-a3db (seqno: 22)
   Local State: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d:1776
   Node Instance UUID (My UUID): 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+  Local node: UAT-DB-03
 
 
 🔄 STATE TRANSITIONS
@@ -123,6 +129,17 @@ python3 grambo.py --format=json --filter=cluster_view error.log
     └─ Donor: 10.0.1.192
     └─ Joiner: 10.0.1.193
   2025-09-15 13:48:11 | SST FAILED
+🛠️  FLOW CONTROL
+--------------------------------------------------
+  Interval: [102, 128] (last seen 2025-09-15 13:53:05)
+  FC_STOP sent: 3 | FC_CONT sent: 3
+  SYNC decisions — sent: 1, not sent: 2
+
+🧩 STATE TRANSFER WORKFLOWS
+--------------------------------------------------
+Request 2025-09-15 13:50:43: UAT-DB-01 ⇐ UAT-DB-03
+  SST: started at 2025-09-15 13:50:43
+  Post-IST: async serve tcp://10.0.1.192:4568 1726→1810 at 2025-09-15 13:53:06
 ```
 
 ### JSON Format
@@ -134,6 +151,45 @@ python3 grambo.py --format=json --filter=cluster_view error.log
     "port": "3306",
     "address": "10.0.1.193"
   },
+  "ist_summary": {
+    "receiver": {
+      "prepared_range": {
+        "first_seqno": 1726,
+        "last_seqno": 1810,
+        "listen_addr": "tcp://10.0.1.193:4568",
+        "timestamp": "2025-09-15 13:53:06"
+      },
+      "completed_at": "2025-09-15 13:53:07"
+    },
+    "sender": {
+      "ranges": [
+        { "first_seqno": 1726, "last_seqno": 1810, "timestamp": "2025-09-15 13:53:06" }
+      ],
+      "async": [
+        { "peer": "tcp://10.0.1.192:4568", "first_seqno": 1726, "last_seqno": 1810, "preload_start": 1726, "timestamp": "2025-09-15 13:53:06" }
+      ],
+      "failures": []
+    },
+    "counts": { "total": 12, "sender_ranges": 4, "async_starts": 4, "failures": 0 }
+  },
+  "st_workflows": [
+    {
+      "requested_at": "2025-09-15 13:50:43",
+      "joiner": "UAT-DB-01",
+      "donor": "UAT-DB-03",
+      "pre_ist_signals": [],
+      "sst": { "timestamp": "2025-09-15 13:50:43", "status": "started" },
+      "post_ist": {
+        "async_start": {
+          "timestamp": "2025-09-15 13:53:06",
+          "peer": "tcp://10.0.1.192:4568",
+          "first_seqno": 1726,
+          "last_seqno": 1810
+        },
+        "completed_at": "2025-09-15 13:53:07"
+      }
+    }
+  ],
   "events": [
     {
       "timestamp": "2025-09-15 13:50:35",
@@ -166,8 +222,8 @@ Galera nodes go through various states:
 - **DONOR** means the node is providing SST/IST to other nodes
 
 ### SST vs IST
-- **SST (State Snapshot Transfer)**: Full database backup/restore for new nodes
-- **IST (Incremental State Transfer)**: Incremental catch-up using write-set cache
+- **IST (Incremental State Transfer)**: First attempt when a node needs to resync; donor serves missing write sets from gcache. If gcache doesn’t contain the full required range or IST isn’t possible, it falls back to SST.
+- **SST (State Snapshot Transfer)**: Full resync via wsrep_sst_mariabackup (default). Donor runs mariabackup and streams to the joiner on port 4568; the joiner wipes datadir, restores and prepares the backup, then starts MariaDB. After SST, a short IST catch-up typically follows.
 
 ### Cluster Views
 Track which nodes are members of the cluster at any given time, including:
