@@ -43,7 +43,7 @@ git clone https://github.com/claudionanni/grambo.git
 cd grambo
 
 # Make the Python script executable (optional)
-chmod +x grambo.py
+chmod +x gramboo.py
 ```
 
 ## Usage
@@ -52,29 +52,29 @@ chmod +x grambo.py
 
 ```bash
 # Analyze a log file
-python3 grambo.py /var/log/mysql/error.log
+python3 gramboo.py /var/log/mysql/error.log
 
 # Using stdin
-cat /var/log/mysql/error.log | python3 grambo.py
+cat /var/log/mysql/error.log | python3 gramboo.py
 
 # Make it executable and use directly
-./grambo.py /var/log/mysql/error.log
+./gramboo.py /var/log/mysql/error.log
 ```
 
 ### Advanced Options
 
 ```bash
 # JSON output for integration with other tools
-python3 grambo.py --format=json error.log
+python3 gramboo.py --format=json error.log
 
 # Filter specific event types
-python3 grambo.py --filter=sst_event,state_transition error.log
+python3 gramboo.py --filter=sst_event,state_transition error.log
 
 # Filter multiple types (comma-separated)
-python3 grambo.py --filter=error,warning error.log
+python3 gramboo.py --filter=error,warning error.log
 
 # Combine options
-python3 grambo.py --format=json --filter=cluster_view error.log
+python3 gramboo.py --format=json --filter=cluster_view error.log
 ```
 
 ### Available Event Types for Filtering
