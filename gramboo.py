@@ -426,6 +426,29 @@ class GaleraLogAnalyzer:
         self._finalize_ips(mapping)
         # Collapse identical consecutive views now that names stabilized
         self._collapse_identical_views()
+        # Replace synthetic name-derived UUIDs (node_<name>_<n>) with real UUIDs seen in views
+        synthetic_pattern = re.compile(r'^node_[A-Za-z0-9_.-]+_\d+$')
+        # Build name->real_uuid candidates from views
+        name_real_uuid: Dict[str, str] = {}
+        for view in self.cluster.views_history:
+            for m in view.members.values():
+                if m and m.name and m.uuid and m.uuid.count('-') == 4 and len(m.uuid) >= 36:
+                    # Keep first discovered mapping per name
+                    name_real_uuid.setdefault(m.name, m.uuid)
+        for node in list(self.cluster.nodes.values()):
+            if synthetic_pattern.match(node.uuid):
+                real_uuid = name_real_uuid.get(node.name)
+                if real_uuid and real_uuid != node.uuid:
+                    # Update uuid history
+                    if real_uuid not in node.uuid_history:
+                        node.uuid_history.append(real_uuid)
+                    # Re-index cluster.nodes dict
+                    try:
+                        del self.cluster.nodes[node.uuid]
+                    except Exception:
+                        pass
+                    node.uuid = real_uuid
+                    self.cluster.nodes[real_uuid] = node
 
     def _collapse_identical_views(self):
         if not self.cluster.views_history:
@@ -2243,6 +2266,12 @@ class GaleraLogAnalyzer:
     
     def get_cluster_summary(self) -> Dict[str, Any]:
         """Get comprehensive cluster summary"""
+        # Purge accidental nodes like 'offset' created from parsing non-node lines
+        if 'offset' in self.cluster.nodes:
+            try:
+                del self.cluster.nodes['offset']
+            except Exception:
+                pass
         # Build IST summary from parsed IST events
         ist_events = [e for e in self.events if e.event_type == EventType.IST_EVENT]
         ist_summary: Dict[str, Any] = {}
@@ -2641,8 +2670,9 @@ class GaleraLogAnalyzer:
         return {
             "cluster_info": {
                 "dialect": self.dialect,
-                "total_nodes": self.cluster.node_count,
-                "active_nodes": len(self.cluster.active_nodes),
+                # Accurate counts derived from view membership
+                "total_nodes": self._compute_total_nodes(),
+                "active_nodes": self._compute_active_nodes(),
                 "current_view": asdict(self.cluster.current_view) if self.cluster.current_view else None,
                 "total_views": len(self.cluster.views_history),
                 "cluster_name": self.cluster.name,
@@ -2691,6 +2721,37 @@ class GaleraLogAnalyzer:
         """Get all cluster view changes"""
         return [event.cluster_view for event in self.events 
                 if event.event_type == EventType.CLUSTER_VIEW and event.cluster_view]
+
+    # Node counting helpers (reintroduced)
+    def _compute_total_nodes(self) -> int:
+    # TODO(improvement): Consolidate sequential restart placeholder names (Local-<hex>)
+    # that never appear concurrently into a single physical node so Total Nodes reflects
+    # logical members rather than per-restart instance identifiers. Heuristic plan:
+    # 1) Track timeline of primary views; 2) Detect pattern where exactly one member
+    #    name changes among Local-* variants while its UUID changes; 3) Map all such
+    #    Local-* names to the longest-lived (or first) and exclude duplicates from count.
+    # 4) Preserve raw list elsewhere for forensic detail.
+        names = set()
+        uuids_without_name = set()
+        for view in self.cluster.views_history:
+            for node in view.members.values():
+                if not node:
+                    continue
+                if node.name and not node.name.startswith('Temp-') and node.name != 'N/A':
+                    names.add(node.name)
+                elif node.uuid:
+                    uuids_without_name.add(node.uuid)
+        if not names and uuids_without_name:
+            return len(uuids_without_name)
+        return len(names)
+
+    def _compute_active_nodes(self) -> int:
+        for view in reversed(self.cluster.views_history):
+            if view.status.lower() == 'primary':
+                return len(view.members)
+        if self.cluster.current_view and self.cluster.current_view.status.lower() == 'primary':
+            return len(self.cluster.current_view.members)
+        return 0
 
 def output_text(analyzer: GaleraLogAnalyzer) -> str:
     """Generate human-readable text output"""
@@ -2818,7 +2879,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     lines.append("-" * 50)
     real_nodes = {name: info for name, info in summary["nodes"].items() 
                   if not name.isdigit() and len(name) > 2 and 
-                  name not in ['Note', 'INFO', 'WARN', 'ERROR', 'tcp'] and
+                  name not in ['Note', 'INFO', 'WARN', 'ERROR', 'tcp', 'offset'] and
                   not name.startswith('Node-') and
                   not name.startswith('node_')}  # Also filter generated node names
     
@@ -2852,6 +2913,8 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     for node in analyzer.cluster.nodes.values():
         if node.name.startswith('Temp-'):
             continue
+        if node.name == 'offset':
+            continue
         patterns = []
         for fu in node.uuid_history:
             if fu.count('-') == 4:
@@ -2866,7 +2929,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                 seen.add(p)
                 uniq.append(p)
         if uniq:
-            lines.append(f"• {node.name} UUIDs {','.join(uniq)}")
+            lines.append(f"• {node.name} UUIDs {' '.join(uniq)}")
     
     # Node State Transition Timelines
     wsrep_transitions = [t for t in analyzer.get_state_transitions() 
