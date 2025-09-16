@@ -38,6 +38,7 @@ class Node:
     index: Optional[int] = None
     status: Optional[str] = None  # SYNCED, DONOR, JOINED, JOINER
     placeholder: bool = False      # True if this name is a temporary placeholder
+    uuid_history: List[str] = field(default_factory=list)  # Historical UUIDs this logical node used (full UUIDs)
     
     def __hash__(self):
         return hash(self.uuid)
@@ -411,6 +412,51 @@ class GaleraLogAnalyzer:
                     mnode.name = perm.name
                     mnode.placeholder = False
 
+    def _retroactively_fill_name(self, full_uuid: str, real_name: str) -> None:
+        """When we learn a node's real name after views were logged with placeholders,
+        rewrite historical view member entries (Temp-/N/A) for that UUID or its short/composite aliases.
+        Low complexity: iterate views history, locate matching keys (full UUID, first8, composite first8-fourth),
+        and patch Node objects in-place.
+        """
+        if not full_uuid or not real_name:
+            return
+        parts = full_uuid.split('-')
+        first8 = parts[0] if parts else full_uuid[:8]
+        composite = None
+        if len(parts) == 5:
+            composite = f"{parts[0]}-{parts[3]}"
+        # Ensure permanent node updated
+        perm = self.cluster.get_node_by_uuid(full_uuid)
+        if perm and (perm.placeholder or perm.name.startswith('Temp-') or perm.name == 'N/A' or perm.name.startswith('Node-')):
+            perm.name = real_name
+            perm.placeholder = False
+        # Walk historical views
+        for view in self.cluster.views_history:
+            # If full UUID present
+            node_obj = view.members.get(full_uuid)
+            if node_obj and (node_obj.name.startswith('Temp-') or node_obj.name == 'N/A'):
+                node_obj.name = real_name
+                node_obj.placeholder = False
+            # Short / composite keys may have been used originally; replace mapping
+            # Collect keys to adjust to avoid modifying during iteration
+            adjust_keys = []
+            for k, v in view.members.items():
+                if k == full_uuid:
+                    continue
+                if (k == first8 or (composite and k == composite)) and (v.name.startswith('Temp-') or v.name == 'N/A' or v.placeholder):
+                    adjust_keys.append(k)
+            for k in adjust_keys:
+                old = view.members.pop(k)
+                # Insert or overwrite with full UUID pointing to permanent node if exists
+                view.members[full_uuid] = perm if perm else old
+                view.members[full_uuid].name = real_name
+                view.members[full_uuid].placeholder = False
+        # Register aliases for future lookups if not already
+        if first8 and first8 not in self.cluster.uuid_aliases:
+            self.cluster.uuid_aliases[first8] = full_uuid
+        if composite and composite not in self.cluster.uuid_aliases:
+            self.cluster.uuid_aliases[composite] = full_uuid
+
     def _detect_dialect(self, lines: List[str]) -> str:
         text = "\n".join(lines)
         # Simple heuristics; extend as needed
@@ -467,6 +513,8 @@ class GaleraLogAnalyzer:
             if name and not name.upper() in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'TRACE', 'NOTE']:
                 # Ensure the node exists with the given UUID/name
                 self._ensure_node_exists_with_uuid(name, uuid)
+                # Retroactively patch historical views with real name
+                self._retroactively_fill_name(uuid, name)
                 # If this UUID matches our local instance UUID, capture local node name
                 if self.cluster.node_instance_uuid and uuid == self.cluster.node_instance_uuid:
                     self.cluster.local_node_name = name
@@ -482,6 +530,8 @@ class GaleraLogAnalyzer:
                 self._ensure_node_exists_with_uuid(name, uuid)
                 # Add higher confidence evidence
                 self.identity_registry.add(uuid, name, 'member_synced', self.current_timestamp)
+                # Retroactively patch historical views with real name
+                self._retroactively_fill_name(uuid, name)
                 # If current view exists and has a placeholder entry matching the short form, update it
                 if self.cluster.current_view:
                     short_key = uuid.split('-')[0]
@@ -517,7 +567,7 @@ class GaleraLogAnalyzer:
         if not existing_node:
             # Create UUID based on node name
             node_uuid = f"node_{node_name}_{len(self.cluster.nodes)}"
-            new_node = Node(uuid=node_uuid, name=node_name)
+            new_node = Node(uuid=node_uuid, name=node_name, uuid_history=[node_uuid])
             self.cluster.add_node(new_node)
             return new_node
         return existing_node
@@ -529,6 +579,8 @@ class GaleraLogAnalyzer:
             if existing_node.name != node_name:
                 existing_node.name = node_name
                 self.identity_registry.add(uuid, node_name, 'membership_view', self.current_timestamp)
+            if uuid not in existing_node.uuid_history:
+                existing_node.uuid_history.append(uuid)
             return existing_node
 
         existing_by_name = self.cluster.get_node_by_name(node_name)
@@ -536,12 +588,17 @@ class GaleraLogAnalyzer:
             old_uuid = existing_by_name.uuid
             if old_uuid != uuid and old_uuid in self.cluster.nodes:
                 del self.cluster.nodes[old_uuid]
+            # Track history
+            if old_uuid and old_uuid not in existing_by_name.uuid_history:
+                existing_by_name.uuid_history.append(old_uuid)
             existing_by_name.uuid = uuid
+            if uuid not in existing_by_name.uuid_history:
+                existing_by_name.uuid_history.append(uuid)
             self.cluster.nodes[uuid] = existing_by_name
             self.identity_registry.add(uuid, existing_by_name.name, 'membership_view', self.current_timestamp)
             return existing_by_name
 
-        new_node = Node(uuid=uuid, name=node_name)
+        new_node = Node(uuid=uuid, name=node_name, uuid_history=[uuid])
         self.cluster.add_node(new_node)
         self.identity_registry.add(uuid, node_name, 'membership_view', self.current_timestamp)
         return new_node
@@ -642,6 +699,38 @@ class GaleraLogAnalyzer:
             if re.match(r'^\s*} (joined|left|partitioned) {', line):
                 # These indicate section changes - we'll parse the members that follow
                 return True
+
+        # Enhanced detailed View: block parsing (multi-line provider block)
+        # Detect lines like "View:" then subsequent indented metadata lines:
+        #   id: <uuid>:<seq>
+        #   status: primary
+        #   protocol_version: 4
+        #   capabilities: CAP1, CAP2, ...
+        #   members(N):
+        # This block appears later and contains the authoritative view id which differs from the earlier short form.
+        # We parse id/status/protocol/capabilities lines independently and patch the latest current_view.
+        detailed_id = re.search(r'^\s*id:\s*([0-9a-f-]{36}):(\d+)', line)
+        if detailed_id and self.cluster.current_view:
+            full_uuid = detailed_id.group(1)
+            seq = detailed_id.group(2)
+            # Override earlier synthetic view_id
+            self.cluster.current_view.view_id = f"{full_uuid}:{seq}"
+            return True
+        detailed_status = re.search(r'^\s*status:\s*(\w+)', line)
+        if detailed_status and self.cluster.current_view:
+            self.cluster.current_view.status = detailed_status.group(1).lower()
+            return True
+        proto_ver = re.search(r'^\s*protocol_version:\s*(\d+)', line)
+        if proto_ver and self.cluster.current_view:
+            self.cluster.current_view.protocol_version = proto_ver.group(1)
+            return True
+        caps = re.search(r'^\s*capabilities:\s*(.+)', line)
+        if caps and self.cluster.current_view:
+            # Split by comma and strip
+            caps_list = [c.strip() for c in caps.group(1).split(',') if c.strip()]
+            self.cluster.current_view.capabilities = caps_list
+            return True
+        # members(N): handled indirectly via indexed member lines elsewhere
         
         return False
     
@@ -2544,7 +2633,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     lines.append(f"Errors: {metrics['errors']}")
     
     # Node Details - only show real nodes and display full UUIDs
-    lines.append("\n🖥️  CLUSTER NODES")
+    lines.append("\n🖥️  CLUSTER NODES (UUID changes upon restart, see section below)")
     lines.append("-" * 50)
     real_nodes = {name: info for name, info in summary["nodes"].items() 
                   if not name.isdigit() and len(name) > 2 and 
@@ -2555,15 +2644,9 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     if real_nodes:
         for node_name, node_info in real_nodes.items():
             display_name = 'N/A' if node_name.startswith('Temp-') else node_name
-            status = node_info.get('status', 'Unknown')
             uuid = node_info.get('uuid', 'N/A')
-            node_id = node_info.get('node_id', None)
-            
-            node_line = f"• {display_name}: {status}"
-            if node_id:
-                node_line += f" (Node ID: {node_id})"
-            node_line += f" (UUID: {uuid})"
-            lines.append(node_line)
+            addr = node_info.get('address') or 'ip:unknown'
+            lines.append(f"• {display_name} (UUID: {uuid}) [{addr}]")
     
     # Show additional UUID-only nodes only if they have meaningful information  
     uuid_nodes = {name: info for name, info in summary["nodes"].items()
@@ -2654,7 +2737,18 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                     for uuid, node in view.members.items():
                         raw_name = getattr(node, 'name', None) or f"uuid:{uuid[:8]}"
                         name = 'N/A' if raw_name.startswith('Temp-') else raw_name
-                        short_uuid = uuid[:8] if uuid and len(uuid) >= 8 else uuid
+                        # Short display: first segment (8) + '-' + first 4 chars of 4th segment if available
+                        short_uuid = uuid
+                        if uuid and len(uuid) >= 36 and uuid.count('-') == 4:
+                            parts = uuid.split('-')
+                            short_uuid = f"{parts[0]}-{parts[3][:4]}"
+                        elif uuid and '-' in uuid:
+                            # Fallback for short/composite existing forms
+                            segs = uuid.split('-')
+                            if len(segs) >= 2:
+                                short_uuid = f"{segs[0]}-{segs[1][:4]}"
+                        else:
+                            short_uuid = uuid[:8]
                         member_displays.append(f"{name}({short_uuid})")
                     # Wrap line length sensibly
                     if member_displays:
@@ -3104,6 +3198,30 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             else:
                 lines.append(f"   {raw[:120]}...")
     
+    # UUID History Section
+    lines.append("\n🗂️  CLUSTER NODES UUID HISTORY")
+    lines.append("-" * 50)
+    # Build map logical name -> unique truncated uuid patterns (first8-first4of4th)
+    for node in analyzer.cluster.nodes.values():
+        if node.name.startswith('Temp-'):
+            continue
+        patterns = []
+        for fu in node.uuid_history:
+            if fu.count('-') == 4:
+                parts = fu.split('-')
+                patterns.append(f"{parts[0]}-{parts[3][:4]}")
+            else:
+                patterns.append(fu[:8])
+        # Deduplicate preserving order
+        seen = set()
+        uniq = []
+        for p in patterns:
+            if p not in seen:
+                seen.add(p)
+                uniq.append(p)
+        if uniq:
+            lines.append(f"• {node.name} UUIDs {','.join(uniq)}")
+
     return "\n".join(lines)
 
 def main():
