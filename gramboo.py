@@ -3578,11 +3578,11 @@ def main():
     parser.add_argument('--format', choices=['text', 'json'], default='text',
                         help='Output format (default: text)')
     parser.add_argument('--filter', help='Filter events by type (comma-separated)')
-    parser.add_argument('--dialect', default='auto', help='Log dialect: auto|galera-26|mariadb-10|pxc-8|galera|unknown')
+    parser.add_argument('--dialect', default='auto', help='(DEPRECATED) Previously forced log dialect; now deduced from MariaDB version/edition. Ignored.')
     parser.add_argument('--report-unknown', action='store_true', help='Report unknown WSREP/IST lines')
     parser.add_argument('--mariadb-version', help='MariaDB server version (e.g., 10.6.16, 11.4.7-4)')
     parser.add_argument('--mariadb-edition', choices=['enterprise', 'community'], help='MariaDB edition')
-    parser.add_argument('--galera-version', help='Galera wsrep provider version (e.g., 26.4.22)')
+    parser.add_argument('--galera-version', help='(DEPRECATED) Explicit Galera provider version; inference now automatic when possible. Ignored.')
     
     args = parser.parse_args()
     
@@ -3598,12 +3598,20 @@ def main():
         log_lines = sys.stdin.readlines()
     
     # Analyze logs
+    # Handle deprecated flags: warn if explicitly set (not default) and ignore
+    deprecated_msgs = []
+    if args.dialect and args.dialect != 'auto':
+        deprecated_msgs.append(f"--dialect '{args.dialect}' ignored (auto-deduction now based on MariaDB version/edition)")
+    if getattr(args, 'galera_version', None):
+        deprecated_msgs.append(f"--galera-version '{args.galera_version}' ignored (provider version inferred or parsed)")
+    for m in deprecated_msgs:
+        print(f"WARNING: {m}", file=sys.stderr)
     analyzer = GaleraLogAnalyzer(
-        dialect=args.dialect,
+        dialect='auto',  # always auto now
         report_unknown=bool(getattr(args, 'report_unknown', False)),
         mariadb_version=getattr(args, 'mariadb_version', None),
         mariadb_edition=getattr(args, 'mariadb_edition', None),
-        galera_version=getattr(args, 'galera_version', None),
+        galera_version=None,  # ignore deprecated explicit galera version
     )
     analyzer.parse_log(log_lines)
 

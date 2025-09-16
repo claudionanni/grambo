@@ -55,6 +55,7 @@ This file captures improvement ideas and feature suggestions collected during de
 - Add `--filter-node=<name>` to restrict events/sections to a single physical node.
 - Add `--since <timestamp>` and `--until <timestamp>` to slice log timeframe.
 - Interactive TUI mode (curses) to navigate sections and expand/collapse histories.
+- Remove deprecated flags (`--dialect`, `--galera-version`) in a future major (leave warnings for two minor versions first).
 
 ## Extensibility
 - Plugin system to allow custom event extractors (entry points or dynamic module loading).

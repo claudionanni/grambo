@@ -105,19 +105,15 @@ python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 error.log
 |------|-------------|---------|
 | `--format` | Output format (`text` or `json`) | `--format=json` |
 | `--filter` | Comma-separated event types to include | `--filter=sst_event,state_transition` |
-| `--dialect` | Force log dialect detection (`auto`, `galera-26`, `mariadb-10`, `pxc-8`, `galera`, `unknown`) | `--dialect=auto` |
+| (deprecated) `--dialect` | Ignored; dialect auto-detected from MariaDB version/edition | — |
 | `--report-unknown` | Include unclassified WSREP/IST lines summary | `--report-unknown` |
 | `--mariadb-version` | Manually supply MariaDB server version if log lacks version banner | `--mariadb-version 11.4.7` |
 | `--mariadb-edition` | Specify edition (`enterprise` or `community`) for variant tagging | `--mariadb-edition enterprise` |
-| `--galera-version` | Supply wsrep provider (Galera) version explicitly | `--galera-version 26.4.23` |
+| (deprecated) `--galera-version` | Ignored; provider version inferred or parsed automatically | — |
 
-### Version Inference & When To Use Flags
+### Version Inference
 
-If the log contains standard startup lines (e.g. `Server version:` or `wsrep_load(): Galera 26.4.xx by Codership Oy`) the analyzer auto-detects versions. Use the manual flags when:
-
-1. You collected only a mid-run snippet missing startup banners
-2. You trimmed sensitive version lines before sharing logs
-3. You want to override / test how inference behaves
+If the log contains standard startup lines (e.g. `Server version:` or `wsrep_load(): Galera 26.4.xx by Codership Oy`) the analyzer auto-detects versions. Manual override flags `--dialect` and `--galera-version` are deprecated and ignored; keep `--mariadb-version` / `--mariadb-edition` if banners missing.
 
 Current built-in Galera inference (when `--galera-version` omitted but MariaDB version provided):
 
@@ -127,6 +123,15 @@ Current built-in Galera inference (when `--galera-version` omitted but MariaDB v
 | 11.4.x | 26.4.23 |
 
 If inference occurs, the text report marks Galera as `(inferred)` unless an actual provider banner is later parsed.
+
+### Deprecated Flags
+
+| Flag | Status | Action |
+|------|--------|--------|
+| `--dialect` | Ignored | Remove from scripts; rely on auto-detection |
+| `--galera-version` | Ignored | Provide `--mariadb-version` if startup snippet truncated |
+
+Supplying these prints a warning and has no effect.
 
 Supplying `--mariadb-edition enterprise` will also tag Galera variant as enterprise unless contradicted by a parsed provider path.
 
