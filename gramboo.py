@@ -2848,29 +2848,93 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                     if 'completed_at' in post:
                         lines.append(f"  IST: completed at {post['completed_at']}")
     
-    # Recent Critical Events
-    critical_events = [e for e in analyzer.events 
-                      if e.event_type in [EventType.ERROR, EventType.COMMUNICATION_ISSUE]]
-    if critical_events:
+    # Recent Critical Events: include only truly critical items
+    def _is_deprecation_warning(msg: str) -> bool:
+        s = msg.lower()
+        return 'deprecated' in s and 'wsrep' in s
+
+    critical_list = []
+    for e in analyzer.events:
+        raw = (e.raw_message or '')
+        low = raw.lower()
+        meta = e.metadata or {}
+        node_name = e.node.name if e.node else "Unknown"
+
+        # Always include hard errors
+        if e.event_type == EventType.ERROR:
+            critical_list.append((e.timestamp, node_name, 'ERROR', raw, meta))
+            continue
+
+        # Warnings: include only if they indicate failure/abort, exclude deprecations
+        if e.event_type == EventType.WARNING:
+            if _is_deprecation_warning(raw):
+                continue
+            if any(k in low for k in ['failed', 'abort', 'cannot', 'refused', 'rejected', 'will never receive state']):
+                critical_list.append((e.timestamp, node_name, 'WARNING', raw, meta))
+            continue
+
+        # SST failures and rejects
+        if e.event_type == EventType.SST_EVENT:
+            st = meta.get('subtype')
+            if st in {'sst_failed', 'sst_reject', 'sst_reject_wrong_state'}:
+                critical_list.append((e.timestamp, node_name, 'SST FAILURE', raw, meta))
+            continue
+
+        # IST failures/incomplete
+        if e.event_type == EventType.IST_EVENT:
+            st = meta.get('subtype')
+            if st in {'ist_send_failed', 'async_ist_failed', 'ist_incomplete'}:
+                critical_list.append((e.timestamp, node_name, 'IST FAILURE', raw, meta))
+            continue
+
+        # Server info critical signals
+        if e.event_type == EventType.SERVER_INFO:
+            st = meta.get('subtype')
+            if st in {'identity_mismatch', 'received_non_primary', 'recv_thread_exit'}:
+                label = 'CLUSTER STATE' if st == 'received_non_primary' else 'SERVER'
+                critical_list.append((e.timestamp, node_name, label, raw, meta))
+            continue
+
+        # Communication issues: include significant failures; skip minor aborted connections
+        if e.event_type == EventType.COMMUNICATION_ISSUE:
+            st = meta.get('subtype')
+            if st and st != 'aborted_connection':
+                critical_list.append((e.timestamp, node_name, 'COMMUNICATION', raw, meta))
+            else:
+                # If pattern suggests serious network issues
+                if any(k in low for k in ['failed to connect', 'connection lost', 'network error', 'protocol', 'handshake']):
+                    critical_list.append((e.timestamp, node_name, 'COMMUNICATION', raw, meta))
+
+    if critical_list:
         lines.append("\n⚠️  CRITICAL EVENTS")
         lines.append("-" * 50)
-        for event in critical_events[-8:]:  # Show last 8
-            node_name = event.node.name if event.node else "Unknown"
-            meta = event.metadata or {}
-            subtype = meta.get('subtype')
-            lines.append(f"{event.timestamp}: [{node_name}] {event.event_type.value.upper()}")
-            if subtype == 'aborted_connection':
-                db = meta.get('db') or ''
-                user = meta.get('user') or ''
-                host = meta.get('host') or ''
-                cid = meta.get('connection_id')
-                lines.append(f"  └─ Aborted connection #{cid}")
-                lines.append(f"     └─ DB: {db if db else '-'}")
-                lines.append(f"     └─ User: {user if user else '-'}")
-                lines.append(f"     └─ Host: {host if host else '-'}")
+        # Show last 10 critical events
+        for ts, node_name, label, raw, meta in critical_list[-10:]:
+            # Compose concise detail when possible
+            detail = None
+            st = (meta or {}).get('subtype')
+            if st == 'sst_failed':
+                reason = meta.get('reason')
+                op = meta.get('operation')
+                code = meta.get('error_code')
+                bits = [b for b in [reason, op, code] if b]
+                detail = ", ".join(map(str, bits)) if bits else None
+            elif st in {'ist_send_failed', 'async_ist_failed'}:
+                detail = meta.get('reason')
+            elif st == 'ist_incomplete':
+                detail = f"expected {meta.get('expected_last')}, got {meta.get('last_received')}"
+            elif st == 'channel_open_failed':
+                chan = meta.get('channel'); url = meta.get('url'); code = meta.get('code'); err = meta.get('error')
+                detail = f"{chan} {url} ({code} {err})"
+            elif st == 'identity_mismatch':
+                detail = f"Node UUID {meta.get('node_uuid')} not in view"
+
+            header = f"{ts}: [{node_name}] {label}"
+            lines.append(header)
+            if detail:
+                lines.append(f"   {detail}")
             else:
-                # Fallback: show truncated raw line
-                lines.append(f"   {event.raw_message[:120]}...")
+                lines.append(f"   {raw[:120]}...")
     
     return "\n".join(lines)
 
