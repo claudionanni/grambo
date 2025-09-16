@@ -302,6 +302,17 @@ class GaleraLogAnalyzer:
             self.software['wsrep_provider_version'] = galera_version
         # Identity registry
         self.identity_registry = NodeIdentityRegistry()
+        # IP evidence: uuid/name key -> {ip: (score, first_ts, last_ts, count)}
+        self._ip_evidence: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self._ip_weights = {
+            'listening': 100,         # (uuid,'tcp://ip') listening at tcp://ip
+            'connection_established': 90,  # connection established to peer
+            'sst_joiner': 95,         # joiner own --address
+            'sst_donor_peer': 60,     # donor sees joiner address
+            'ist_receiver_addr': 80,  # IST receiver addr using ip
+            'ist_async_peer': 50,     # async IST sender peer
+            'cluster_address': 40,    # wsrep_cluster_address list
+        }
 
         # Precompiled IST-related patterns (from ist.cpp)
         self._ist_patterns = {
@@ -411,6 +422,82 @@ class GaleraLogAnalyzer:
                 if perm and (mnode.name == 'N/A' or mnode.name.startswith('Temp-')) and not perm.name.startswith('Temp-'):
                     mnode.name = perm.name
                     mnode.placeholder = False
+        # After identities stable, resolve IP evidence to assign addresses
+        self._finalize_ips(mapping)
+        # Collapse identical consecutive views now that names stabilized
+        self._collapse_identical_views()
+
+    def _collapse_identical_views(self):
+        if not self.cluster.views_history:
+            return
+        collapsed = []
+        prev_sig = None
+        for view in self.cluster.views_history:
+            # Signature: status + sorted member UUIDs (full) + optional protocol_version
+            member_ids = sorted([m.uuid for m in view.members.values()])
+            sig = (view.status, tuple(member_ids), view.protocol_version)
+            if sig == prev_sig:
+                continue  # skip duplicate
+            collapsed.append(view)
+            prev_sig = sig
+        # Replace history if reduced
+        if len(collapsed) != len(self.cluster.views_history):
+            self.cluster.views_history = collapsed
+
+    def _record_ip(self, key: str, ip: str, source: str, ts: Optional[str]):
+        if not key or not ip:
+            return
+        # Normalize ip (strip protocol and trailing punctuation)
+        ip_norm = ip
+        ip_norm = re.sub(r'^tcp://', '', ip_norm)
+        ip_norm = ip_norm.split(',')[0]
+        score = self._ip_weights.get(source, 10)
+        recs = self._ip_evidence.setdefault(key, {})
+        rec = recs.get(ip_norm)
+        if rec is None:
+            recs[ip_norm] = {
+                'score': score,
+                'first_seen': ts,
+                'last_seen': ts,
+                'count': 1,
+                'sources': {source}
+            }
+        else:
+            rec['last_seen'] = ts or rec['last_seen']
+            rec['count'] += 1
+            rec['sources'].add(source)
+            # Upgrade score if higher
+            if score > rec['score']:
+                rec['score'] = score
+
+    def _finalize_ips(self, mapping: Dict[str, str]):
+        # Keys can be UUIDs or names (for joiner lines before UUID known)
+        for key, ipmap in self._ip_evidence.items():
+            # Choose best ip: highest score, then most counts, then earliest first_seen
+            best = None
+            for ip, meta in ipmap.items():
+                if best is None:
+                    best = (ip, meta)
+                else:
+                    b_ip, b_meta = best
+                    if meta['score'] > b_meta['score'] or (
+                        meta['score'] == b_meta['score'] and (
+                            meta['count'] > b_meta['count'] or (
+                                meta['count'] == b_meta['count'] and (meta['first_seen'] or '') < (b_meta['first_seen'] or '')
+                            ))):
+                        best = (ip, meta)
+            if not best:
+                continue
+            chosen_ip = best[0]
+            # Resolve key to node
+            node = self.cluster.get_node_by_uuid(key) or self.cluster.get_node_by_name(key)
+            if not node:
+                # Try expand short key via aliases
+                full = self.cluster.uuid_aliases.get(key)
+                if full:
+                    node = self.cluster.get_node_by_uuid(full)
+            if node and (not node.address or node.address == 'ip:unknown') and chosen_ip != '0.0.0.0':
+                node.address = chosen_ip
 
     def _retroactively_fill_name(self, full_uuid: str, real_name: str) -> None:
         """When we learn a node's real name after views were logged with placeholders,
@@ -502,6 +589,69 @@ class GaleraLogAnalyzer:
             return
         if self._parse_server_info(line):
             return
+        # Always attempt passive IP evidence collection (non-blocking)
+        try:
+            self._parse_ip_evidence(line)
+        except Exception:
+            pass
+
+    def _parse_ip_evidence(self, line: str) -> None:
+        """Collect multi-source IP evidence with weighted scoring.
+        This runs opportunistically on every line after primary parsing so it does not interfere with other handlers.
+        Sources (descending authority):
+          listening:    (UUID,'tcp://IP') listening at tcp://IP
+          connection_established: connection established to <shortUUID> tcp://IP:port
+          sst_joiner:   wsrep_sst_mariabackup --role 'joiner' --address 'IP[:port]'
+          sst_donor_peer: donor-side reference to joiner address
+          ist_receiver_addr: IST receiver addr=IP (from earlier planned pattern; adapt when encountered)
+          ist_async_peer: async IST sender starting to serve tcp://IP
+          cluster_address: wsrep_cluster_address=gcomm://IP1,IP2,... (weak evidence)
+        Keys can be UUIDs, short/composite UUIDs, or temporary names until identity resolution finalizes.
+        """
+        if not line or 'tcp' not in line and 'IST' not in line and 'wsrep_sst' not in line and 'gcomm://' not in line:
+            return  # fast path
+        ts = self.current_timestamp
+        # (UUID,'tcp://IP') listening at tcp://IP
+        m = re.search(r"\(([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}), *'tcp://([0-9a-fA-F:.]+)'\) listening at tcp://\2", line)
+        if m:
+            self._record_ip(m.group(1), m.group(2), 'listening', ts)
+            return
+        # connection established to <short/composite> tcp://IP:PORT
+        m = re.search(r'connection established to ([0-9a-f]{8}(?:-[0-9a-f]{4})?) tcp://([0-9a-fA-F:.]+)', line)
+        if m:
+            self._record_ip(m.group(1), m.group(2), 'connection_established', ts)
+            return
+        # wsrep_sst_mariabackup --role 'joiner' --address 'IP[:port]'
+        m = re.search(r"wsrep_sst_[a-z0-9_]+.*--role +'joiner'.*--address +'([0-9.]+)" , line, re.IGNORECASE)
+        if m:
+            ip = m.group(1)
+            # Try to capture node name on same line if present (wsrep_node_name=NAME)
+            name_match = re.search(r"wsrep_node_name=([A-Za-z0-9_.-]+)", line)
+            key = name_match.group(1) if name_match else 'joiner'
+            self._record_ip(key, ip, 'sst_joiner', ts)
+            return
+        # donor side referencing joiner address
+        m = re.search(r"wsrep_sst_[a-z0-9_]+.*--role +'donor'.*--address +'([0-9.]+)" , line, re.IGNORECASE)
+        if m:
+            self._record_ip('joiner', m.group(1), 'sst_donor_peer', ts)
+            return
+        # IST receiver addr=IP (variant patterns: 'IST receiver addr using IP' already parsed elsewhere but add fallback)
+        m = re.search(r'IST receiver addr(?: using)? ([0-9.]+)', line, re.IGNORECASE)
+        if m:
+            self._record_ip('ist_receiver', m.group(1), 'ist_receiver_addr', ts)
+            return
+        # async IST sender starting to serve tcp://IP
+        m = re.search(r'async IST sender starting to serve tcp://([0-9.]+)', line, re.IGNORECASE)
+        if m:
+            self._record_ip('ist_sender', m.group(1), 'ist_async_peer', ts)
+            return
+        # wsrep_cluster_address=gcomm://IP1,IP2
+        m = re.search(r'wsrep_cluster_address=gcomm://([0-9.:,]+)', line)
+        if m:
+            for ip in m.group(1).split(','):
+                ip_s = ip.strip()
+                if ip_s:
+                    self._record_ip(ip_s, ip_s, 'cluster_address', ts)
     
     def _extract_node_info(self, line: str) -> None:
         """Extract and maintain node information from log line"""
@@ -639,31 +789,31 @@ class GaleraLogAnalyzer:
             view_uuid = view_match.group(2)
             view_seq = view_match.group(3)
             view_id = f"{view_uuid}.{view_seq}"
-            
-            view = ClusterView(
-                view_id=view_id,
-                status='primary' if status == 'prim' else 'non-primary',
-                timestamp=self.current_timestamp
-            )
-            # Track group/view state at cluster level
-            self.cluster.group_uuid = view_uuid
-            try:
-                self.cluster.group_seqno = int(view_seq)
-            except Exception:
-                self.cluster.group_seqno = None
-            
-            # Store for member parsing that follows
-            self.cluster.update_view(view)
-            self.health_metrics.total_view_changes += 1
-            
-            event = LogEvent(
-                event_type=EventType.CLUSTER_VIEW,
-                timestamp=self.current_timestamp,
-                raw_message=line.strip(),
-                cluster_view=view,
-                node=self._get_current_node()
-            )
-            self.events.append(event)
+            # Deduplicate consecutive identical provisional view ids
+            last_view = self.cluster.views_history[-1] if self.cluster.views_history else None
+            if not last_view or last_view.view_id != view_id:
+                view = ClusterView(
+                    view_id=view_id,
+                    status='primary' if status == 'prim' else 'non-primary',
+                    timestamp=self.current_timestamp
+                )
+                # Track group/view state at cluster level
+                self.cluster.group_uuid = view_uuid
+                try:
+                    self.cluster.group_seqno = int(view_seq)
+                except Exception:
+                    self.cluster.group_seqno = None
+                # Store for member parsing that follows
+                self.cluster.update_view(view)
+                self.health_metrics.total_view_changes += 1
+                event = LogEvent(
+                    event_type=EventType.CLUSTER_VIEW,
+                    timestamp=self.current_timestamp,
+                    raw_message=line.strip(),
+                    cluster_view=view,
+                    node=self._get_current_node()
+                )
+                self.events.append(event)
             return True
         
         # Parse member entries in memb {}, joined {}, left {}, partitioned {} sections
@@ -1655,6 +1805,23 @@ class GaleraLogAnalyzer:
         if prov_ver and not self.software.get('wsrep_provider_version'):
             self.software['wsrep_provider_version'] = prov_ver.group(1)
 
+        # Starting MariaDB <full-version> ... source revision <hash>
+        # Example: "Starting MariaDB 10.6.22-18-MariaDB-enterprise-log source revision 188731e0649d75d061c8887e3a0d34d4fa8f4982"
+        start_banner = re.search(r'Starting\s+MariaDB\s+([^\s]+).*?source\s+revision\s+([0-9a-f]{40})', line, re.IGNORECASE)
+        if start_banner:
+            full = start_banner.group(1)
+            rev = start_banner.group(2)
+            # Record full banner regardless of existing CLI overrides, but don't overwrite basic version if already set
+            self.software['mariadb_full_banner'] = f"{full} source revision {rev}"
+            if not self.software.get('mariadb_version'):
+                # Extract numeric prefix for version field only
+                m = re.match(r'([0-9]+(?:\.[0-9]+){1,3})', full)
+                if m:
+                    self.software['mariadb_version'] = m.group(1)
+            # Edition inference from banner
+            if 'enterprise' in full.lower():
+                self.software['mariadb_edition'] = self.software.get('mariadb_edition') or 'enterprise'
+
         # Alternative generic version hint (fallback)
         if not self.software.get('wsrep_provider_version'):
             m = re.search(r'wsrep[_\s-]*provider[_\s-]*version[^0-9]*([0-9]+(?:\.[0-9]+)+)', line, re.IGNORECASE)
@@ -1967,6 +2134,9 @@ class GaleraLogAnalyzer:
         # gcs.cpp: Channel open and failures
         open_chan = re.search(r"Opened\s+channel\s+'([^']+)'", line)
         if open_chan and self.current_timestamp:
+            # Record cluster name (channel) if not already set
+            if not self.cluster.name:
+                self.cluster.name = open_chan.group(1)
             event = LogEvent(
                 event_type=EventType.SERVER_INFO,
                 timestamp=self.current_timestamp,
@@ -2475,6 +2645,7 @@ class GaleraLogAnalyzer:
                 "active_nodes": len(self.cluster.active_nodes),
                 "current_view": asdict(self.cluster.current_view) if self.cluster.current_view else None,
                 "total_views": len(self.cluster.views_history),
+                "cluster_name": self.cluster.name,
                 "group_uuid": self.cluster.group_uuid,
                 "group_seqno": self.cluster.group_seqno,
                 "local_state_uuid": self.cluster.local_state_uuid,
@@ -2485,6 +2656,7 @@ class GaleraLogAnalyzer:
             },
             "software": {
                 "mariadb_version": self.software.get('mariadb_version'),
+                "mariadb_full_banner": self.software.get('mariadb_full_banner'),
                 "mariadb_edition": self.software.get('mariadb_edition'),
                 "galera_version": self.software.get('wsrep_provider_version'),
                 "galera_variant": self.software.get('galera_variant'),
@@ -2553,18 +2725,27 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     lines.append(f"Active Nodes: {cluster_info['active_nodes']}")
     lines.append(f"Total View Changes: {cluster_info['total_views']}")
     lines.append(f"Dialect: {dialect_display}")
+    if cluster_info.get('cluster_name'):
+        lines.append(f"Cluster Name: {cluster_info.get('cluster_name')}")
     # Software versions
     if software:
+        full_banner = software.get('mariadb_full_banner')
         mver = software.get('mariadb_version')
         med = software.get('mariadb_edition')
         gver = software.get('galera_version')
         gvar = software.get('galera_variant')
         gvend = software.get('galera_vendor')
-        if mver or med:
-            if med:
-                lines.append(f"MariaDB: {mver or '?'} ({med})")
+        # Display preference: full banner from log if available; else numeric version; else unknown
+        if full_banner:
+            lines.append(f"MariaDB: {full_banner}")
+        else:
+            if mver:
+                if med:
+                    lines.append(f"MariaDB: {mver} ({med})")
+                else:
+                    lines.append(f"MariaDB: {mver}")
             else:
-                lines.append(f"MariaDB: {mver}")
+                lines.append("MariaDB: unknown")
         if gver or gvar or gvend:
             parts = [gver or '?']
             extras = []
@@ -2664,6 +2845,28 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
     
     if not real_nodes and not uuid_nodes:
         lines.append("• No distinct cluster nodes identified")
+
+    # Move UUID History section directly below CLUSTER NODES
+    lines.append("\n🗂️  CLUSTER NODES UUID HISTORY")
+    lines.append("-" * 50)
+    for node in analyzer.cluster.nodes.values():
+        if node.name.startswith('Temp-'):
+            continue
+        patterns = []
+        for fu in node.uuid_history:
+            if fu.count('-') == 4:
+                parts = fu.split('-')
+                patterns.append(f"{parts[0]}-{parts[3][:4]}")
+            else:
+                patterns.append(fu[:8])
+        seen = set()
+        uniq = []
+        for p in patterns:
+            if p not in seen:
+                seen.add(p)
+                uniq.append(p)
+        if uniq:
+            lines.append(f"• {node.name} UUIDs {','.join(uniq)}")
     
     # Node State Transition Timelines
     wsrep_transitions = [t for t in analyzer.get_state_transitions() 
@@ -3198,30 +3401,6 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             else:
                 lines.append(f"   {raw[:120]}...")
     
-    # UUID History Section
-    lines.append("\n🗂️  CLUSTER NODES UUID HISTORY")
-    lines.append("-" * 50)
-    # Build map logical name -> unique truncated uuid patterns (first8-first4of4th)
-    for node in analyzer.cluster.nodes.values():
-        if node.name.startswith('Temp-'):
-            continue
-        patterns = []
-        for fu in node.uuid_history:
-            if fu.count('-') == 4:
-                parts = fu.split('-')
-                patterns.append(f"{parts[0]}-{parts[3][:4]}")
-            else:
-                patterns.append(fu[:8])
-        # Deduplicate preserving order
-        seen = set()
-        uniq = []
-        for p in patterns:
-            if p not in seen:
-                seen.add(p)
-                uniq.append(p)
-        if uniq:
-            lines.append(f"• {node.name} UUIDs {','.join(uniq)}")
-
     return "\n".join(lines)
 
 def main():
@@ -3268,8 +3447,13 @@ def main():
     sw = analyzer.software
     have_mariadb = bool(sw.get('mariadb_version'))
     if not have_mariadb:
-        print("Error: MariaDB version unknown. Provide via --mariadb-version (and optionally --mariadb-edition), or include version lines in the log.", file=sys.stderr)
-        sys.exit(2)
+        # Soft fallback: pick a default dialect (prefer galera generic) and continue
+        fallback_dialect = 'galera'
+        if analyzer.dialect == 'unknown':
+            analyzer.dialect = fallback_dialect
+        print("WARNING: MariaDB version/edition not detected or specified; proceeding with default dialect 'galera'.", file=sys.stderr)
+        sw['mariadb_version'] = None  # explicitly None
+        sw['mariadb_edition'] = None
     
     # Output results
     if args.format == 'json':

@@ -92,6 +92,52 @@ python3 gramboo.py --filter=error,warning error.log
 
 # Combine options
 python3 gramboo.py --format=json --filter=cluster_view error.log
+
+# Provide MariaDB / Galera version info explicitly (recommended if version lines missing)
+python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition=community error.log
+python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition=enterprise error.log
+python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 error.log
+```
+
+### Command Line Flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--format` | Output format (`text` or `json`) | `--format=json` |
+| `--filter` | Comma-separated event types to include | `--filter=sst_event,state_transition` |
+| `--dialect` | Force log dialect detection (`auto`, `galera-26`, `mariadb-10`, `pxc-8`, `galera`, `unknown`) | `--dialect=auto` |
+| `--report-unknown` | Include unclassified WSREP/IST lines summary | `--report-unknown` |
+| `--mariadb-version` | Manually supply MariaDB server version if log lacks version banner | `--mariadb-version 11.4.7` |
+| `--mariadb-edition` | Specify edition (`enterprise` or `community`) for variant tagging | `--mariadb-edition enterprise` |
+| `--galera-version` | Supply wsrep provider (Galera) version explicitly | `--galera-version 26.4.23` |
+
+### Version Inference & When To Use Flags
+
+If the log contains standard startup lines (e.g. `Server version:` or `wsrep_load(): Galera 26.4.xx by Codership Oy`) the analyzer auto-detects versions. Use the manual flags when:
+
+1. You collected only a mid-run snippet missing startup banners
+2. You trimmed sensitive version lines before sharing logs
+3. You want to override / test how inference behaves
+
+Current built-in Galera inference (when `--galera-version` omitted but MariaDB version provided):
+
+| MariaDB Series | Inferred Galera Version |
+|----------------|-------------------------|
+| 10.6.x | 26.4.22 |
+| 11.4.x | 26.4.23 |
+
+If inference occurs, the text report marks Galera as `(inferred)` unless an actual provider banner is later parsed.
+
+Supplying `--mariadb-edition enterprise` will also tag Galera variant as enterprise unless contradicted by a parsed provider path.
+
+Examples:
+
+```bash
+# Log snippet without early startup lines
+grep -v 'Server version' truncated.log | python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition community
+
+# Force a specific Galera provider version (overrides inference)
+python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 db3.log
 ```
 
 ### Available Event Types for Filtering
