@@ -13,10 +13,112 @@ import sys
 import re
 import argparse
 import json
-from datetime import datetime
-from typing import List, Dict, Any, Optional, Set
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass, asdict, field
 from enum import Enum
+
+class DialectRegistry:
+    """
+    Registry for dialect-specific parsing patterns.
+    Starts with a 'default' dialect containing current patterns,
+    allows gradual addition of version-specific patterns without breaking existing code.
+    """
+    
+    def __init__(self):
+        self.dialects: Dict[str, Dict[str, Dict[str, Any]]] = {
+            'default': self._build_default_patterns()
+        }
+        # Pattern resolution cache for performance
+        self._pattern_cache: Dict[str, Any] = {}
+    
+    def _build_default_patterns(self) -> Dict[str, Dict[str, Any]]:
+        """Build the default pattern set from current implementation"""
+        return {
+            'ist_patterns': {
+                'recv_addr': re.compile(r'IST\s+receiver\s+addr\s+using\s+(\S+)', re.IGNORECASE),
+                'recv_bind': re.compile(r'IST\s+receiver\s+bind\s+using\s+(\S+)', re.IGNORECASE),
+                'receiver_prepared': re.compile(r'Prepared\s+IST\s+receiver\s+for\s+(-?\d+)\s*-\s*(-?\d+),\s+listening\s+at:\s+(\S+)', re.IGNORECASE),
+                'applying_start': re.compile(r'IST\s+applying\s+starts\s+with\s+(-?\d+)', re.IGNORECASE),
+                'current_initialized': re.compile(r'IST\s+current\s+seqno\s+initialized\s+to\s+(-?\d+)', re.IGNORECASE),
+                'preload_start': re.compile(r'IST\s+preload\s+starting\s+at\s+(-?\d+)', re.IGNORECASE),
+                'eof': re.compile(r'eof\s+received,\s+closing\s+socket', re.IGNORECASE),
+                'incomplete': re.compile(r"IST\s+didn't\s+contain\s+all\s+write\s+sets,\s+expected\s+last:\s*(-?\d+)\s+last\s+received:\s*(-?\d+)", re.IGNORECASE),
+                'send_failed': re.compile(r'ist\s+send\s+failed:\s*', re.IGNORECASE),
+                'sender_nothing': re.compile(r'IST\s+sender\s+notifying\s+joiner,\s+not\s+sending\s+anything', re.IGNORECASE),
+                'sender_range': re.compile(r'IST\s+sender\s+(-?\d+)\s*->\s*(-?\d+)', re.IGNORECASE),
+                'async_start': re.compile(r'async\s+IST\s+sender\s+starting\s+to\s+serve\s+(\S+)\s+sending\s+(-?\d+)\s*-\s*(-?\d+),\s+preload\s+starts\s+from\s+(-?\d+)', re.IGNORECASE),
+                'async_failed': re.compile(r'async\s+IST\s+sender\s+failed\s+to\s+serve\s+(\S+):\s+(.+)', re.IGNORECASE),
+                'async_served': re.compile(r'async\s+IST\s+sender\s+served', re.IGNORECASE),
+                'recv_summary_seqnos': re.compile(r'Receiving\s+IST:\s+\d+\s+writesets,\s+seqnos\s+(-?\d+)\s*-\s*(-?\d+)', re.IGNORECASE),
+                'ist_uuid_range': re.compile(r'IST\s+uuid:\s*[0-9a-f-]+,?\s*f:\s*(-?\d+),\s*l:\s*(-?\d+)', re.IGNORECASE),
+                'processing_complete': re.compile(r'Processing\s+event\s+queue:.*?100\.0%.*?complete\.?', re.IGNORECASE),
+            },
+            # Future: Add more pattern categories here as needed
+            # 'sst_patterns': {...},
+            # 'state_transition_patterns': {...},
+            # 'view_change_patterns': {...},
+        }
+    
+    def get_patterns(self, dialect: str, pattern_category: str) -> Dict[str, Any]:
+        """
+        Get patterns for a specific dialect and category.
+        Falls back to 'default' if dialect-specific patterns don't exist.
+        """
+        cache_key = f"{dialect}:{pattern_category}"
+        if cache_key in self._pattern_cache:
+            return self._pattern_cache[cache_key]
+        
+        # Try dialect-specific patterns first
+        if dialect in self.dialects and pattern_category in self.dialects[dialect]:
+            patterns = self.dialects[dialect][pattern_category]
+        # Fall back to default
+        elif pattern_category in self.dialects['default']:
+            patterns = self.dialects['default'][pattern_category]
+        else:
+            patterns = {}
+        
+        self._pattern_cache[cache_key] = patterns
+        return patterns
+    
+    def add_dialect_patterns(self, dialect: str, pattern_category: str, patterns: Dict[str, Any]):
+        """Add or update patterns for a specific dialect"""
+        if dialect not in self.dialects:
+            self.dialects[dialect] = {}
+        self.dialects[dialect][pattern_category] = patterns
+        # Clear cache for this category
+        keys_to_remove = [k for k in self._pattern_cache.keys() if k.endswith(f":{pattern_category}")]
+        for key in keys_to_remove:
+            del self._pattern_cache[key]
+    
+    def list_available_dialects(self) -> List[str]:
+        """List all available dialects"""
+        return list(self.dialects.keys())
+    
+    def list_pattern_categories(self, dialect: str = 'default') -> List[str]:
+        """List available pattern categories for a dialect"""
+        if dialect in self.dialects:
+            return list(self.dialects[dialect].keys())
+        return list(self.dialects['default'].keys())
+    
+    def add_dialect_variant(self, dialect: str, base_dialect: str = 'default'):
+        """Create a new dialect based on another dialect's patterns"""
+        if base_dialect in self.dialects:
+            import copy
+            self.dialects[dialect] = copy.deepcopy(self.dialects[base_dialect])
+        else:
+            self.dialects[dialect] = self._build_default_patterns()
+    
+    def update_pattern(self, dialect: str, category: str, pattern_name: str, pattern):
+        """Update a specific pattern for a dialect"""
+        if dialect not in self.dialects:
+            self.add_dialect_variant(dialect)
+        if category not in self.dialects[dialect]:
+            self.dialects[dialect][category] = {}
+        self.dialects[dialect][category][pattern_name] = pattern
+        # Clear cache
+        cache_key = f"{dialect}:{category}"
+        self._pattern_cache.pop(cache_key, None)
 
 class EventType(Enum):
     SERVER_INFO = "server_info"
@@ -229,6 +331,17 @@ class LogEvent:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
+class DowntimePeriod:
+    """Represents a period where the cluster was down or degraded"""
+    start_time: str
+    end_time: str
+    duration_seconds: float
+    duration_str: str
+    gap_type: str  # 'no_primary', 'no_activity', 'node_departure', 'cluster_restart'
+    description: str
+    severity: str  # 'low', 'medium', 'high', 'critical'
+
+@dataclass
 class ClusterHealthMetrics:
     """Cluster health metrics and analysis"""
     total_state_transitions: int = 0
@@ -240,6 +353,8 @@ class ClusterHealthMetrics:
     communication_issues: int = 0
     warnings: int = 0
     errors: int = 0
+    downtime_periods: List[DowntimePeriod] = field(default_factory=list)
+    total_downtime_seconds: float = 0.0
     
     @property
     def stability_score(self) -> float:
@@ -285,6 +400,21 @@ class GaleraLogAnalyzer:
         self.dialect = dialect  # 'auto' | 'galera-26' | 'mariadb-10' | 'pxc-8' | 'unknown'
         self.report_unknown = report_unknown
         self._unknown_lines: List[str] = []
+        
+        # Initialize dialect registry
+        self.dialect_registry = DialectRegistry()
+        
+        # Future usage examples (commented out for reference):
+        # # For MariaDB 10.6+ with different IST messages
+        # self.dialect_registry.add_dialect_variant('mariadb-10.6')
+        # self.dialect_registry.update_pattern('mariadb-10.6', 'ist', 'start_pattern', 
+        #     r'.*Incremental state transfer required.*')
+        # 
+        # # For Percona XtraDB Cluster 8.0
+        # self.dialect_registry.add_dialect_variant('pxc-8.0')
+        # self.dialect_registry.update_pattern('pxc-8.0', 'ist', 'complete_pattern',
+        #     r'.*IST process completed successfully.*')
+        
         # Software/version info discovered while parsing
         self.software: Dict[str, Optional[str]] = {
             'mariadb_version': None,          # e.g., 10.6.16 or 11.4.7-4
@@ -316,28 +446,17 @@ class GaleraLogAnalyzer:
             'cluster_address': 40,    # wsrep_cluster_address list
         }
 
-        # Precompiled IST-related patterns (from ist.cpp)
-        self._ist_patterns = {
-            'recv_addr': re.compile(r'IST\s+receiver\s+addr\s+using\s+(\S+)', re.IGNORECASE),
-            'recv_bind': re.compile(r'IST\s+receiver\s+bind\s+using\s+(\S+)', re.IGNORECASE),
-            'receiver_prepared': re.compile(r'Prepared\s+IST\s+receiver\s+for\s+(-?\d+)\s*-\s*(-?\d+),\s+listening\s+at:\s+(\S+)', re.IGNORECASE),
-            'applying_start': re.compile(r'IST\s+applying\s+starts\s+with\s+(-?\d+)', re.IGNORECASE),
-            'current_initialized': re.compile(r'IST\s+current\s+seqno\s+initialized\s+to\s+(-?\d+)', re.IGNORECASE),
-            'preload_start': re.compile(r'IST\s+preload\s+starting\s+at\s+(-?\d+)', re.IGNORECASE),
-            'eof': re.compile(r'eof\s+received,\s+closing\s+socket', re.IGNORECASE),
-            'incomplete': re.compile(r"IST\s+didn't\s+contain\s+all\s+write\s+sets,\s+expected\s+last:\s*(-?\d+)\s+last\s+received:\s*(-?\d+)", re.IGNORECASE),
-            'send_failed': re.compile(r'ist\s+send\s+failed:\s*', re.IGNORECASE),
-            'sender_nothing': re.compile(r'IST\s+sender\s+notifying\s+joiner,\s+not\s+sending\s+anything', re.IGNORECASE),
-            'sender_range': re.compile(r'IST\s+sender\s+(-?\d+)\s*->\s*(-?\d+)', re.IGNORECASE),
-            'async_start': re.compile(r'async\s+IST\s+sender\s+starting\s+to\s+serve\s+(\S+)\s+sending\s+(-?\d+)\s*-\s*(-?\d+),\s+preload\s+starts\s+from\s+(-?\d+)', re.IGNORECASE),
-            'async_failed': re.compile(r'async\s+IST\s+sender\s+failed\s+to\s+serve\s+(\S+):\s+(.+)', re.IGNORECASE),
-            'async_served': re.compile(r'async\s+IST\s+sender\s+served', re.IGNORECASE),
-            # Additional authoritative patterns seen in logs
-            'recv_summary_seqnos': re.compile(r'Receiving\s+IST:\s+\d+\s+writesets,\s+seqnos\s+(-?\d+)\s*-\s*(-?\d+)', re.IGNORECASE),
-            'ist_uuid_range': re.compile(r'IST\s+uuid:\s*[0-9a-f-]+,?\s*f:\s*(-?\d+),\s*l:\s*(-?\d+)', re.IGNORECASE),
-            # IST completion via applier progress
-            'processing_complete': re.compile(r'Processing\s+event\s+queue:.*?100\.0%.*?complete\.?', re.IGNORECASE),
-        }
+    @property
+    def _ist_patterns(self) -> Dict[str, Any]:
+        """Get IST patterns for current dialect (backward-compatible property)"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'ist_patterns')
+    
+    @property
+    def resolved_dialect(self) -> str:
+        """Get the resolved dialect, falling back to 'default' if unknown"""
+        if self.dialect in ['auto', 'unknown']:
+            return 'default'
+        return self.dialect
 
     def infer_galera_from_mariadb(self) -> None:
         """Infer Galera provider version and variant from MariaDB version/edition when missing.
@@ -2752,6 +2871,227 @@ class GaleraLogAnalyzer:
         return [event.cluster_view for event in self.events 
                 if event.event_type == EventType.CLUSTER_VIEW and event.cluster_view]
 
+    def _parse_timestamp(self, timestamp_str: str) -> Optional[datetime]:
+        """Parse timestamp string to datetime object"""
+        try:
+            return datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            return None
+
+    def _format_duration(self, seconds: float) -> str:
+        """Format duration in seconds to human-readable string"""
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        elif seconds < 3600:
+            minutes = seconds / 60
+            return f"{minutes:.1f}m"
+        elif seconds < 86400:
+            hours = seconds / 3600
+            return f"{hours:.1f}h"
+        else:
+            days = seconds / 86400
+            return f"{days:.1f}d"
+
+    def _analyze_downtime_periods(self) -> List[DowntimePeriod]:
+        """Analyze log events to identify downtime periods and gaps"""
+        downtime_periods = []
+        
+        # Get all cluster views and state transitions sorted by timestamp
+        views = self.get_cluster_views()
+        transitions = self.get_state_transitions()
+        
+        # Get all events (for activity detection)
+        all_events = sorted([e for e in self.events if e.timestamp], 
+                           key=lambda x: self._parse_timestamp(x.timestamp) or datetime.min)
+        
+        if len(all_events) < 2:
+            return downtime_periods
+        
+        # Look for activity gaps (periods with no log events at all)
+        downtime_periods.extend(self._detect_activity_gaps(all_events))
+        
+        # Look for specific patterns indicating downtime
+        downtime_periods.extend(self._detect_no_primary_periods(views))
+        downtime_periods.extend(self._detect_cluster_shutdown_periods(transitions))
+        
+        # Sort by start time and merge overlapping periods
+        downtime_periods.sort(key=lambda x: x.start_time)
+        downtime_periods = self._merge_overlapping_periods(downtime_periods)
+        
+        return downtime_periods
+
+    def _detect_activity_gaps(self, all_events: List) -> List[DowntimePeriod]:
+        """Detect periods with no log activity at all (true silence)"""
+        activity_gaps = []
+        
+        for i in range(len(all_events) - 1):
+            current_event = all_events[i]
+            next_event = all_events[i + 1]
+            
+            current_dt = self._parse_timestamp(current_event.timestamp)
+            next_dt = self._parse_timestamp(next_event.timestamp)
+            
+            if not current_dt or not next_dt:
+                continue
+                
+            gap_seconds = (next_dt - current_dt).total_seconds()
+            
+            # Only consider significant gaps with no activity (>= 5 minutes)
+            if gap_seconds >= 300:
+                # Check if this gap represents actual downtime or just recovery activity
+                # Skip gaps if they're surrounded by recovery-related events
+                if self._is_recovery_period(current_event, next_event):
+                    continue
+                    
+                activity_gaps.append(DowntimePeriod(
+                    start_time=current_event.timestamp,
+                    end_time=next_event.timestamp,
+                    duration_seconds=gap_seconds,
+                    duration_str=self._format_duration(gap_seconds),
+                    gap_type="no_activity",
+                    description=f"No log activity for {self._format_duration(gap_seconds)}",
+                    severity="high" if gap_seconds > 1800 else "medium"
+                ))
+        
+        return activity_gaps
+
+    def _is_recovery_period(self, before_event, after_event) -> bool:
+        """Check if a gap is during a recovery period (SST, IST, reconnection attempts)"""
+        # Check event types to see if we're in a recovery scenario
+        recovery_types = {EventType.SST_EVENT, EventType.IST_EVENT, EventType.STATE_TRANSITION}
+        
+        if (before_event.event_type in recovery_types or 
+            after_event.event_type in recovery_types):
+            return True
+            
+        # Check for specific recovery-related patterns in the messages
+        recovery_keywords = [
+            'SST', 'IST', 'state transfer', 'requesting state transfer',
+            'JOINER', 'DONOR', 'joining', 'syncing', 'recovery', 
+            'reconnect', 'connection failed', 'broken pipe'
+        ]
+        
+        for keyword in recovery_keywords:
+            if (keyword.lower() in before_event.raw_message.lower() or
+                keyword.lower() in after_event.raw_message.lower()):
+                return True
+                
+        return False
+
+    def _detect_cluster_shutdown_periods(self, transitions: List[StateTransition]) -> List[DowntimePeriod]:
+        """Detect periods where nodes are shutting down/destroyed"""
+        shutdown_periods = []
+        
+        for transition in transitions:
+            if transition.to_state.upper() in ['CLOSED', 'DESTROYING', 'DESTROYED']:
+                # Look for the corresponding restart
+                restart_time = None
+                transition_dt = self._parse_timestamp(transition.timestamp)
+                if not transition_dt:
+                    continue
+                    
+                # Look for next startup within reasonable time (up to 1 hour)
+                for later_transition in transitions:
+                    later_dt = self._parse_timestamp(later_transition.timestamp)
+                    if (later_dt and later_dt > transition_dt and
+                        later_transition.from_state.upper() in ['CLOSED', 'OPEN'] and
+                        later_transition.to_state.upper() in ['OPEN', 'PRIMARY', 'JOINER']):
+                        
+                        gap_seconds = (later_dt - transition_dt).total_seconds()
+                        if gap_seconds <= 3600:  # Within 1 hour
+                            restart_time = later_transition.timestamp
+                            break
+                
+                if restart_time:
+                    restart_dt = self._parse_timestamp(restart_time)
+                    if restart_dt:
+                        gap_seconds = (restart_dt - transition_dt).total_seconds()
+                        if gap_seconds > 60:  # At least 1 minute
+                            shutdown_periods.append(DowntimePeriod(
+                                start_time=transition.timestamp,
+                                end_time=restart_time,
+                                duration_seconds=gap_seconds,
+                                duration_str=self._format_duration(gap_seconds),
+                                gap_type="node_restart",
+                                description=f"Node shutdown/restart ({self._format_duration(gap_seconds)})",
+                                severity="medium" if gap_seconds < 600 else "high"
+                            ))
+        
+        return shutdown_periods
+
+    def _detect_no_primary_periods(self, views: List[ClusterView]) -> List[DowntimePeriod]:
+        """Detect periods where cluster had no primary component"""
+        no_primary_periods = []
+        
+        non_primary_start = None
+        for view in views:
+            if view.status != 'primary':
+                if non_primary_start is None:
+                    non_primary_start = view
+            else:  # primary view
+                if non_primary_start is not None:
+                    # End of non-primary period
+                    start_dt = self._parse_timestamp(non_primary_start.timestamp)
+                    end_dt = self._parse_timestamp(view.timestamp)
+                    
+                    if start_dt and end_dt:
+                        gap_seconds = (end_dt - start_dt).total_seconds()
+                        if gap_seconds > 30:  # Significant non-primary period
+                            no_primary_periods.append(DowntimePeriod(
+                                start_time=non_primary_start.timestamp,
+                                end_time=view.timestamp,
+                                duration_seconds=gap_seconds,
+                                duration_str=self._format_duration(gap_seconds),
+                                gap_type="no_primary",
+                                description=f"Cluster in non-primary state ({self._format_duration(gap_seconds)})",
+                                severity="critical" if gap_seconds > 300 else "high"
+                            ))
+                    
+                    non_primary_start = None
+        
+        return no_primary_periods
+
+    def _merge_overlapping_periods(self, periods: List[DowntimePeriod]) -> List[DowntimePeriod]:
+        """Merge overlapping or adjacent downtime periods"""
+        if not periods:
+            return periods
+        
+        merged = []
+        current = periods[0]
+        
+        for next_period in periods[1:]:
+            current_end = self._parse_timestamp(current.end_time)
+            next_start = self._parse_timestamp(next_period.start_time)
+            
+            if current_end and next_start and (next_start - current_end).total_seconds() <= 60:
+                # Merge periods if they're within 1 minute of each other
+                next_end = self._parse_timestamp(next_period.end_time)
+                current_start = self._parse_timestamp(current.start_time)
+                if next_end and current_start:
+                    gap_seconds = (next_end - current_start).total_seconds()
+                    current = DowntimePeriod(
+                        start_time=current.start_time,
+                        end_time=next_period.end_time,
+                        duration_seconds=gap_seconds,
+                        duration_str=self._format_duration(gap_seconds),
+                        gap_type="merged",
+                        description=f"Combined downtime period ({self._format_duration(gap_seconds)})",
+                        severity=max(current.severity, next_period.severity, key=lambda x: ['low', 'medium', 'high', 'critical'].index(x))
+                    )
+            else:
+                merged.append(current)
+                current = next_period
+        
+        merged.append(current)
+        return merged
+
+    def analyze_downtime(self) -> None:
+        """Analyze and store downtime periods in health metrics"""
+        self.health_metrics.downtime_periods = self._analyze_downtime_periods()
+        self.health_metrics.total_downtime_seconds = sum(
+            period.duration_seconds for period in self.health_metrics.downtime_periods
+        )
+
     # Node counting helpers (reintroduced)
     def _compute_total_nodes(self) -> int:
     # TODO(improvement): Consolidate sequential restart placeholder names (Local-<hex>)
@@ -3156,6 +3496,33 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
         samples = unk.get('samples') or []
         for s in samples:
             lines.append(f"   ? {s[:120]}...")
+    
+    # Downtime Analysis
+    if analyzer.health_metrics.downtime_periods:
+        lines.append("\n⏰ DOWNTIME ANALYSIS")
+        lines.append("-" * 50)
+        total_downtime = analyzer.health_metrics.total_downtime_seconds
+        lines.append(f"Total Downtime: {analyzer._format_duration(total_downtime)}")
+        lines.append(f"Downtime Periods: {len(analyzer.health_metrics.downtime_periods)}")
+        lines.append("")
+        
+        # Group by severity for better organization
+        by_severity = {'critical': [], 'high': [], 'medium': [], 'low': []}
+        for period in analyzer.health_metrics.downtime_periods:
+            by_severity[period.severity].append(period)
+        
+        # Display periods by severity (critical first)
+        for severity in ['critical', 'high', 'medium', 'low']:
+            periods = by_severity[severity]
+            if periods:
+                severity_icon = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢'}[severity]
+                lines.append(f"{severity_icon} {severity.upper()} ({len(periods)} periods):")
+                
+                for period in sorted(periods, key=lambda x: x.start_time):
+                    lines.append(f"  {period.start_time} → {period.end_time}")
+                    lines.append(f"    Duration: {period.duration_str} | Type: {period.gap_type}")
+                    lines.append(f"    {period.description}")
+                    lines.append("")
     
     # Flow Control summary (derived from gcs.cpp patterns)
     fc_events = [e for e in analyzer.events if e.event_type == EventType.SERVER_INFO and e.metadata]
@@ -3617,6 +3984,9 @@ def main():
 
     # Infer Galera from MariaDB if missing
     analyzer.infer_galera_from_mariadb()
+    
+    # Perform downtime analysis
+    analyzer.analyze_downtime()
 
     # Require MariaDB version known; Galera optional/inferred
     sw = analyzer.software
