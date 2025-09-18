@@ -35,6 +35,7 @@ class DialectRegistry:
     def _build_default_patterns(self) -> Dict[str, Dict[str, Any]]:
         """Build the default pattern set from current implementation"""
         return {
+            # ===== IST PATTERNS (Incremental State Transfer) =====
             'ist_patterns': {
                 'recv_addr': re.compile(r'IST\s+receiver\s+addr\s+using\s+(\S+)', re.IGNORECASE),
                 'recv_bind': re.compile(r'IST\s+receiver\s+bind\s+using\s+(\S+)', re.IGNORECASE),
@@ -53,11 +54,120 @@ class DialectRegistry:
                 'recv_summary_seqnos': re.compile(r'Receiving\s+IST:\s+\d+\s+writesets,\s+seqnos\s+(-?\d+)\s*-\s*(-?\d+)', re.IGNORECASE),
                 'ist_uuid_range': re.compile(r'IST\s+uuid:\s*[0-9a-f-]+,?\s*f:\s*(-?\d+),\s*l:\s*(-?\d+)', re.IGNORECASE),
                 'processing_complete': re.compile(r'Processing\s+event\s+queue:.*?100\.0%.*?complete\.?', re.IGNORECASE),
+                # Additional IST patterns from scattered code
+                'ist_receiver_addr_simple': re.compile(r'IST receiver addr(?: using)? ([0-9.]+)', re.IGNORECASE),
+                'async_serve_tcp': re.compile(r'async IST sender starting to serve tcp://([0-9.]+)', re.IGNORECASE),
+                'ist_detection': re.compile(r'(?:\bIST\b|incremental\s+state\s+transfer)', re.IGNORECASE),
             },
-            # Future: Add more pattern categories here as needed
-            # 'sst_patterns': {...},
-            # 'state_transition_patterns': {...},
-            # 'view_change_patterns': {...},
+            
+            # ===== SST PATTERNS (State Snapshot Transfer) =====
+            'sst_patterns': {
+                # SST Request and selection patterns
+                'request_with_donor': re.compile(r'Member\s+(\d+\.\d+)\s+\(([^)]+)\)\s+requested\s+state\s+transfer\s+from\s+[\'\"]([^\'\"]+)[\'\"]\.\s+Selected\s+(\d+\.\d+)\s+\(([^)]+)\)\(([^)]+)\)\s+as\s+donor', re.IGNORECASE),
+                'simple_request': re.compile(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', re.IGNORECASE),
+                'request_from': re.compile(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer from', re.IGNORECASE),
+                
+                # SST Role and initialization patterns
+                'joiner_role': re.compile(r"wsrep_sst_[a-z0-9_]+.*--role\s+'joiner'.*--address\s+'([0-9.]+)", re.IGNORECASE),
+                'donor_role': re.compile(r"wsrep_sst_[a-z0-9_]+.*--role\s+'donor'.*--address\s+'([0-9.]+)", re.IGNORECASE),
+                'initiating_transfer': re.compile(r"Initiating\s+SST/IST\s+transfer\s+on\s+(DONOR|JOINER)\s+side\s*\((wsrep_sst_[a-z0-9_]+)\s+.*?--role\s+'(donor|joiner)'.*?--address\s+'([^']+)'", re.IGNORECASE),
+                
+                # SST Status patterns
+                'started': re.compile(r'WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+started\s+on\s+(donor|joiner)\s+\(([^)]+)\)', re.IGNORECASE),
+                'completed': re.compile(r"WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+completed\s+on\s+(donor|joiner)\s+\(([^)]+)\)", re.IGNORECASE),
+                'proceeding': re.compile(r'WSREP_SST:\s+\[INFO\]\s+Proceeding\s+with\s+SST', re.IGNORECASE),
+                
+                # SST Failure patterns
+                'reject_in_state': re.compile(r"Rejecting\s+State\s+Transfer\s+Request\s+in\s+state\s+'([^']+)'.", re.IGNORECASE),
+                'reject_wrong_state': re.compile(r'Received\s+State\s+Transfer\s+Request\s+in\s+wrong\s+state\s+([A-Z/\-]+)\.\s+Rejecting\.', re.IGNORECASE),
+                'provider_failed': re.compile(r'State\s+transfer\s+to\s+(\d+\.\d+)\s+\(([^)]+)\)\s+failed:\s+(.+)$', re.IGNORECASE),
+                'sending_failed': re.compile(r'SST\s+(sending|receiving)\s+failed:\s*(-?\d+)', re.IGNORECASE),
+                'abort_never_receive': re.compile(r'Will\s+never\s+receive\s+state\.\s+Need\s+to\s+abort\.', re.IGNORECASE),
+                
+                # SST Connection and streaming
+                'stream_addr': re.compile(r"SST\s+request\s+sent,\s+waiting\s+for\s+connection\s+at\s+([^'\s]+)", re.IGNORECASE),
+                'sent_uuid_seqno': re.compile(r"SST\s+sent:\s+([0-9a-f-]+):(\-?\d+)", re.IGNORECASE),
+                
+                # SST Timing patterns
+                'total_time_joiner': re.compile(r"Joiner\s+monitor\s+thread\s+ended\s+with\s+total\s+time\s+(\d+)\s+sec", re.IGNORECASE),
+                'total_time_donor': re.compile(r"Donor\s+monitor\s+thread\s+ended\s+with\s+total\s+time\s+(\d+)\s+sec", re.IGNORECASE),
+            },
+            
+            # ===== STATE TRANSITION PATTERNS =====
+            'state_transition_patterns': {
+                'shifting': re.compile(r'Shifting\s+([A-Z/]+)\s*->\s*([A-Z/]+)\s*\(TO:\s*(\d+)\)', re.IGNORECASE),
+                'restored': re.compile(r'Restored\s+state\s+([A-Z/\-]+)\s*->\s*([A-Z/\-]+)\s*\(([-\d]+)\)', re.IGNORECASE),
+                'node_state': re.compile(r'Node\s+([0-9a-f-]+)\s+state\s+(\w+)', re.IGNORECASE),
+                'member_status': re.compile(r'Member\s+(\d+\.\d+)\s+\(([^)]+)\)\s+(\w+)', re.IGNORECASE),
+                'become_joined': re.compile(r'Become\s+joined,\s+FC\s+offset\s+(-?\d+)', re.IGNORECASE),
+                'become_synced': re.compile(r'Become\s+synced,\s+FC\s+offset\s+(-?\d+)', re.IGNORECASE),
+            },
+            
+            # ===== VIEW CHANGE PATTERNS =====
+            'view_change_patterns': {
+                # Main view pattern
+                'view_main': re.compile(r'view\(view_id\((\w+),\s*([^,]+),\s*(\d+)\)', re.IGNORECASE),
+                'member_line': re.compile(r'^\s*([0-9a-f-]+),(\d+)\s*$', re.MULTILINE),
+                
+                # Detailed view parsing
+                'view_id_detailed': re.compile(r'^\s*id:\s*([0-9a-f-]{36}):(\d+)', re.MULTILINE),
+                'view_status': re.compile(r'^\s*status:\s*(\w+)', re.MULTILINE),
+                'protocol_version': re.compile(r'^\s*protocol_version:\s*(\d+)', re.MULTILINE),
+                'capabilities': re.compile(r'^\s*capabilities:\s*(.+)', re.MULTILINE),
+                
+                # View processing
+                'first_view': re.compile(r'Process\s+first\s+view:\s+([0-9a-f-]+)\s+my\s+uuid:\s+([0-9a-f-]+)', re.IGNORECASE),
+                'group_change': re.compile(r'Process\s+group\s+change:\s+([0-9a-f-]+)\s*->\s*([0-9a-f-]+)', re.IGNORECASE),
+            },
+            
+            # ===== COMMUNICATION PATTERNS =====
+            'communication_patterns': {
+                'connection_established': re.compile(r'connection established to ([0-9a-f]{8}(?:-[0-9a-f]{4})?) tcp://([0-9a-fA-F:.]+)', re.IGNORECASE),
+                'server_connected': re.compile(r"Server ([A-Za-z0-9_.-]+) connected to cluster at position [0-9a-f:-]+ with ID ([0-9a-f]{8}-[0-9a-f]{4,})", re.IGNORECASE),
+                'listening_uuid': re.compile(r"\(([0-9a-f]{8}(?:-[0-9a-f]{4}){0,3}-?[0-9a-f]{0,12}), *'tcp://([0-9a-fA-F:.]+)'\) listening at tcp://\2", re.IGNORECASE),
+                'cluster_address': re.compile(r'wsrep_cluster_address=gcomm://([0-9.:,]+)', re.IGNORECASE),
+                'state_exchange_sent': re.compile(r'STATE_EXCHANGE:\s+(sent|got)\s+state\s+(UUID|msg):\s+([0-9a-f-]+)', re.IGNORECASE),
+                'state_exchange_from': re.compile(r'from\s+(\d+)\s+\(([^)]+)\)', re.IGNORECASE),
+            },
+            
+            # ===== SERVER INFO PATTERNS =====
+            'server_info_patterns': {
+                # Version and banner patterns
+                'server_version': re.compile(r'Server\s+version:\s*([^\s]+)', re.IGNORECASE),
+                'mariadb_banner': re.compile(r'Starting\s+MariaDB\s+([^\s]+).*?source\s+revision\s+([0-9a-f]{40})', re.IGNORECASE),
+                'enterprise_path': re.compile(r'mariadb-enterprise-([0-9][0-9\.-]+)', re.IGNORECASE),
+                
+                # WSREP Provider info
+                'provider_version': re.compile(r'WSREP:\s+Provider:\s+Galera\s+([0-9][0-9\.]+)', re.IGNORECASE),
+                'provider_version_alt': re.compile(r'wsrep[_\s-]*provider[_\s-]*version[^0-9]*([0-9]+(?:\.[0-9]+)+)', re.IGNORECASE),
+                'wsrep_load': re.compile(r'wsrep_load\(\):\s*Galera\s+([0-9][\w\.-]+)(?:\([^)]*\))?\s+by\s+([^\r\n]+)', re.IGNORECASE),
+                
+                # State and UUID info
+                'my_uuid': re.compile(r'My\s+UUID:\s+([0-9a-f-]{36})', re.IGNORECASE),
+                'group_state': re.compile(r'Group\s+state:\s+([0-9a-f-]+):(\-?\d+)', re.IGNORECASE),
+                'local_state': re.compile(r'Local\s+state:\s+([0-9a-f-]+):(\-?\d+)', re.IGNORECASE),
+                'uuid_name_pair': re.compile(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}),\s*([A-Za-z0-9_-]+)', re.IGNORECASE),
+                'indexed_uuid_name': re.compile(r'\b\d+:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}),\s*([A-Za-z0-9_-]+)', re.IGNORECASE),
+                'node_name_sst': re.compile(r"wsrep_node_name=([A-Za-z0-9_.-]+)", re.IGNORECASE),
+            },
+            
+            # ===== FLOW CONTROL PATTERNS =====
+            'flow_control_patterns': {
+                'fc_stop_cont': re.compile(r'SENDING\s+FC_(STOP|CONT)\s+\(local\s+seqno:\s*(-?\d+),\s*fc_offset:\s*(-?\d+)\):\s*(-?\d+)', re.IGNORECASE),
+                'provider_paused': re.compile(r'Provider\s+paused\s+at\s+([0-9a-f-]+):(\-?\d+)', re.IGNORECASE),
+                'provider_resuming': re.compile(r'resuming\s+provider\s+at\s+(\-?\d+)', re.IGNORECASE),
+                'processing_cc': re.compile(r'#######\s+processing\s+CC\s+(\d+).*(ordered|unordered)', re.IGNORECASE),
+                'skipping_cc': re.compile(r'#######\s+skipping\s+local\s+CC\s+(\d+),\s+keep\s+in\s+cache:\s+(true|false)', re.IGNORECASE),
+            },
+            
+            # ===== GENERAL PATTERNS =====
+            'general_patterns': {
+                'timestamp': re.compile(r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', re.IGNORECASE),
+                'dialect_detection_pxc': re.compile(r'PXC|Percona XtraDB Cluster', re.IGNORECASE),
+                'dialect_detection_galera': re.compile(r'Galera\s+26\.', re.IGNORECASE),
+                'dialect_detection_mariadb': re.compile(r'Maria(DB)?\s+10\.', re.IGNORECASE),
+                'dialect_detection_wsrep': re.compile(r'WSREP', re.IGNORECASE),
+            },
         }
     
     def get_patterns(self, dialect: str, pattern_category: str) -> Dict[str, Any]:
@@ -450,6 +560,41 @@ class GaleraLogAnalyzer:
     def _ist_patterns(self) -> Dict[str, Any]:
         """Get IST patterns for current dialect (backward-compatible property)"""
         return self.dialect_registry.get_patterns(self.resolved_dialect, 'ist_patterns')
+    
+    @property
+    def _sst_patterns(self) -> Dict[str, Any]:
+        """Get SST patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'sst_patterns')
+    
+    @property
+    def _state_transition_patterns(self) -> Dict[str, Any]:
+        """Get state transition patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'state_transition_patterns')
+    
+    @property
+    def _view_change_patterns(self) -> Dict[str, Any]:
+        """Get view change patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'view_change_patterns')
+    
+    @property
+    def _communication_patterns(self) -> Dict[str, Any]:
+        """Get communication patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'communication_patterns')
+    
+    @property
+    def _server_info_patterns(self) -> Dict[str, Any]:
+        """Get server info patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'server_info_patterns')
+    
+    @property
+    def _flow_control_patterns(self) -> Dict[str, Any]:
+        """Get flow control patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'flow_control_patterns')
+    
+    @property
+    def _general_patterns(self) -> Dict[str, Any]:
+        """Get general patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'general_patterns')
     
     @property
     def resolved_dialect(self) -> str:

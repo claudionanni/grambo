@@ -2,12 +2,15 @@
 
 This file captures improvement ideas and feature suggestions collected during development.
 
+**Date Format**: Use (YYYY-MM-DD) next to completed items to track when work was started/completed.
+
 ## Parsing & Detection
 - Multi-line join: pre-process soft-wrapped lines (e.g. "Server <name> connected..." split over lines) before regex parsing.
 - Truncation detection: flag likely truncated logs (no membership view but JOINER → PRIMARY transitions present).
 - Add detection for cluster bootstrap vs regular restart (look for wsrep_start_position vs safe_to_bootstrap).
 - Distinguish first startup UUID vs subsequent restarts via earliest timestamp identity evidence.
 - Recognize garbd (arbitrator) logs and optionally exclude or summarize separately.
+- ✅ COMPLETED (2025-09-18): Build dialect dictionary system to map log message patterns to specific MariaDB/Galera/PXC versions with dialect-specific regex patterns for state transitions, SST/IST formats, error messages, and view changes.
 
 ## UUID & Identity
 - Label candidate UUID sets explicitly with a suffix ("(candidates)") when derived only from listening lines.
@@ -25,7 +28,7 @@ This file captures improvement ideas and feature suggestions collected during de
 - Optional --quiet and --sections flags to limit output sections.
 - Table formatting for UUID HISTORY with columns: name | final uuid | prior uuids | candidate uuid fragments.
 - Add --color flag and ANSI coloring (warnings, errors, instability) when stdout is a TTY.
-- Summarize time gaps or downtime periods between views / transitions.
+- ✅ COMPLETED (2025-09-18): Summarize time gaps or downtime periods between views / transitions.
 
 ## Metrics & Analysis
 - Compute join latency (time from JOINER to SYNCED per node) and average across nodes.
