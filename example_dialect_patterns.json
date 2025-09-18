@@ -1,0 +1,20 @@
+{
+  "_comment": "Example: How external dialect files could look (optional future enhancement)",
+  "mariadb-10.6": {
+    "ist_patterns": {
+      "progress_enhanced": ".*IST progress: (\\d+)% completed.*",
+      "start_enhanced": ".*Incremental state transfer required from.*"
+    },
+    "sst_patterns": {
+      "stream_method": ".*SST streaming method: (.+).*"
+    }
+  },
+  "pxc-8.0": {
+    "ist_patterns": {
+      "pxc_start": ".*Starting incremental state transfer.*"
+    },
+    "sst_patterns": {
+      "xtrabackup_method": ".*XtraBackup SST method selected.*"
+    }
+  }
+}

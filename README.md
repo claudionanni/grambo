@@ -49,10 +49,11 @@ Grambo Python Edition features a comprehensive **dialect registry** that organiz
 - **⚡ Flow Control Patterns** (5) - Replication flow control
 - **🔧 General Patterns** (5) - Timestamps and dialect detection
 
-#### **Backward Compatibility**
+#### **Current Implementation**
+- ✅ **Comprehensive Pattern Registry** - 80+ patterns organized in 8 logical categories
+- ✅ **Universal Default Dialect** - Works across all Galera/MariaDB/PXC versions  
 - ✅ **Zero breaking changes** - All existing functionality preserved
-- ✅ **Automatic dialect detection** - Identifies MariaDB/Galera versions from logs
-- ✅ **Fallback support** - Unknown dialects use default patterns safely
+- ✅ **Automatic detection framework** - Ready for version-specific pattern activation
 
 #### **Future-Ready Extensions**
 The dialect system is designed for easy extension:
@@ -174,13 +175,12 @@ The analyzer automatically detects the dialect from log content:
 3. **Fallback Safety**: Unknown or undetected dialects use default patterns
 4. **Manual Override**: Use `--mariadb-version` and `--mariadb-edition` for explicit control
 
-**Supported Dialects:**
-- **Default** - Universal patterns work with all Galera versions
-- **MariaDB 10.6** - Community and Enterprise specific patterns
-- **MariaDB 11.4** - Latest format patterns
-- **Future**: Percona XtraDB Cluster, older versions as needed
+**Current Status:**
+- **Default Dialect Only** - Currently uses universal patterns that work with all Galera versions
+- **Pattern Registry Ready** - System supports dialect-specific patterns but uses only default currently
+- **Future Extensions** - Framework ready for MariaDB 10.6/11.4, Percona XtraDB Cluster patterns
 
-The dialect system ensures optimal parsing accuracy while maintaining compatibility across all Galera environments.
+The dialect system currently uses default patterns for all environments, ensuring broad compatibility while providing the foundation for version-specific optimizations.
 
 ### Deprecated Flags
 
