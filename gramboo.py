@@ -2953,7 +2953,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             if final_uuid:
                 lines.append(f"• {pname} (UUID: {final_uuid}) [{addr}]")
             else:
-                lines.append(f"• {pname} (UUID: <not deterministically inferred>) [{addr}]")
+                lines.append(f"• {pname} (UUID: <not possible to determine>) [{addr}]")
     else:
         lines.append("• No distinct cluster nodes identified")
 
@@ -3015,7 +3015,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                     ordered_full.append(u)
         # Nothing found
         if not ordered_full:
-            lines.append(f"• {pname} UUIDs <not deterministically inferred>")
+            lines.append(f"• {pname} UUIDs <not possible to determine>")
             continue
         # Build compact list
         seen_short: Set[str] = set()
