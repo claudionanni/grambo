@@ -35,6 +35,47 @@ Grambo Python Edition provides a clean, organized analysis of Galera cluster log
 - **Cross-node analysis**: Analyze multiple log files together
 - **Structured data**: Machine-readable JSON for integration
 
+### 🎯 **Dialect Dictionary System**
+
+Grambo Python Edition features a comprehensive **dialect registry** that organizes 80+ regex patterns into logical categories for parsing different Galera/MariaDB/PXC log formats. This system provides:
+
+#### **Pattern Categories**
+- **📬 IST Patterns** (20) - Incremental State Transfer events
+- **💾 SST Patterns** (18) - State Snapshot Transfer events  
+- **🔄 State Transition Patterns** (6) - WSREP state changes
+- **👁️ View Change Patterns** (8) - Cluster membership changes
+- **🌐 Communication Patterns** (6) - Network and connection events
+- **ℹ️ Server Info Patterns** (12) - Version, configuration, and startup
+- **⚡ Flow Control Patterns** (5) - Replication flow control
+- **🔧 General Patterns** (5) - Timestamps and dialect detection
+
+#### **Backward Compatibility**
+- ✅ **Zero breaking changes** - All existing functionality preserved
+- ✅ **Automatic dialect detection** - Identifies MariaDB/Galera versions from logs
+- ✅ **Fallback support** - Unknown dialects use default patterns safely
+
+#### **Future-Ready Extensions**
+The dialect system is designed for easy extension:
+
+```python
+# Example: Adding MariaDB 10.6 specific patterns
+analyzer.dialect_registry.add_dialect_variant('mariadb-10.6')
+analyzer.dialect_registry.update_pattern('mariadb-10.6', 'sst_patterns', 
+    'enhanced_progress', r'SST progress: (\d+)% \((\d+)/(\d+) MB\)')
+```
+
+This enables version-specific parsing improvements:
+- **MariaDB 10.6 vs 11.0** - Different log message formats
+- **Percona XtraDB Cluster** - PXC-specific terminology  
+- **Enterprise vs Community** - Edition-specific patterns
+- **Future versions** - Easy pattern updates without code changes
+
+#### **Benefits**
+- **🎯 Improved Accuracy** - Version-specific patterns for better parsing
+- **🔧 Easy Maintenance** - Centralized pattern management
+- **🚀 Community-Friendly** - Simple contribution of dialect-specific patterns
+- **📈 Scalable** - Supports unlimited dialect variants
+
 ## Installation
 
 ```bash
@@ -123,6 +164,23 @@ Current built-in Galera inference (when `--galera-version` omitted but MariaDB v
 | 11.4.x | 26.4.23 |
 
 If inference occurs, the text report marks Galera as `(inferred)` unless an actual provider banner is later parsed.
+
+### Dialect Detection and Pattern Selection
+
+The analyzer automatically detects the dialect from log content:
+
+1. **Automatic Detection**: Scans for version banners and provider information
+2. **Pattern Selection**: Uses appropriate patterns for detected MariaDB/Galera version
+3. **Fallback Safety**: Unknown or undetected dialects use default patterns
+4. **Manual Override**: Use `--mariadb-version` and `--mariadb-edition` for explicit control
+
+**Supported Dialects:**
+- **Default** - Universal patterns work with all Galera versions
+- **MariaDB 10.6** - Community and Enterprise specific patterns
+- **MariaDB 11.4** - Latest format patterns
+- **Future**: Percona XtraDB Cluster, older versions as needed
+
+The dialect system ensures optimal parsing accuracy while maintaining compatibility across all Galera environments.
 
 ### Deprecated Flags
 
