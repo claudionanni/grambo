@@ -77,12 +77,17 @@ class DialectRegistry:
                 'completed': re.compile(r"WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+completed\s+on\s+(donor|joiner)\s+\(([^)]+)\)", re.IGNORECASE),
                 'proceeding': re.compile(r'WSREP_SST:\s+\[INFO\]\s+Proceeding\s+with\s+SST', re.IGNORECASE),
                 
-                # SST Failure patterns
+                # SST Failure patterns (Enhanced)
                 'reject_in_state': re.compile(r"Rejecting\s+State\s+Transfer\s+Request\s+in\s+state\s+'([^']+)'.", re.IGNORECASE),
                 'reject_wrong_state': re.compile(r'Received\s+State\s+Transfer\s+Request\s+in\s+wrong\s+state\s+([A-Z/\-]+)\.\s+Rejecting\.', re.IGNORECASE),
                 'provider_failed': re.compile(r'State\s+transfer\s+to\s+(\d+\.\d+)\s+\(([^)]+)\)\s+failed:\s+(.+)$', re.IGNORECASE),
                 'sending_failed': re.compile(r'SST\s+(sending|receiving)\s+failed:\s*(-?\d+)', re.IGNORECASE),
                 'abort_never_receive': re.compile(r'Will\s+never\s+receive\s+state\.\s+Need\s+to\s+abort\.', re.IGNORECASE),
+                'sst_request_failed': re.compile(r'SST\s+request\s+failed:\s*(.+)$', re.IGNORECASE),
+                'donor_error': re.compile(r'DONOR\s+ERROR:\s*(.+)$', re.IGNORECASE),
+                'joiner_error': re.compile(r'JOINER\s+ERROR:\s*(.+)$', re.IGNORECASE),
+                'sst_timeout': re.compile(r'SST\s+timeout', re.IGNORECASE),
+                'sst_connection_failed': re.compile(r'SST\s+connection\s+failed', re.IGNORECASE),
                 
                 # SST Connection and streaming
                 'stream_addr': re.compile(r"SST\s+request\s+sent,\s+waiting\s+for\s+connection\s+at\s+([^'\s]+)", re.IGNORECASE),
@@ -168,6 +173,32 @@ class DialectRegistry:
                 'dialect_detection_mariadb': re.compile(r'Maria(DB)?\s+10\.', re.IGNORECASE),
                 'dialect_detection_wsrep': re.compile(r'WSREP', re.IGNORECASE),
             },
+            
+            # ===== SERVICE EVENT PATTERNS =====
+            'service_event_patterns': {
+                # Startup patterns
+                'server_startup': re.compile(r'Starting\s+(MariaDB|MySQL)(?:\s+([0-9][0-9\.-]+))?', re.IGNORECASE),
+                'wsrep_startup': re.compile(r'WSREP:\s*(Loading|Initializing|Starting)', re.IGNORECASE),
+                'ready_for_connections': re.compile(r'ready\s+for\s+connections', re.IGNORECASE),
+                'galera_ready': re.compile(r'Galera\s+cluster\s+ready', re.IGNORECASE),
+                
+                # Shutdown patterns
+                'shutdown_signal': re.compile(r'received\s+SHUTDOWN_SIGNAL', re.IGNORECASE),
+                'shutdown_complete': re.compile(r'shutdown\s+complete', re.IGNORECASE),
+                'normal_shutdown': re.compile(r'Normal\s+shutdown', re.IGNORECASE),
+                'shutting_down': re.compile(r'Shutting\s+down', re.IGNORECASE),
+                
+                # Crash/Signal patterns  
+                'signal_received': re.compile(r'signal\s+(\d+)\s+received', re.IGNORECASE),
+                'fatal_signal': re.compile(r'Fatal\s+signal\s+(\d+)', re.IGNORECASE),
+                'segfault': re.compile(r'segmentation\s+fault|SIGSEGV', re.IGNORECASE),
+                'abort_signal': re.compile(r'SIGABRT|abort', re.IGNORECASE),
+                'killed_signal': re.compile(r'SIGKILL|killed', re.IGNORECASE),
+                
+                # Restart detection patterns
+                'restart_detected': re.compile(r'mysqld\s+restarted', re.IGNORECASE),
+                'process_id_change': re.compile(r'Process\s+ID\s+(\d+)', re.IGNORECASE),
+            },
         }
     
     def get_patterns(self, dialect: str, pattern_category: str) -> Dict[str, Any]:
@@ -237,6 +268,7 @@ class EventType(Enum):
     SST_EVENT = "sst_event"
     IST_EVENT = "ist_event"
     COMMUNICATION_ISSUE = "communication_issue"
+    SERVICE_EVENT = "service_event"  # startup, shutdown, crash
     WARNING = "warning"
     ERROR = "error"
 
@@ -597,6 +629,11 @@ class GaleraLogAnalyzer:
         return self.dialect_registry.get_patterns(self.resolved_dialect, 'general_patterns')
     
     @property
+    def _service_event_patterns(self) -> Dict[str, Any]:
+        """Get service event patterns for the current dialect"""
+        return self.dialect_registry.get_patterns(self.resolved_dialect, 'service_event_patterns')
+    
+    @property
     def resolved_dialect(self) -> str:
         """Get the resolved dialect, falling back to 'default' if unknown"""
         if self.dialect in ['auto', 'unknown']:
@@ -875,6 +912,8 @@ class GaleraLogAnalyzer:
             return
         if self._parse_ist_event(line):
             return
+        if self._parse_service_event(line):
+            return
         if self._parse_communication_issue(line):
             return
         if self._parse_error(line):
@@ -1096,6 +1135,30 @@ class GaleraLogAnalyzer:
             return self._ensure_node_exists(self.cluster.local_node_name)
         # Last resort: use current node if set
         return self._get_current_node()
+    
+    def _get_sst_error_context(self, error_code: str) -> str:
+        """Provide context for SST error codes"""
+        error_map = {
+            '-2': 'ENOENT - File or directory not found (data directory issue)',
+            '-4': 'EINTR - Interrupted system call (process interrupted)',
+            '-5': 'EIO - I/O error (disk or network issue)',
+            '-12': 'ENOMEM - Out of memory',
+            '-13': 'EACCES - Permission denied (file/directory permissions)',
+            '-22': 'EINVAL - Invalid argument (configuration issue)',
+            '-32': 'EPIPE - Broken pipe (network connection lost)',
+            '-104': 'ECONNRESET - Connection reset by peer',
+            '-110': 'ETIMEDOUT - Connection timed out',
+            '-111': 'ECONNREFUSED - Connection refused (donor not available)',
+            '-113': 'EHOSTUNREACH - No route to host',
+            '1': 'Generic error',
+            '2': 'Script execution failed',
+            '3': 'Script configuration error',
+            '22': 'Script parameter error',
+            '125': 'Script not found',
+            '126': 'Script not executable',
+            '127': 'Script command not found'
+        }
+        return error_map.get(error_code, f'Unknown error code: {error_code}')
     
     def _parse_cluster_view(self, line: str) -> bool:
         """Parse cluster view/membership changes"""
@@ -1626,7 +1689,7 @@ class GaleraLogAnalyzer:
             self.events.append(event)
             return True
         
-        # Pattern 3: SST Failures
+        # Pattern 3: SST Failures (Enhanced with error context)
         # "SST sending failed: -32"
         failed_match = re.search(r'SST\s+(sending|receiving)\s+failed:\s*(-?\d+)', line, re.IGNORECASE)
         if failed_match:
@@ -1635,12 +1698,18 @@ class GaleraLogAnalyzer:
                 error_code = failed_match.group(2)
                 
                 self.health_metrics.sst_events += 1
+                self.health_metrics.errors += 1
+                
+                # Enhanced error context based on common error codes
+                error_context = self._get_sst_error_context(error_code)
                 
                 sst_info = {
                     'subtype': 'sst_failed',
                     'operation': operation,
                     'error_code': error_code,
-                    'status': 'failed'
+                    'error_description': error_context,
+                    'status': 'failed',
+                    'severity': 'high' if operation == 'receiving' else 'medium'
                 }
                 
                 event = LogEvent(
@@ -1678,6 +1747,92 @@ class GaleraLogAnalyzer:
                 raw_message=line.strip(),
                 node=self._get_local_node(),
                 metadata={'subtype': 'sst_failed', 'operation': 'abort', 'reason': 'Will never receive state', 'status': 'failed'}
+            )
+            self.events.append(event)
+            return True
+
+        # Additional SST failure patterns (Enhanced detection)
+        # SST request failed
+        sst_req_fail = self._sst_patterns['sst_request_failed'].search(line)
+        if sst_req_fail and self.current_timestamp:
+            reason = sst_req_fail.group(1).strip()
+            self.health_metrics.sst_events += 1
+            self.health_metrics.errors += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={
+                    'subtype': 'sst_failed', 
+                    'operation': 'request', 
+                    'reason': reason, 
+                    'status': 'failed',
+                    'severity': 'high'
+                }
+            )
+            self.events.append(event)
+            return True
+
+        # Donor/Joiner specific errors
+        donor_error = self._sst_patterns['donor_error'].search(line)
+        if donor_error and self.current_timestamp:
+            error_msg = donor_error.group(1).strip()
+            self.health_metrics.sst_events += 1
+            self.health_metrics.errors += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={
+                    'subtype': 'sst_failed', 
+                    'operation': 'donor', 
+                    'error_message': error_msg, 
+                    'status': 'failed',
+                    'severity': 'medium'
+                }
+            )
+            self.events.append(event)
+            return True
+
+        joiner_error = self._sst_patterns['joiner_error'].search(line)
+        if joiner_error and self.current_timestamp:
+            error_msg = joiner_error.group(1).strip()
+            self.health_metrics.sst_events += 1
+            self.health_metrics.errors += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={
+                    'subtype': 'sst_failed', 
+                    'operation': 'joiner', 
+                    'error_message': error_msg, 
+                    'status': 'failed',
+                    'severity': 'high'
+                }
+            )
+            self.events.append(event)
+            return True
+
+        # SST timeout
+        if self._sst_patterns['sst_timeout'].search(line) and self.current_timestamp:
+            self.health_metrics.sst_events += 1
+            self.health_metrics.errors += 1
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={
+                    'subtype': 'sst_failed', 
+                    'operation': 'timeout', 
+                    'reason': 'SST operation timed out', 
+                    'status': 'failed',
+                    'severity': 'high'
+                }
             )
             self.events.append(event)
             return True
@@ -1998,6 +2153,121 @@ class GaleraLogAnalyzer:
         # Track unknown WSREP/IST mentions if reporting enabled
         if self.report_unknown and re.search(r'WSREP|IST', line, re.IGNORECASE):
             self._unknown_lines.append(line.strip())
+        return False
+    
+    def _parse_service_event(self, line: str) -> bool:
+        """Parse service lifecycle events (startup, shutdown, crash)"""
+        if not self.current_timestamp:
+            return False
+        
+        patterns = self._service_event_patterns
+        
+        # Check for startup events
+        if patterns['server_startup'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'startup', 'event': 'server_start'}
+            )
+            self.events.append(event)
+            return True
+        
+        if patterns['wsrep_startup'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'startup', 'event': 'wsrep_start'}
+            )
+            self.events.append(event)
+            return True
+        
+        if patterns['ready_for_connections'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'startup', 'event': 'ready_for_connections'}
+            )
+            self.events.append(event)
+            return True
+        
+        # Check for shutdown events
+        if patterns['shutdown_signal'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'shutdown', 'event': 'shutdown_signal'}
+            )
+            self.events.append(event)
+            return True
+        
+        if patterns['normal_shutdown'].search(line) or patterns['shutdown_complete'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'shutdown', 'event': 'normal_shutdown'}
+            )
+            self.events.append(event)
+            return True
+        
+        # Check for crash/signal events
+        signal_match = patterns['signal_received'].search(line)
+        if signal_match:
+            signal_num = signal_match.group(1)
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'crash', 'event': 'signal_received', 'signal': signal_num}
+            )
+            self.events.append(event)
+            return True
+        
+        fatal_signal_match = patterns['fatal_signal'].search(line)
+        if fatal_signal_match:
+            signal_num = fatal_signal_match.group(1)
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'crash', 'event': 'fatal_signal', 'signal': signal_num}
+            )
+            self.events.append(event)
+            return True
+        
+        if patterns['segfault'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'crash', 'event': 'segmentation_fault'}
+            )
+            self.events.append(event)
+            return True
+        
+        if patterns['restart_detected'].search(line):
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'restart', 'event': 'restart_detected'}
+            )
+            self.events.append(event)
+            return True
+        
         return False
     
     def _parse_communication_issue(self, line: str) -> bool:
@@ -4070,6 +4340,47 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                 # If pattern suggests serious network issues
                 if any(k in low for k in ['failed to connect', 'connection lost', 'network error', 'protocol', 'handshake']):
                     critical_list.append((e.timestamp, node_name, 'COMMUNICATION', raw, meta))
+
+    # Service Events Section
+    service_events = [e for e in analyzer.events if e.event_type == EventType.SERVICE_EVENT]
+    if service_events:
+        lines.append("\n🔧 SERVICE EVENTS")
+        lines.append("-" * 50)
+        
+        # Group by subtype for better organization
+        startup_events = [e for e in service_events if e.metadata and e.metadata.get('subtype') == 'startup']
+        shutdown_events = [e for e in service_events if e.metadata and e.metadata.get('subtype') == 'shutdown']
+        crash_events = [e for e in service_events if e.metadata and e.metadata.get('subtype') == 'crash']
+        restart_events = [e for e in service_events if e.metadata and e.metadata.get('subtype') == 'restart']
+        
+        if startup_events:
+            lines.append("📱 Startup Events:")
+            for event in startup_events[-5:]:  # Show last 5
+                event_type = (event.metadata or {}).get('event', 'startup')
+                node_name = event.node.name if event.node else 'Unknown'
+                lines.append(f"  {event.timestamp}: [{node_name}] {event_type.replace('_', ' ').title()}")
+        
+        if shutdown_events:
+            lines.append("🛑 Shutdown Events:")
+            for event in shutdown_events[-5:]:  # Show last 5
+                event_type = (event.metadata or {}).get('event', 'shutdown')
+                node_name = event.node.name if event.node else 'Unknown'
+                lines.append(f"  {event.timestamp}: [{node_name}] {event_type.replace('_', ' ').title()}")
+        
+        if crash_events:
+            lines.append("💥 Crash/Signal Events:")
+            for event in crash_events[-5:]:  # Show last 5
+                event_type = (event.metadata or {}).get('event', 'crash')
+                signal = (event.metadata or {}).get('signal', '')
+                signal_info = f" (Signal {signal})" if signal else ""
+                node_name = event.node.name if event.node else 'Unknown'
+                lines.append(f"  {event.timestamp}: [{node_name}] {event_type.replace('_', ' ').title()}{signal_info}")
+        
+        if restart_events:
+            lines.append("🔄 Restart Events:")
+            for event in restart_events[-5:]:  # Show last 5
+                node_name = event.node.name if event.node else 'Unknown'
+                lines.append(f"  {event.timestamp}: [{node_name}] Service Restart Detected")
 
     if critical_list:
         lines.append("\n⚠️  CRITICAL EVENTS")

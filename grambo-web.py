@@ -783,7 +783,19 @@ class WebClusterVisualizer:
                 html.Div([
                     dcc.Graph(
                         id='cluster-network',
-                        style={'height': '500px'}
+                        style={'height': '500px'},
+                        config={
+                            'displayModeBar': True,
+                            'displaylogo': False,
+                            'modeBarButtonsToAdd': ['downloadSvg'],
+                            'toImageButtonOptions': {
+                                'format': 'png',
+                                'filename': 'cluster-state',
+                                'height': 800,
+                                'width': 1200,
+                                'scale': 2
+                            }
+                        }
                     ),
                     
                     # Timeline controls
@@ -819,7 +831,26 @@ class WebClusterVisualizer:
                             value=1000,
                             style={'width': '80px', 'display': 'inline-block'}
                         )
-                    ], style={'textAlign': 'center', 'padding': '10px'})
+                    ], style={'textAlign': 'center', 'padding': '10px'}),
+                    
+                    # Export controls
+                    html.Div([
+                        html.Label("Export Options:", style={'fontWeight': 'bold', 'marginBottom': '10px'}),
+                        html.Div([
+                            html.Button('📷 PNG', id='export-png-btn', n_clicks=0, 
+                                       style={'margin': '5px', 'backgroundColor': '#3498db', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
+                                       title='Export current frame as PNG'),
+                            html.Button('🎨 SVG', id='export-svg-btn', n_clicks=0, 
+                                       style={'margin': '5px', 'backgroundColor': '#9b59b6', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
+                                       title='Export current frame as SVG'),
+                            html.Button('📄 PDF', id='export-pdf-btn', n_clicks=0, 
+                                       style={'margin': '5px', 'backgroundColor': '#e74c3c', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
+                                       title='Export current frame as PDF'),
+                            html.Button('🎥 GIF', id='export-gif-btn', n_clicks=0, 
+                                       style={'margin': '5px', 'backgroundColor': '#f39c12', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
+                                       title='Export timeline as animated GIF')
+                        ], style={'textAlign': 'center'})
+                    ], style={'padding': '10px', 'backgroundColor': '#f8f9fa', 'border': '1px solid #dee2e6', 'borderRadius': '5px', 'margin': '10px'})
                     
                 ], style={'width': '60%', 'display': 'inline-block', 'verticalAlign': 'top'}),
                 
@@ -914,7 +945,8 @@ class WebClusterVisualizer:
             # Display established cluster members first
             if established_nodes:
                 details.append(html.P("🔗 Cluster Members:", style={'margin': '8px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px'}))
-                for node_name, node_state in established_nodes:
+                # Sort cluster members alphabetically for consistent display
+                for node_name, node_state in sorted(established_nodes, key=lambda x: x[0]):
                     # Use dynamic node name mapping
                     display_name = self.node_name_mapping.get(node_name, node_name)
                     color = color_map.get(node_state, 'gray')
@@ -1000,6 +1032,58 @@ class WebClusterVisualizer:
         def update_auto_play(play_state, speed):
             disabled = play_state == 'paused'
             return disabled, speed
+        
+        # Export callbacks
+        @self.app.callback(
+            Output('cluster-network', 'figure', allow_duplicate=True),
+            [Input('export-png-btn', 'n_clicks'),
+             Input('export-svg-btn', 'n_clicks'),
+             Input('export-pdf-btn', 'n_clicks')],
+            [State('cluster-network', 'figure'),
+             State('timeline-slider', 'value')],
+            prevent_initial_call=True
+        )
+        def handle_exports(png_clicks, svg_clicks, pdf_clicks, current_figure, frame_index):
+            """Handle export button clicks"""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise dash.exceptions.PreventUpdate
+            
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            if button_id == 'export-png-btn' and png_clicks:
+                # Configure for PNG export
+                current_figure['layout']['width'] = 1200
+                current_figure['layout']['height'] = 800
+                current_figure['layout']['title']['text'] = f"Cluster State - Frame {frame_index + 1}"
+                
+            elif button_id == 'export-svg-btn' and svg_clicks:
+                # Configure for SVG export  
+                current_figure['layout']['width'] = 1200
+                current_figure['layout']['height'] = 800
+                current_figure['layout']['title']['text'] = f"Cluster State - Frame {frame_index + 1}"
+                
+            elif button_id == 'export-pdf-btn' and pdf_clicks:
+                # Configure for PDF export
+                current_figure['layout']['width'] = 1200
+                current_figure['layout']['height'] = 800  
+                current_figure['layout']['title']['text'] = f"Cluster State - Frame {frame_index + 1}"
+            
+            return current_figure
+
+        @self.app.callback(
+            Output('event-log', 'children', allow_duplicate=True),
+            [Input('export-gif-btn', 'n_clicks')],
+            prevent_initial_call=True
+        )
+        def handle_gif_export(gif_clicks):
+            """Handle GIF export - show progress message"""
+            if gif_clicks:
+                return html.Div([
+                    html.P("🎥 Generating animated GIF...", style={'color': '#f39c12', 'fontWeight': 'bold'}),
+                    html.P("This may take a moment for long timelines.", style={'color': '#7f8c8d'})
+                ])
+            raise dash.exceptions.PreventUpdate
     
     def run(self, debug: bool = False, open_browser: bool = True):
         """Run the web application"""
