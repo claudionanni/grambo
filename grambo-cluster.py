@@ -87,15 +87,26 @@ class GramboClusterAnalyzer:
     
     def load_node_data(self, file_path: str, node_name: Optional[str] = None) -> None:
         """Load gramboo JSON output for a node"""
-        if not node_name:
-            # Extract node name from filename
-            base_name = os.path.basename(file_path)
-            node_name = base_name.split('.')[0]  # Remove .json extension
-            
         try:
             with open(file_path, 'r') as f:
                 data = json.load(f)
             
+            if not node_name:
+                # Extract actual Galera node name from the JSON data
+                cluster_info = data.get('cluster_info', {})
+                galera_node_name = cluster_info.get('local_node_name')
+                if galera_node_name:
+                    node_name = galera_node_name
+                else:
+                    # Fallback to filename if no local_node_name found
+                    base_name = os.path.basename(file_path)
+                    node_name = base_name.split('.')[0]  # Remove .json extension
+                    self.log(f"⚠ No local_node_name found, using filename: {node_name}")
+            
+            # Ensure node_name is not None
+            if not node_name:
+                node_name = "unknown_node"
+                
             self.nodes.append(NodeData(node_name, file_path, data))
             self.log(f"✓ Loaded {node_name} from {file_path}")
             

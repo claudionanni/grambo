@@ -109,42 +109,72 @@ class WebClusterVisualizer:
         """Parse cluster analysis JSON into timeline states"""
         analysis = self.cluster_data.get('cluster_analysis', {})
         
-        # Create mapping from file node IDs to actual Galera node names
+        # Dynamically create mapping from file node IDs to actual Galera node names
         node_name_mapping = {}
         
-        # Extract real node names from SST workflows
+        # Method 1: Extract from SST workflows (joiner/donor information)
+        all_galera_nodes = set()
         for workflow in analysis.get('sst_workflows', []):
-            joiner = workflow.get('joiner')
-            donor = workflow.get('donor')
-            
-            # Map based on known NODE patterns to file IDs
-            if joiner == 'NODE_50000':
-                node_name_mapping['00'] = joiner
-            elif joiner == 'NODE_54320':  
-                node_name_mapping['20'] = joiner
-            elif joiner == 'NODE_54321':
-                node_name_mapping['21'] = joiner
-                
-            if donor == 'NODE_50000':
-                node_name_mapping['00'] = donor
-            elif donor == 'NODE_54320':
-                node_name_mapping['20'] = donor  
-            elif donor == 'NODE_54321':
-                node_name_mapping['21'] = donor
+            if 'joiner' in workflow:
+                all_galera_nodes.add(workflow['joiner'])
+            if 'donor' in workflow:
+                all_galera_nodes.add(workflow['donor'])
         
-        # Fallback mapping if not found in workflows (use known mappings)
-        if '00' not in node_name_mapping:
-            node_name_mapping['00'] = 'NODE_50000'
-        if '20' not in node_name_mapping:
-            node_name_mapping['20'] = 'NODE_54320'
-        if '21' not in node_name_mapping:
-            node_name_mapping['21'] = 'NODE_54321'
-            
-        # Also handle legacy db1/db3 analysis mappings for backward compatibility
-        if 'db1-analysis' not in node_name_mapping:
-            node_name_mapping['db1-analysis'] = 'UAT-DB-01'
-        if 'db3-analysis' not in node_name_mapping:
-            node_name_mapping['db3-analysis'] = 'UAT-DB-03'
+        # Method 2: Extract from cluster views (members lists)
+        for event in analysis.get('split_brain_events', []):
+            for view in event.get('views', []):
+                for member in view.get('members', []):
+                    all_galera_nodes.add(member)
+        
+        # Method 3: Look for any other galera node references in the data
+        file_node_ids = set(analysis.get('nodes', []))
+        
+        # Create mapping by analyzing which file IDs correlate with which Galera nodes
+        # Look through cluster views to see which file node reported which Galera nodes
+        file_to_galera_hints = {}
+        for event in analysis.get('split_brain_events', []):
+            for view in event.get('views', []):
+                file_node = view.get('node')
+                members = view.get('members', [])
+                if file_node and members:
+                    if file_node not in file_to_galera_hints:
+                        file_to_galera_hints[file_node] = set()
+                    file_to_galera_hints[file_node].update(members)
+        
+        # Method 4: Use state transitions to correlate file nodes with Galera nodes
+        # Look at which file nodes have what state transitions to infer identity
+        for transition in analysis.get('state_transitions', []):
+            file_node = transition.get('node')
+            if file_node:
+                # If this is the first time we see this file node, try to map it
+                if file_node not in node_name_mapping and file_node in file_to_galera_hints:
+                    # For now, we can't definitively map without more info, so keep file ID
+                    # The mapping will be attempted through other methods
+                    pass
+        
+        # Attempt smart mapping based on SST patterns and timing
+        # If we have 3 nodes and 3 galera names, try to correlate them
+        sorted_file_nodes = sorted(file_node_ids)
+        sorted_galera_nodes = sorted(all_galera_nodes)
+        
+        # Simple correlation: if counts match, map in order (this is a heuristic)
+        if len(sorted_file_nodes) == len(sorted_galera_nodes):
+            for i, file_node in enumerate(sorted_file_nodes):
+                if i < len(sorted_galera_nodes):
+                    node_name_mapping[file_node] = sorted_galera_nodes[i]
+        
+        # If mapping is incomplete, use file node ID as fallback with prefix
+        for file_node in file_node_ids:
+            if file_node not in node_name_mapping:
+                # Check if it looks like a galera node already
+                if file_node.startswith('NODE_'):
+                    node_name_mapping[file_node] = file_node
+                else:
+                    # Use a more descriptive fallback
+                    node_name_mapping[file_node] = f"NODE_{file_node}"
+        
+        # Store the mapping for use in display
+        self.node_name_mapping = node_name_mapping
         
         # Get all events from state transitions, SST workflows, and cluster views
         all_events = []
@@ -178,21 +208,64 @@ class WebClusterVisualizer:
         # Sort events by timestamp
         all_events.sort(key=lambda x: x['timestamp'])
         
-        # Get node list and apply mapping
-        nodes = analysis.get('nodes', [])
-        mapped_nodes = [node_name_mapping.get(node, node) for node in nodes]
+                # Get node list and apply mapping, but don't add all nodes immediately
+        # Only add nodes when they actually interact with the cluster
+        all_file_nodes = analysis.get('nodes', [])
+        all_mapped_nodes = [node_name_mapping.get(node, node) for node in all_file_nodes]
         
         if not all_events:
             # Create a default state if no events
             default_state = ClusterState(datetime.now(), 0)
-            for node in mapped_nodes:
+            for node in all_mapped_nodes:
                 default_state.add_node(node, 'SYNCED')
             default_state.events.append('Cluster operational')
             self.states.append(default_state)
             return
+
+        # Track which nodes should be active at each timestamp
+        def get_active_nodes_at_timestamp(timestamp):
+            """Determine which nodes should be active at given timestamp"""
+            active_nodes = set()
+            
+            # Check SST workflows - nodes become active when they first participate in SST
+            for workflow in analysis.get('sst_workflows', []):
+                try:
+                    request_time_str = workflow.get('request_time', '')
+                    if request_time_str:
+                        request_time = datetime.fromisoformat(request_time_str.replace('Z', '+00:00'))
+                        if timestamp >= request_time:
+                            joiner = workflow.get('joiner', '')
+                            donor = workflow.get('donor', '')
+                            if joiner in all_mapped_nodes:
+                                active_nodes.add(joiner)
+                            if donor in all_mapped_nodes:
+                                active_nodes.add(donor)
+                except (ValueError, TypeError):
+                    continue
+            
+            # Check state transitions - nodes become active when they first appear
+            for transition in analysis.get('state_transitions', []):
+                try:
+                    transition_time_str = transition.get('timestamp', '')
+                    if transition_time_str:
+                        transition_time = datetime.fromisoformat(transition_time_str.replace('Z', '+00:00'))
+                        if timestamp >= transition_time:
+                            original_node = transition.get('node')
+                            mapped_node = node_name_mapping.get(original_node, original_node)
+                            if mapped_node in all_mapped_nodes:
+                                active_nodes.add(mapped_node)
+                except (ValueError, TypeError):
+                    continue
+                    
+            return active_nodes
         
         # Initialize node states - determine initial states from first events
+        # But only for nodes that should be active at the beginning
         current_node_states = {}
+        
+        # Get initial timestamp to determine which nodes should be active
+        initial_timestamp = all_events[0]['timestamp']
+        active_nodes_initially = get_active_nodes_at_timestamp(initial_timestamp)
         
         # First, try to determine initial states from the first few state transitions
         initial_states_found = {}
@@ -205,8 +278,8 @@ class WebClusterVisualizer:
                 if mapped_node and from_state and mapped_node not in initial_states_found:
                     initial_states_found[mapped_node] = from_state
         
-        # Initialize nodes with discovered initial states or reasonable defaults
-        for node in mapped_nodes:
+        # Initialize only the nodes that should be active initially
+        for node in active_nodes_initially:
             if node in initial_states_found:
                 current_node_states[node] = initial_states_found[node]
             else:
@@ -225,12 +298,31 @@ class WebClusterVisualizer:
         state_id += 1
         
         for event in all_events:
+            # Determine which nodes should be active at this timestamp
+            active_nodes_now = get_active_nodes_at_timestamp(event['timestamp'])
+            
+            # Add any newly active nodes to current_node_states
+            for node in active_nodes_now:
+                if node not in current_node_states:
+                    # New node joining - try to find its initial state from the event
+                    if event['type'] == 'state_transition':
+                        transition = event['data']
+                        original_node = transition.get('node')
+                        mapped_node = node_name_mapping.get(original_node, original_node)
+                        if mapped_node == node:
+                            current_node_states[node] = transition.get('from_state', 'UNKNOWN')
+                        else:
+                            current_node_states[node] = 'UNKNOWN'
+                    else:
+                        current_node_states[node] = 'UNKNOWN'
+            
             # Create new state for each event
             new_state = ClusterState(event['timestamp'], state_id)
             
-            # Copy previous state
-            for node_name, state in current_node_states.items():
-                new_state.add_node(node_name, state)
+            # Copy current state for all active nodes
+            for node_name in active_nodes_now:
+                if node_name in current_node_states:
+                    new_state.add_node(node_name, current_node_states[node_name])
             
             # Apply event changes
             if event['type'] == 'state_transition':
@@ -334,6 +426,119 @@ class WebClusterVisualizer:
         
         return None
     
+    def is_node_uncertain(self, node_id: str, node_state: str, current_timestamp) -> bool:
+        """
+        Determine if a node should be considered uncertain/not fully joined.
+        A node is uncertain if:
+        1. It's in transitional states, OR
+        2. It hasn't had enough interaction time with the cluster, OR
+        3. It's a late joiner that hasn't fully synchronized
+        """
+        # Always uncertain if in transitional states
+        if node_state in ['JOINER', 'JOINING', 'OPEN', 'CLOSED', 'DESYNCED', 'UNKNOWN']:
+            return True
+            
+        # Check if this is a late-joining node by analyzing its first interaction time
+        analysis = self.cluster_data.get('cluster_analysis', {})
+        
+        # Find the earliest activity timestamp in the cluster
+        earliest_activity = None
+        all_transitions = analysis.get('state_transitions', [])
+        
+        for transition in all_transitions:
+            timestamp_str = transition.get('timestamp', '')
+            if timestamp_str:
+                try:
+                    ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    if earliest_activity is None or ts < earliest_activity:
+                        earliest_activity = ts
+                except (ValueError, TypeError):
+                    pass
+        
+        # Find when THIS node first became active in the cluster
+        node_first_activity = None
+        galera_name = self.node_name_mapping.get(node_id)
+        
+        # Check state transitions for this node's first activity
+        for transition in all_transitions:
+            if transition.get('node') == node_id:
+                timestamp_str = transition.get('timestamp', '')
+                if timestamp_str:
+                    try:
+                        ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        if node_first_activity is None or ts < node_first_activity:
+                            node_first_activity = ts
+                    except (ValueError, TypeError):
+                        pass
+        
+        # If this node started significantly later than the cluster, it's a late joiner
+        if (earliest_activity and node_first_activity and 
+            node_first_activity > earliest_activity + timedelta(minutes=30)):
+            
+            # For late joiners, they remain uncertain until they've been stable for a while
+            # AND until they show they're properly synchronized (not just appeared)
+            time_since_first_activity = current_timestamp - node_first_activity
+            
+            # Consider uncertain if:
+            # 1. Less than 10 minutes since first activity
+            # 2. OR if the current state is still not fully synchronized
+            if (time_since_first_activity < timedelta(minutes=10) or 
+                node_state in ['PRIMARY', 'NON_PRIMARY']):  # These are cluster component states, not sync states
+                return True
+        
+        return False
+    
+    def should_exclude_from_topology(self, node_id: str, node_state: str, current_timestamp) -> bool:
+        """
+        Determine if a node should be completely excluded from cluster topology.
+        This is stricter than uncertain - the node shouldn't even be connected.
+        """
+        # If the node is in a completely disconnected state
+        if node_state in ['CLOSED', 'UNKNOWN']:
+            return True
+            
+        # For late-joining nodes, determine when they first interact with the cluster
+        analysis = self.cluster_data.get('cluster_analysis', {})
+        
+        # Find when this node first interacts with the cluster via SST
+        node_first_cluster_interaction = None
+        
+        # Check SST workflows for first interaction
+        for workflow in analysis.get('sst_workflows', []):
+            try:
+                request_time_str = workflow.get('request_time', '')
+                if request_time_str:
+                    request_time = datetime.fromisoformat(request_time_str.replace('Z', '+00:00'))
+                    
+                    # Check if this node is involved in the SST (as joiner or donor)
+                    joiner = workflow.get('joiner', '')
+                    donor = workflow.get('donor', '')
+                    
+                    if node_id in [joiner, donor]:
+                        if node_first_cluster_interaction is None or request_time < node_first_cluster_interaction:
+                            node_first_cluster_interaction = request_time
+                            
+            except (ValueError, TypeError):
+                continue
+        
+        # If no SST interaction found, check state transitions for first appearance
+        if node_first_cluster_interaction is None:
+            for transition in analysis.get('state_transitions', []):
+                timestamp_str = transition.get('timestamp', '')
+                if timestamp_str and transition.get('node') == node_id:
+                    try:
+                        ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        if node_first_cluster_interaction is None or ts < node_first_cluster_interaction:
+                            node_first_cluster_interaction = ts
+                    except (ValueError, TypeError):
+                        continue
+        
+        # Exclude if node hasn't had its first cluster interaction yet
+        if node_first_cluster_interaction and current_timestamp < node_first_cluster_interaction:
+            return True
+        
+        return False
+    
     def create_network_graph(self, state: ClusterState) -> go.Figure:
         """Create network diagram for the current state"""
         fig = go.Figure()
@@ -345,47 +550,62 @@ class WebClusterVisualizer:
         if n_nodes == 0:
             return fig
         
-        # Identify nodes that are part of the established cluster vs uncertain nodes
+        # Identify nodes that are part of the established cluster vs uncertain vs excluded
         established_nodes = []
         uncertain_nodes = []
+        excluded_nodes = []
         
         for node, node_data in state.nodes.items():
             node_state = node_data['state']
-            # Consider a node uncertain if it's in transitional states or problematic states
-            if node_state in ['JOINER', 'JOINING', 'OPEN', 'CLOSED', 'DESYNCED', 'UNKNOWN']:
+            
+            # First check if node should be completely excluded from topology
+            if self.should_exclude_from_topology(node, node_state, state.timestamp):
+                excluded_nodes.append(node)
+            # Then check if uncertain but still part of topology
+            elif self.is_node_uncertain(node, node_state, state.timestamp):
                 uncertain_nodes.append(node)
             else:
                 established_nodes.append(node)
         
-        # Position established nodes in a circle
+        # Position nodes in different areas based on their status
         positions = {}
         
-        # Position established nodes in main circle
+        # Position established nodes in main circle (inner circle)
         for i, node in enumerate(established_nodes):
             angle = 2 * math.pi * i / max(len(established_nodes), 1)
             x = math.cos(angle)
             y = math.sin(angle)
             positions[node] = (x, y)
         
-        # Position uncertain nodes outside the circle (no connections)
+        # Position uncertain nodes in outer circle (still connected but visually distinct)
         for i, node in enumerate(uncertain_nodes):
             angle = 2 * math.pi * i / max(len(uncertain_nodes), 1)
-            # Place them further out and offset
-            x = 1.8 * math.cos(angle)
-            y = 1.8 * math.sin(angle)
+            # Place them further out
+            x = 1.5 * math.cos(angle)
+            y = 1.5 * math.sin(angle)
             positions[node] = (x, y)
         
-        # Add edges ONLY between established nodes (exclude uncertain nodes)
+        # Position excluded nodes far away and isolated (no connections)
+        for i, node in enumerate(excluded_nodes):
+            angle = 2 * math.pi * i / max(len(excluded_nodes), 1)
+            # Place them much further out and offset
+            x = 2.5 * math.cos(angle + math.pi/4)
+            y = 2.5 * math.sin(angle + math.pi/4)
+            positions[node] = (x, y)
+        
+        # Add edges between established nodes AND uncertain nodes
+        # Excluded nodes get NO connections
+        connected_nodes = established_nodes + uncertain_nodes
         edge_x, edge_y = [], []
-        for i, node1 in enumerate(established_nodes):
-            for j, node2 in enumerate(established_nodes[i+1:], i+1):
+        for i, node1 in enumerate(connected_nodes):
+            for j, node2 in enumerate(connected_nodes[i+1:], i+1):
                 x1, y1 = positions[node1]
                 x2, y2 = positions[node2]
                 edge_x.extend([x1, x2, None])
                 edge_y.extend([y1, y2, None])
         
-        # Add edges to plot
-        if edge_x:  # Only add edges if there are established nodes
+        # Add edges to plot (connects established + uncertain nodes, excludes isolated nodes)
+        if edge_x:  # Only add edges if there are connected nodes
             fig.add_trace(go.Scatter(
                 x=edge_x, y=edge_y,
                 line=dict(width=2, color='lightgray'),
@@ -407,7 +627,7 @@ class WebClusterVisualizer:
                 'SYNCED': 'green',
                 'DONOR': 'blue', 
                 'DONOR/DESYNCED': 'blue',
-                'JOINED': 'yellow',
+                'JOINED': 'darkorange',
                 'CONNECTED': 'lightblue',
                 'PRIMARY': 'darkgreen',
                 'NON_PRIMARY': 'lightcoral',
@@ -434,13 +654,15 @@ class WebClusterVisualizer:
             node_colors.append(color)
             
             # Different node text styling for uncertain nodes
+            display_name = self.node_name_mapping.get(node, node)
             if is_uncertain:
-                node_text.append(f"{node}?")  # Add question mark to uncertain nodes
+                node_text.append(f"{display_name}?")  # Add question mark to uncertain nodes
             else:
-                node_text.append(node)
+                node_text.append(display_name)
             
             # Hover text with details
-            hover_info = f"<b>{node}</b><br>"
+            hover_info = f"<b>{display_name}</b><br>"
+            hover_info += f"File ID: {node}<br>"
             hover_info += f"State: {node_state}<br>"
             if is_uncertain:
                 hover_info += "<b>Status: Not fully joined to cluster</b><br>"
@@ -640,7 +862,7 @@ class WebClusterVisualizer:
                 'SYNCED': 'green',
                 'DONOR': 'blue', 
                 'DONOR/DESYNCED': 'blue',
-                'JOINED': 'yellow',
+                'JOINED': 'darkorange',
                 'CONNECTED': 'lightblue',
                 'PRIMARY': 'darkgreen',
                 'NON_PRIMARY': 'lightcoral',
@@ -654,13 +876,14 @@ class WebClusterVisualizer:
                 'UNKNOWN': 'lightgray'
             }
             
-            # Separate established vs uncertain nodes in display
+            # Separate established vs uncertain nodes in display using dynamic analysis
             established_nodes = []
             uncertain_nodes = []
             
             for node_name, node_data in state.nodes.items():
                 node_state = node_data['state']
-                if node_state in ['JOINER', 'JOINING', 'OPEN', 'CLOSED', 'DESYNCED', 'UNKNOWN']:
+                # Use the same uncertainty logic as the network graph
+                if self.is_node_uncertain(node_name, node_state, state.timestamp):
                     uncertain_nodes.append((node_name, node_state))
                 else:
                     established_nodes.append((node_name, node_state))
@@ -669,9 +892,11 @@ class WebClusterVisualizer:
             if established_nodes:
                 details.append(html.P("🔗 Cluster Members:", style={'margin': '8px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px'}))
                 for node_name, node_state in established_nodes:
+                    # Use dynamic node name mapping
+                    display_name = self.node_name_mapping.get(node_name, node_name)
                     color = color_map.get(node_state, 'gray')
                     details.append(
-                        html.P(f"  {node_name}: {node_state}", 
+                        html.P(f"  {display_name}: {node_state}", 
                               style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '10px'})
                     )
             
@@ -679,9 +904,11 @@ class WebClusterVisualizer:
             if uncertain_nodes:
                 details.append(html.P("⚠️ Uncertain Nodes:", style={'margin': '8px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px', 'color': 'orange'}))
                 for node_name, node_state in uncertain_nodes:
+                    # Use dynamic node name mapping
+                    display_name = self.node_name_mapping.get(node_name, node_name)
                     color = color_map.get(node_state, 'gray')
                     details.append(
-                        html.P(f"  {node_name}: {node_state} (not fully joined)", 
+                        html.P(f"  {display_name}: {node_state} (not fully joined)", 
                               style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '10px', 'fontStyle': 'italic'})
                     )
             
