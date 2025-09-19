@@ -475,15 +475,16 @@ class WebClusterVisualizer:
         if (earliest_activity and node_first_activity and 
             node_first_activity > earliest_activity + timedelta(minutes=30)):
             
-            # For late joiners, they remain uncertain until they've been stable for a while
-            # AND until they show they're properly synchronized (not just appeared)
-            time_since_first_activity = current_timestamp - node_first_activity
+            # For late joiners, they remain uncertain until they reach a stable synchronized state
+            # SYNCED and JOINED are considered stable/synchronized states
+            if node_state in ['SYNCED', 'JOINED']:
+                return False  # Node is now stable, no longer uncertain
             
-            # Consider uncertain if:
-            # 1. Less than 10 minutes since first activity
-            # 2. OR if the current state is still not fully synchronized
-            if (time_since_first_activity < timedelta(minutes=10) or 
-                node_state in ['PRIMARY', 'NON_PRIMARY']):  # These are cluster component states, not sync states
+            # Still uncertain if it's been less than 5 minutes since first activity
+            # OR if it's still in transitional/unstable states
+            time_since_first_activity = current_timestamp - node_first_activity
+            if (time_since_first_activity < timedelta(minutes=5) or 
+                node_state in ['PRIMARY', 'NON_PRIMARY', 'JOINER', 'JOINING']):
                 return True
         
         return False
