@@ -569,25 +569,35 @@ class WebClusterVisualizer:
                 established_nodes.append(node)
         
         # Position nodes in different areas based on their status
+        # Use consistent positioning based on node names to prevent swapping
         positions = {}
         
-        # Position established nodes in main circle (inner circle)
-        for i, node in enumerate(established_nodes):
-            angle = 2 * math.pi * i / max(len(established_nodes), 1)
+        # Create a consistent ordering of all possible nodes
+        all_possible_nodes = sorted(set(state.nodes.keys()))
+        node_to_index = {node: i for i, node in enumerate(all_possible_nodes)}
+        
+        # Position established nodes in main circle (inner circle) 
+        # but keep consistent positions
+        established_positions = []
+        for node in established_nodes:
+            base_index = node_to_index[node]
+            angle = 2 * math.pi * base_index / max(len(all_possible_nodes), 1)
             x = math.cos(angle)
             y = math.sin(angle)
             positions[node] = (x, y)
+            established_positions.append((x, y))
         
-        # Position uncertain nodes in outer circle (still connected but visually distinct)
-        for i, node in enumerate(uncertain_nodes):
-            angle = 2 * math.pi * i / max(len(uncertain_nodes), 1)
-            # Place them further out
+        # Position uncertain nodes in outer circle using consistent angles
+        for node in uncertain_nodes:
+            base_index = node_to_index[node]
+            angle = 2 * math.pi * base_index / max(len(all_possible_nodes), 1)
+            # Place them further out but in same relative position
             x = 1.5 * math.cos(angle)
             y = 1.5 * math.sin(angle)
             positions[node] = (x, y)
         
-        # Position excluded nodes far away and isolated (no connections)
-        for i, node in enumerate(excluded_nodes):
+        # Position excluded nodes far away but consistently
+        for node in excluded_nodes:
             angle = 2 * math.pi * i / max(len(excluded_nodes), 1)
             # Place them much further out and offset
             x = 2.5 * math.cos(angle + math.pi/4)
@@ -683,13 +693,13 @@ class WebClusterVisualizer:
             x=node_x, y=node_y,
             mode='markers+text',
             marker=dict(
-                size=80,
+                size=120,  # Increased from 80 to 120 for better text visibility
                 color=node_colors,
                 line=dict(width=3, color='white')
             ),
             text=node_text,
             textposition="middle center",
-            textfont=dict(size=14, color="white", family="Arial Black"),
+            textfont=dict(size=12, color="black", family="Arial Black"),  # Black text, slightly smaller
             hovertext=hover_text,
             hoverinfo='text',
             name='nodes'
