@@ -1255,11 +1255,13 @@ class GaleraLogAnalyzer:
                 self.events.append(event)
                 return True
         
-        # Look for WSREP node state transitions (SYNCED, DONOR/DESYNCED, JOINED, etc.)
+        # Look for WSREP state transitions (both node states and cluster component states)
         # "Shifting SYNCED -> DONOR/DESYNCED (TO: 1625)"
+        # "Shifting PRIMARY -> JOINER (TO: 1586)"
+        # "Shifting CLOSED -> OPEN (TO: 0)"
         shifting_match = re.search(r'Shifting\s+([A-Z/]+)\s*->\s*([A-Z/]+)\s*\(TO:\s*(\d+)\)', line, re.IGNORECASE)
         if shifting_match:
-            # WSREP shifting transitions are local-node events; attribute to local node
+            # All shifting transitions are legitimate state changes for visualization
             current_node = self._get_local_node()
             if current_node and self.current_timestamp:
                 from_state = shifting_match.group(1)
@@ -3000,6 +3002,26 @@ class GaleraLogAnalyzer:
                 "events_by_type": {event_type.value: len([e for e in self.events if e.event_type == event_type]) 
                                  for event_type in EventType}
             },
+            "detailed_events": [
+                {
+                    "timestamp": event.timestamp,
+                    "event_type": event.event_type.value,
+                    "raw_message": event.raw_message,
+                    "state_transition": {
+                        "from_state": event.state_transition.from_state,
+                        "to_state": event.state_transition.to_state,
+                        "sequence_number": event.state_transition.sequence_number
+                    } if event.state_transition else None,
+                    "cluster_view": {
+                        "view_id": event.cluster_view.view_id,
+                        "status": event.cluster_view.status,
+                        "members": {uuid: asdict(member) for uuid, member in event.cluster_view.members.items()} if event.cluster_view.members else {}
+                    } if event.cluster_view else None,
+                    "node": asdict(event.node) if event.node else None,
+                    "metadata": event.metadata
+                }
+                for event in self.events
+            ],
             "unknown": {
                 "count": len(self._unknown_lines) if self.report_unknown else 0,
                 "samples": self._unknown_lines[:5] if self.report_unknown else []
@@ -3278,7 +3300,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
 
     # Header banner
     lines.append("="*70)
-    lines.append("GALERA CLUSTER LOG ANALYSIS")
+    lines.append("G R A M B O - GALERA CLUSTER SINGLE NODE LOG ANALYZER")
     lines.append("="*70)
     # Header quick info (Dialect)
     # Compose dialect as: MariaDB <version>[ (<edition>)] [ + Galera <version>]
@@ -4141,7 +4163,7 @@ def main():
         fallback_dialect = 'galera'
         if analyzer.dialect == 'unknown':
             analyzer.dialect = fallback_dialect
-        print("WARNING: MariaDB version/edition not detected or specified; proceeding with default dialect 'galera'.", file=sys.stderr)
+        print("WARNING: MariaDB version/edition not detected or specified; proceeding with default dialect.", file=sys.stderr)
         sw['mariadb_version'] = None  # explicitly None
         sw['mariadb_edition'] = None
     
