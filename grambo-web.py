@@ -370,40 +370,51 @@ class WebClusterVisualizer:
                 joiner_node = joiner
                 donor_node = donor
                 
-                if joiner_node and joiner_node in current_node_states:
+                # Map to the NODE_ prefixed versions used in current_node_states
+                mapped_joiner = f"NODE_{joiner_node}" if joiner_node else None
+                mapped_donor = f"NODE_{donor_node}" if donor_node else None
+                
+                if mapped_joiner and mapped_joiner in current_node_states:
                     if status == 'requested':
                         new_state.events.append(f"SST requested: {joiner_node} requesting from {donor_node or 'cluster'}")
                     elif status == 'started':
-                        current_node_states[joiner_node] = 'JOINER'
-                        new_state.nodes[joiner_node]['state'] = 'JOINER'
-                        new_state.nodes[joiner_node]['sst_status'] = 'receiving'
+                        current_node_states[mapped_joiner] = 'JOINER'
+                        new_state.nodes[mapped_joiner]['state'] = 'JOINER'
+                        new_state.nodes[mapped_joiner]['sst_status'] = 'receiving'
                         
-                        if donor_node and donor_node in current_node_states:
-                            current_node_states[donor_node] = 'DONOR'
-                            new_state.nodes[donor_node]['state'] = 'DONOR'
-                            new_state.nodes[donor_node]['sst_status'] = 'sending'
+                        if mapped_donor and mapped_donor in current_node_states:
+                            current_node_states[mapped_donor] = 'DONOR'
+                            new_state.nodes[mapped_donor]['state'] = 'DONOR'
+                            new_state.nodes[mapped_donor]['sst_status'] = 'sending'
                         
                         new_state.add_transfer('SST', joiner_node, donor_node or 'unknown', 'started', method)
+                        # Also add to previous state to show the arrow during the transition
+                        if len(self.states) > 0:
+                            self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'started', method)
                         new_state.events.append(f"SST started: {joiner_node} ← {donor_node or 'unknown'} ({method})")
                     
                     elif status == 'completed':
-                        if joiner_node in current_node_states:
-                            current_node_states[joiner_node] = 'SYNCED'
-                            new_state.nodes[joiner_node]['state'] = 'SYNCED'
-                            new_state.nodes[joiner_node]['sst_status'] = None
+                        if mapped_joiner in current_node_states:
+                            current_node_states[mapped_joiner] = 'SYNCED'
+                            new_state.nodes[mapped_joiner]['state'] = 'SYNCED'
+                            new_state.nodes[mapped_joiner]['sst_status'] = None
                         
-                        if donor_node and donor_node in current_node_states:
-                            current_node_states[donor_node] = 'SYNCED'
-                            new_state.nodes[donor_node]['state'] = 'SYNCED'
-                            new_state.nodes[donor_node]['sst_status'] = None
+                        if mapped_donor and mapped_donor in current_node_states:
+                            current_node_states[mapped_donor] = 'SYNCED'
+                            new_state.nodes[mapped_donor]['state'] = 'SYNCED'
+                            new_state.nodes[mapped_donor]['sst_status'] = None
                         
                         new_state.events.append(f"SST completed: {joiner_node} now synchronized")
                     
                     elif status == 'failed':
-                        if joiner_node in current_node_states:
-                            new_state.nodes[joiner_node]['issues'] = ['SST failed']
+                        if mapped_joiner in current_node_states:
+                            new_state.nodes[mapped_joiner]['issues'] = ['SST failed']
                         new_state.issues.append("SST failure")
-                        new_state.events.append(f"SST failed: {joiner_node} failed to synchronize")
+                        new_state.add_transfer('SST', joiner_node, donor_node or 'unknown', 'failed', method)
+                        # Also add to previous state to show the arrow during the transition
+                        if len(self.states) > 0:
+                            self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'failed', method)
+                        new_state.events.append(f"SST failed: {joiner_node} failed to synchronize from {donor_node or 'unknown'}")
             
             self.states.append(new_state)
             state_id += 1
@@ -729,9 +740,13 @@ class WebClusterVisualizer:
             joiner = transfer.get('joiner')
             donor = transfer.get('donor')
             
-            if joiner in positions and donor in positions:
-                x1, y1 = positions[donor]
-                x2, y2 = positions[joiner]
+            # Map transfer node names to NODE_ prefixed versions for position lookup
+            mapped_joiner = f"NODE_{joiner}" if joiner else None
+            mapped_donor = f"NODE_{donor}" if donor else None
+            
+            if mapped_joiner in positions and mapped_donor in positions:
+                x1, y1 = positions[mapped_donor]
+                x2, y2 = positions[mapped_joiner]
                 
                 # Arrow color based on transfer status
                 status = transfer.get('status', 'unknown')
@@ -755,6 +770,9 @@ class WebClusterVisualizer:
                     textangle=0,
                     font=dict(size=10, color=arrow_color)
                 )
+            else:
+                print(f"DEBUG: Cannot draw arrow - mapped_joiner '{mapped_joiner}' in positions: {mapped_joiner in positions if mapped_joiner else False}, mapped_donor '{mapped_donor}' in positions: {mapped_donor in positions if mapped_donor else False}")
+                print(f"DEBUG: Available positions: {list(positions.keys())}")
         
         # Update layout
         fig.update_layout(
@@ -994,11 +1012,54 @@ class WebClusterVisualizer:
     def generate_warnings_errors(self, current_timestamp):
         """Generate warnings and errors for current timeframe"""
         events = []
-        cutoff_time = current_timestamp - timedelta(minutes=10)  # Show events from last 10 minutes
+        
+        # Check for SST-related events that should be shown at exact timestamp matches
+        sst_events_shown = []
+        for event in self.categorized_events.get('warnings_errors', []):
+            try:
+                event_time = datetime.fromisoformat(event['timestamp'])
+                raw_message = event.get('raw_message', '')
+                
+                # For SST-related events, show them when timestamp matches exactly or very close
+                is_sst_related = 'SST' in raw_message
+                time_diff = abs((event_time - current_timestamp).total_seconds())
+                
+                if is_sst_related and time_diff <= 60:  # SST events within 1 minute of current frame
+                    node_display = self.node_name_mapping.get(event['node'], event['node'])
+                    
+                    if event['event_type'] == 'error':
+                        icon = "❌"
+                        color = '#e74c3c'
+                        message = f"ERROR: WSREP_SST: {raw_message[20:80]}..." if len(raw_message) > 20 else f"ERROR: {raw_message}"
+                    elif event['event_type'] == 'communication_issue':
+                        icon = "📡"
+                        color = '#f39c12'
+                        message = f"COMM: WSREP_SST: {raw_message[20:80]}..." if len(raw_message) > 20 else f"COMM: {raw_message}"
+                    else:
+                        icon = "⚠️"
+                        color = '#e67e22'
+                        message = f"WARN: WSREP_SST: {raw_message[20:80]}..." if len(raw_message) > 20 else f"WARN: {raw_message}"
+                    
+                    events.append(html.P(
+                        f"{icon} [{event_time.strftime('%H:%M:%S')}] {node_display}: {message}",
+                        style={'margin': '3px 0', 'fontSize': '13px', 'color': color, 'lineHeight': '1.4'}
+                    ))
+                    sst_events_shown.append(event['timestamp'])
+                    
+            except (ValueError, TypeError):
+                continue
+        
+        # Then show other events using the normal 10-minute window
+        cutoff_time = current_timestamp - timedelta(minutes=10)
         
         for event in self.categorized_events.get('warnings_errors', []):
             try:
                 event_time = datetime.fromisoformat(event['timestamp'])
+                
+                # Skip SST events already shown above
+                if event['timestamp'] in sst_events_shown:
+                    continue
+                    
                 if event_time <= current_timestamp and event_time >= cutoff_time:
                     node_display = self.node_name_mapping.get(event['node'], event['node'])
                     
