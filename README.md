@@ -1,6 +1,48 @@
-# Grambo Python Edition
+# Grambo - Galera Log Analysis Suite
 
-A modern Python rewrite of the Grambo tool for analyzing MySQL/MariaDB Galera cluster log files.
+A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log files, now featuring a complete **3-tool pipeline** for single-node analysis, multi-node correlation, and interactive web visualization.
+
+## 🔧 Tool Pipeline Overview
+
+Grambo consists of three complementary tools that work together:
+
+1. **`gramboo.py`** - Single-node log analysis (Python rewrite)
+2. **`grambo-cluster.py`** - Multi-node cluster correlation 
+3. **`grambo-web.py`** - Interactive web visualization
+
+### 📊 Complete Analysis Workflow
+
+```bash
+# Step 1: Analyze individual node logs
+python3 gramboo.py --format=json node1.log > node1.json
+python3 gramboo.py --format=json node2.log > node2.json  
+python3 gramboo.py --format=json node3.log > node3.json
+
+# Step 2: Correlate cluster-wide events
+python3 grambo-cluster.py --format=json node1.json node2.json node3.json > cluster-analysis.json
+
+# Step 3: Launch interactive web visualization
+python3 grambo-web.py cluster-analysis.json
+# Opens browser at http://127.0.0.1:8050
+```
+
+### 🌐 Web Visualization Features
+
+The new **grambo-web.py** provides an interactive dashboard with:
+
+- **📈 Timeline Navigation** - Scrub through cluster events chronologically
+- **🌐 Network Topology** - Visual cluster state with dynamic node positioning
+- **📊 Real-time State Display** - Current cluster members, uncertain nodes, active transfers
+- **🔍 Event Details** - Detailed event logs for each timeline frame
+- **⚙️ Dynamic Node Management** - Nodes appear only when they interact with the cluster
+- **🎯 Temporal Precision** - Accurate timing of node joins, SST workflows, state transitions
+
+#### Visual Elements
+- **Green nodes**: SYNCED (healthy)
+- **Blue nodes**: DONOR/DESYNCED (providing SST/IST)
+- **Orange nodes**: JOINER/JOINING (receiving transfers)
+- **Dark orange nodes**: JOINED (synchronized but not yet stable)
+- **Node positioning**: Established members (inner circle), uncertain nodes (outer circle), excluded nodes (isolated)
 
 ## Overview
 
@@ -84,31 +126,53 @@ This enables version-specific parsing improvements:
 git clone https://github.com/claudionanni/grambo.git
 cd grambo
 
-# Make the Python script executable (optional)
-chmod +x gramboo.py
+# Make the Python scripts executable (optional)
+chmod +x gramboo.py grambo-cluster.py grambo-web.py
+
+# Install dependencies for web visualization (optional)
+pip install dash plotly pandas networkx
 ```
 
 ## Usage
 
+### 🚀 Quick Start - Complete Pipeline
+
+```bash
+# 1. Analyze individual Galera node logs
+python3 gramboo.py --format=json /var/log/mysql/node1-error.log > node1.json
+python3 gramboo.py --format=json /var/log/mysql/node2-error.log > node2.json
+python3 gramboo.py --format=json /var/log/mysql/node3-error.log > node3.json
+
+# 2. Generate cluster-wide analysis
+python3 grambo-cluster.py --format=json node1.json node2.json node3.json > cluster-analysis.json
+
+# 3. Launch interactive web dashboard
+python3 grambo-web.py cluster-analysis.json
+# Visit http://127.0.0.1:8050 in your browser
+```
+
+### 📋 Tool-Specific Usage
+
+#### 1. Single-Node Analysis (`gramboo.py`)
+
 The --mariadb-version and --mariadb-edition parameters are there to keep the tool open to multiple intepretations of the logs which we have seen changing format along the years.
 
-### Analyze a log file (recommended: specify MariaDB version and edition)
-```
+##### Analyze a log file (recommended: specify MariaDB version and edition)
+```bash
 python3 gramboo.py --mariadb-version 11.4 --mariadb-edition enterprise /var/log/mysql/error.log
 ```
 
-### For MariaDB Community edition
-```
+##### For MariaDB Community edition
+```bash
 python3 gramboo.py --mariadb-version 10.6 --mariadb-edition community /var/log/mysql/error.log
 ```
 
-### You can also use stdin
-```
+##### You can also use stdin
+```bash
 cat /var/log/mysql/error.log | python3 gramboo.py --mariadb-version 11.4 --mariadb-edition enterprise
 ```
 
-###  Without the above parameters it'll try to get them from the log, if available
-
+##### Without the above parameters it'll try to get them from the log, if available
 ```bash
 # Analyze a log file
 python3 gramboo.py /var/log/mysql/error.log
@@ -120,8 +184,37 @@ cat /var/log/mysql/error.log | python3 gramboo.py
 ./gramboo.py /var/log/mysql/error.log
 ```
 
+#### 2. Multi-Node Cluster Analysis (`grambo-cluster.py`)
+
+```bash
+# Basic cluster analysis
+python3 grambo-cluster.py node1.json node2.json node3.json
+
+# JSON output for web visualization
+python3 grambo-cluster.py --format=json node1.json node2.json node3.json > cluster.json
+
+# With custom node names
+python3 grambo-cluster.py --node-names db1,db2,db3 node1.json node2.json node3.json
+
+# Alternative syntax with explicit mapping
+python3 grambo-cluster.py --node db1:node1.json --node db2:node2.json --node db3:node3.json
+```
+
+#### 3. Interactive Web Visualization (`grambo-web.py`)
+
+```bash
+# Launch web dashboard (default port 8050)
+python3 grambo-web.py cluster-analysis.json
+
+# Custom port
+python3 grambo-web.py cluster-analysis.json --port 8051
+
+# The dashboard will be available at http://127.0.0.1:PORT
+```
+
 ### Advanced Options
 
+#### gramboo.py Options
 ```bash
 # JSON output for integration with other tools
 python3 gramboo.py --format=json error.log
@@ -140,6 +233,49 @@ python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition=community error.lo
 python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition=enterprise error.log
 python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 error.log
 ```
+
+#### grambo-cluster.py Options
+```bash
+# Quiet mode (minimal output)
+python3 grambo-cluster.py --quiet node1.json node2.json node3.json
+
+# Time range filtering
+python3 grambo-cluster.py --start-time "2025-09-19 10:00:00" --end-time "2025-09-19 12:00:00" *.json
+
+# Focus on specific event types
+python3 grambo-cluster.py --events sst,state_transition *.json
+```
+
+#### grambo-web.py Options
+```bash
+# Custom port and host
+python3 grambo-web.py cluster.json --port 8080 --host 0.0.0.0
+
+# Debug mode
+python3 grambo-web.py cluster.json --debug
+```
+
+## 🔍 Cluster Analysis Features
+
+### Multi-Node Correlation
+- **SST Workflow Tracking** - Correlates joiner requests with donor responses across nodes
+- **Split-Brain Detection** - Identifies when nodes have different cluster views
+- **Timeline Synchronization** - Aligns events across all nodes chronologically
+- **State Transition Analysis** - Tracks node state changes cluster-wide
+
+### Web Dashboard Capabilities
+- **Interactive Timeline** - Navigate through cluster events frame by frame
+- **Dynamic Network Topology** - Visual representation of cluster state at any point in time
+- **Node Classification** - Automatic categorization of nodes (established/uncertain/excluded)
+- **Temporal Precision** - Nodes appear only when they actually interact with the cluster
+- **Event Correlation** - Links related events across different nodes
+
+### Real-World Scenarios Supported
+- **Node Bootstrap** - Visualize how nodes join an existing cluster
+- **Rolling Restarts** - Track state transitions during maintenance
+- **Network Partitions** - Identify split-brain scenarios and recovery
+- **SST/IST Analysis** - Deep-dive into state transfer workflows
+- **Performance Issues** - Correlate timing issues across cluster members
 
 ### Command Line Flags
 
@@ -216,9 +352,11 @@ python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 db3.log
 
 ## Example Output
 
+### Single-Node Analysis (gramboo.py)
+
 The following is a sanitized example. Replace values with those from your environment.
 
-### Text Format (Default)
+#### Text Format (Default)
 ```
 ================================================================================
 | G R A M B O - Galera Log Deforester (Python Edition)
@@ -271,6 +409,62 @@ Request 2025-09-15 13:50:43: node-01 ⇐ node-03
   SST: started at 2025-09-15 13:50:43
   Post-IST: async serve tcp://10.0.0.2:4568 1726→1810 at 2025-09-15 13:53:06
 ```
+
+### Multi-Node Cluster Analysis (grambo-cluster.py)
+
+```
+================================================================================
+| G R A M B O - GALERA CLUSTER MULTI NODE LOG ANALYZER
+================================================================================
+
+🌐 CLUSTER OVERVIEW
+--------------------------------------------------
+  Nodes: NODE_50000, NODE_54320, NODE_54321
+  Time Range: 2025-09-18 14:18:09 - 2025-09-19 11:12:24
+  Total Events: 202
+
+🔄 SST/IST WORKFLOWS
+--------------------------------------------------
+  2025-09-18 15:48:41 | NODE_54320 → NODE_54321 | STARTED (mariabackup)
+  2025-09-19 11:10:02 | NODE_54320 → NODE_54321 | STARTED (mariabackup)
+  2025-09-19 11:10:39 | NODE_50000 → NODE_54320 | REQUESTED (mariabackup)
+
+⚠️  SPLIT-BRAIN SCENARIOS
+--------------------------------------------------
+  2025-09-19 11:10:00 | Different cluster views:
+    └─ NODE_54320: {NODE_54320, NODE_54321}
+    └─ NODE_54321: {NODE_54320, NODE_54321}
+    └─ NODE_50000: {NODE_50000, NODE_54320, NODE_54321}
+
+🔄 STATE TRANSITIONS
+--------------------------------------------------
+  2025-09-18 15:48:40 | NODE_54320 | CLOSED → OPEN (seqno: 0)
+  2025-09-18 15:48:40 | NODE_54320 | OPEN → PRIMARY (seqno: 18)
+  2025-09-18 15:48:41 | NODE_54320 | PRIMARY → JOINER (seqno: 18)
+  2025-09-19 11:10:39 | NODE_50000 | PRIMARY → JOINER (seqno: 3)
+  2025-09-19 11:12:24 | NODE_50000 | JOINER → JOINED (seqno: 5)
+  2025-09-19 11:12:24 | NODE_50000 | JOINED → SYNCED (seqno: 5)
+```
+
+### Interactive Web Dashboard (grambo-web.py)
+
+The web dashboard provides:
+
+1. **Timeline Slider** - Navigate through cluster events chronologically
+2. **Network Graph** - Visual cluster topology with color-coded node states
+3. **Current State Panel** - Real-time cluster status including:
+   - Cluster members (established nodes)
+   - Uncertain nodes (transitioning/joining)
+   - Active transfers (SST/IST operations)
+4. **Event Log** - Detailed event information for the current timeline frame
+
+#### Visual State Indicators
+- **🟢 Green**: SYNCED (healthy, operational)
+- **🔵 Blue**: DONOR/DESYNCED (providing state transfer)
+- **🟠 Orange**: JOINER/JOINING (receiving state transfer)
+- **🟤 Dark Orange**: JOINED (synchronized, stabilizing)
+- **🔴 Red**: ERROR/CLOSED (problematic states)
+- **⚫ Gray**: UNKNOWN/disconnected
 
 ### JSON Format
 ```json
@@ -361,20 +555,35 @@ Track which nodes are members of the cluster at any given time, including:
 - Nodes that left gracefully  
 - Nodes that were partitioned (network split)
 
-## Legacy Compatibility
-
-The original bash grambo is still available as `grambo` (without .py extension). The Python version provides the same analysis with much better organization and additional features.
-
 ## Requirements
 
+### Core Analysis Tools (gramboo.py, grambo-cluster.py)
 - Python 3.7 or higher
 - No external dependencies required
+
+### Web Visualization (grambo-web.py)
+- Python 3.7 or higher
+- `dash` - Web application framework
+- `plotly` - Interactive plotting library  
+- `pandas` - Data manipulation
+- `networkx` - Network graph algorithms
+
+```bash
+# Install web dashboard dependencies
+pip install dash plotly pandas networkx
+
+# Or using a virtual environment (recommended)
+python3 -m venv grambo-env
+source grambo-env/bin/activate
+pip install dash plotly pandas networkx
+```
 
 ## Development
 
 The code is organized into clear classes and functions:
-- `GaleraLogParser`: Main parsing logic
-- `LogEvent`: Data structure for parsed events  
+- `GaleraLogParser`: Main parsing logic (gramboo.py)
+- `ClusterAnalyzer`: Multi-node correlation engine (grambo-cluster.py)  
+- `WebClusterVisualizer`: Interactive dashboard (grambo-web.py)
 - Event-specific parsers for each type of Galera event
 - Modular regex patterns for easy maintenance
 
@@ -385,6 +594,10 @@ The code is organized into clear classes and functions:
 3. Make your changes
 4. Test with sample Galera logs
 5. Submit a pull request
+
+## Legacy Compatibility
+
+The original bash grambo is still available as `grambo` (without .py extension). The Python suite provides the same analysis with much better organization, multi-node correlation, and interactive visualization.
 
 ## License
 
