@@ -569,40 +569,52 @@ class WebClusterVisualizer:
                 established_nodes.append(node)
         
         # Position nodes in different areas based on their status
-        # Use consistent positioning based on node names to prevent swapping
+        # Use consistent positioning based on global node ordering to prevent swapping
         positions = {}
         
         # Create a consistent ordering of all possible nodes
-        all_possible_nodes = sorted(set(state.nodes.keys()))
-        node_to_index = {node: i for i, node in enumerate(all_possible_nodes)}
+        # Get all nodes that have appeared in the entire cluster analysis
+        analysis = self.cluster_data.get('cluster_analysis', {})
+        all_known_nodes = set(analysis.get('nodes', []))
         
-        # Position established nodes in main circle (inner circle) 
-        # but keep consistent positions
-        established_positions = []
+        # Sort consistently (this ensures same order every time)
+        all_possible_nodes = sorted(all_known_nodes)
+        
+        # Create a stable position assignment for each node based on its global ordering
+        def get_consistent_position(node_name, category):
+            """Get consistent position for a node based on its name and category"""
+            # Find the node's global index in the sorted list
+            try:
+                global_index = all_possible_nodes.index(node_name)
+            except ValueError:
+                global_index = hash(node_name) % len(all_possible_nodes)
+            
+            # Create different radius zones for different categories
+            if category == 'established':
+                radius = 1.0
+            elif category == 'uncertain':
+                radius = 1.6
+            else:  # excluded
+                radius = 2.4
+                
+            # Use global index to determine angle to maintain consistency across frames
+            angle = 2 * math.pi * global_index / max(len(all_possible_nodes), 1)
+            
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
+            return (x, y)
+        
+        # Position established nodes using global consistent positioning
         for node in established_nodes:
-            base_index = node_to_index[node]
-            angle = 2 * math.pi * base_index / max(len(all_possible_nodes), 1)
-            x = math.cos(angle)
-            y = math.sin(angle)
-            positions[node] = (x, y)
-            established_positions.append((x, y))
+            positions[node] = get_consistent_position(node, 'established')
         
-        # Position uncertain nodes in outer circle using consistent angles
+        # Position uncertain nodes using global consistent positioning
         for node in uncertain_nodes:
-            base_index = node_to_index[node]
-            angle = 2 * math.pi * base_index / max(len(all_possible_nodes), 1)
-            # Place them further out but in same relative position
-            x = 1.5 * math.cos(angle)
-            y = 1.5 * math.sin(angle)
-            positions[node] = (x, y)
+            positions[node] = get_consistent_position(node, 'uncertain')
         
-        # Position excluded nodes far away but consistently
+        # Position excluded nodes using global consistent positioning
         for node in excluded_nodes:
-            angle = 2 * math.pi * i / max(len(excluded_nodes), 1)
-            # Place them much further out and offset
-            x = 2.5 * math.cos(angle + math.pi/4)
-            y = 2.5 * math.sin(angle + math.pi/4)
-            positions[node] = (x, y)
+            positions[node] = get_consistent_position(node, 'excluded')
         
         # Add edges between established nodes AND uncertain nodes
         # Excluded nodes get NO connections
@@ -698,7 +710,7 @@ class WebClusterVisualizer:
                 line=dict(width=3, color='white')
             ),
             text=node_text,
-            textposition="middle center",
+            textposition="bottom center",  # Place text below the circle
             textfont=dict(size=12, color="black", family="Arial Black"),  # Black text, slightly smaller
             hovertext=hover_text,
             hoverinfo='text',
