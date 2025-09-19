@@ -109,6 +109,13 @@ class WebClusterVisualizer:
         """Parse cluster analysis JSON into timeline states"""
         analysis = self.cluster_data.get('cluster_analysis', {})
         
+        # Load categorized events
+        self.categorized_events = analysis.get('categorized_events', {
+            'state_transfer': [],
+            'service': [],
+            'warnings_errors': []
+        })
+        
         # Dynamically create mapping from file node IDs to actual Galera node names
         node_name_mapping = {}
         
@@ -859,13 +866,34 @@ class WebClusterVisualizer:
                     html.H3("📋 Current State", style={'color': '#2c3e50'}),
                     html.Div(id='state-details'),
                     
-                    html.H3("📜 Event Log", style={'color': '#2c3e50', 'marginTop': '30px'}),
-                    html.Div(id='event-log', style={
-                        'height': '300px', 
+                    # Categorized Event Sections
+                    html.H3("� State Transfer Log", style={'color': '#2c3e50', 'marginTop': '30px'}),
+                    html.Div(id='state-transfer-log', style={
+                        'height': '200px', 
                         'overflowY': 'scroll',
-                        'border': '1px solid #bdc3c7',
-                        'padding': '10px',
-                        'backgroundColor': '#f9f9f9'
+                        'border': '1px solid #3498db',
+                        'padding': '8px',
+                        'backgroundColor': '#f8fafc',
+                        'marginBottom': '15px'
+                    }),
+                    
+                    html.H3("🔧 Service Log", style={'color': '#2c3e50', 'marginTop': '15px'}),
+                    html.Div(id='service-log', style={
+                        'height': '150px', 
+                        'overflowY': 'scroll',
+                        'border': '1px solid #27ae60',
+                        'padding': '8px',
+                        'backgroundColor': '#f8fff9',
+                        'marginBottom': '15px'
+                    }),
+                    
+                    html.H3("⚠️ Warnings & Errors", style={'color': '#e74c3c', 'marginTop': '15px'}),
+                    html.Div(id='warnings-errors-log', style={
+                        'height': '200px', 
+                        'overflowY': 'scroll',
+                        'border': '1px solid #e74c3c',
+                        'padding': '8px',
+                        'backgroundColor': '#fef9f9'
                     })
                     
                 ], style={'width': '38%', 'display': 'inline-block', 'verticalAlign': 'top', 'padding': '20px'})
@@ -885,13 +913,127 @@ class WebClusterVisualizer:
             
         ], style={'fontFamily': 'Arial, sans-serif'})
     
+    def generate_state_transfer_events(self, current_timestamp):
+        """Generate state transfer log events for current timeframe"""
+        events = []
+        cutoff_time = current_timestamp - timedelta(minutes=5)  # Show events from last 5 minutes
+        
+        for event in self.categorized_events.get('state_transfer', []):
+            try:
+                event_time = datetime.fromisoformat(event['timestamp'])
+                if event_time <= current_timestamp and event_time >= cutoff_time:
+                    node_display = self.node_name_mapping.get(event['node'], event['node'])
+                    
+                    # Create descriptive message based on event type
+                    if event['event_type'] == 'sst_event':
+                        message = f"SST: {event.get('raw_message', '')[:80]}..."
+                        color = '#3498db'
+                    elif event['event_type'] == 'ist_event':
+                        message = f"IST: {event.get('raw_message', '')[:80]}..."
+                        color = '#9b59b6'
+                    elif event['event_type'] == 'state_transition':
+                        from_state = event.get('metadata', {}).get('from_state', 'Unknown')
+                        to_state = event.get('metadata', {}).get('to_state', 'Unknown')
+                        message = f"State: {from_state} → {to_state}"
+                        color = '#27ae60'
+                    else:
+                        message = event.get('raw_message', '')[:80] + "..."
+                        color = '#34495e'
+                    
+                    events.append(html.P(
+                        f"[{event_time.strftime('%H:%M:%S')}] {node_display}: {message}",
+                        style={'margin': '3px 0', 'fontSize': '13px', 'color': color}
+                    ))
+            except (ValueError, TypeError):
+                continue
+        
+        return events if events else [html.P("No recent state transfer events", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+    
+    def generate_service_events(self, current_timestamp):
+        """Generate service log events for current timeframe"""
+        events = []
+        cutoff_time = current_timestamp - timedelta(hours=1)  # Show events from last hour
+        
+        for event in self.categorized_events.get('service', []):
+            try:
+                event_time = datetime.fromisoformat(event['timestamp'])
+                if event_time <= current_timestamp and event_time >= cutoff_time:
+                    node_display = self.node_name_mapping.get(event['node'], event['node'])
+                    
+                    # Create descriptive message based on service event type
+                    subtype = event.get('metadata', {}).get('subtype', 'unknown')
+                    event_name = event.get('metadata', {}).get('event', 'unknown')
+                    
+                    if subtype == 'startup':
+                        icon = "🟢"
+                        color = '#27ae60'
+                        message = f"Service Start: {event_name}"
+                    elif subtype == 'shutdown':
+                        icon = "🔴"
+                        color = '#e67e22'
+                        message = f"Service Stop: {event_name}"
+                    elif subtype == 'crash':
+                        icon = "💥"
+                        color = '#e74c3c'
+                        signal = event.get('metadata', {}).get('signal', 'unknown')
+                        message = f"Service Crash: Signal {signal}"
+                    else:
+                        icon = "🔧"
+                        color = '#34495e'
+                        message = f"Service: {event_name}"
+                    
+                    events.append(html.P(
+                        f"{icon} [{event_time.strftime('%H:%M:%S')}] {node_display}: {message}",
+                        style={'margin': '3px 0', 'fontSize': '13px', 'color': color}
+                    ))
+            except (ValueError, TypeError):
+                continue
+        
+        return events if events else [html.P("No recent service events", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+    
+    def generate_warnings_errors(self, current_timestamp):
+        """Generate warnings and errors for current timeframe"""
+        events = []
+        cutoff_time = current_timestamp - timedelta(minutes=10)  # Show events from last 10 minutes
+        
+        for event in self.categorized_events.get('warnings_errors', []):
+            try:
+                event_time = datetime.fromisoformat(event['timestamp'])
+                if event_time <= current_timestamp and event_time >= cutoff_time:
+                    node_display = self.node_name_mapping.get(event['node'], event['node'])
+                    
+                    # Create descriptive message based on error type
+                    if event['event_type'] == 'error':
+                        icon = "❌"
+                        color = '#e74c3c'
+                        message = f"ERROR: {event.get('raw_message', '')[:60]}..."
+                    elif event['event_type'] == 'communication_issue':
+                        icon = "📡"
+                        color = '#f39c12'
+                        message = f"COMM: {event.get('raw_message', '')[:60]}..."
+                    else:
+                        icon = "⚠️"
+                        color = '#e67e22'
+                        message = f"WARN: {event.get('raw_message', '')[:60]}..."
+                    
+                    events.append(html.P(
+                        f"{icon} [{event_time.strftime('%H:%M:%S')}] {node_display}: {message}",
+                        style={'margin': '3px 0', 'fontSize': '13px', 'color': color, 'lineHeight': '1.4'}
+                    ))
+            except (ValueError, TypeError):
+                continue
+        
+        return events if events else [html.P("No recent warnings or errors", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+    
     def setup_callbacks(self):
         """Setup Dash callbacks for interactivity"""
         
         @self.app.callback(
             [Output('cluster-network', 'figure'),
              Output('state-details', 'children'),
-             Output('event-log', 'children')],
+             Output('state-transfer-log', 'children'),
+             Output('service-log', 'children'),
+             Output('warnings-errors-log', 'children')],
             [Input('timeline-slider', 'value')]
         )
         def update_visualization(frame_index):
@@ -973,16 +1115,12 @@ class WebClusterVisualizer:
             if state.issues:
                 details.append(html.P(f"⚠️ Issues: {len(state.issues)}", style={'margin': '5px 0', 'color': 'red'}))
             
-            # Update event log
-            event_items = []
-            for event in state.events:
-                event_items.append(html.P(f"• {event}", style={'margin': '2px 0', 'fontSize': '14px'}))
+            # Generate categorized event sections
+            state_transfer_events = self.generate_state_transfer_events(state.timestamp)
+            service_events = self.generate_service_events(state.timestamp)
+            warnings_errors = self.generate_warnings_errors(state.timestamp)
             
-            if state.issues:
-                for issue in state.issues:
-                    event_items.append(html.P(f"⚠️ {issue}", style={'margin': '2px 0', 'fontSize': '14px', 'color': 'red'}))
-            
-            return network_fig, details, event_items
+            return network_fig, details, state_transfer_events, service_events, warnings_errors
         
         @self.app.callback(
             [Output('timeline-slider', 'value'),
@@ -1072,18 +1210,21 @@ class WebClusterVisualizer:
             return current_figure
 
         @self.app.callback(
-            Output('event-log', 'children', allow_duplicate=True),
+            [Output('state-transfer-log', 'children', allow_duplicate=True),
+             Output('service-log', 'children', allow_duplicate=True),
+             Output('warnings-errors-log', 'children', allow_duplicate=True)],
             [Input('export-gif-btn', 'n_clicks')],
             prevent_initial_call=True
         )
         def handle_gif_export(gif_clicks):
             """Handle GIF export - show progress message"""
             if gif_clicks:
-                return html.Div([
-                    html.P("🎥 Generating animated GIF...", style={'color': '#f39c12', 'fontWeight': 'bold'}),
-                    html.P("This may take a moment for long timelines.", style={'color': '#7f8c8d'})
+                progress_msg = html.Div([
+                    html.P("🎬 Generating GIF animation...", style={'color': '#3498db', 'fontWeight': 'bold'}),
+                    html.P("This may take a few moments...", style={'color': '#7f8c8d'})
                 ])
-            raise dash.exceptions.PreventUpdate
+                return progress_msg, progress_msg, progress_msg
+            return dash.no_update, dash.no_update, dash.no_update
     
     def run(self, debug: bool = False, open_browser: bool = True):
         """Run the web application"""

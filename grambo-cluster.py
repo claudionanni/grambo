@@ -369,8 +369,52 @@ class GramboClusterAnalyzer:
         self.correlate_sst_workflows()
         self.analyze_cluster_views()
         self.extract_state_transitions()
+        self.extract_categorized_events()
         
         self.log("✅ Cluster analysis complete")
+    
+    def extract_categorized_events(self) -> None:
+        """Extract and categorize events for web display"""
+        self.categorized_events = {
+            'state_transfer': [],   # SST/IST events, state transitions
+            'service': [],          # startup, shutdown, crash events
+            'warnings_errors': []   # error, communication_issue events
+        }
+        
+        for node in self.nodes:
+            node_data = node.data
+            detailed_events = node_data.get('detailed_events', [])
+            
+            for event in detailed_events:
+                event_type = event.get('event_type', '')
+                timestamp_str = event.get('timestamp', '')
+                
+                try:
+                    # Parse timestamp
+                    timestamp = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
+                except (ValueError, AttributeError):
+                    continue
+                
+                # Create categorized event
+                categorized_event = {
+                    'timestamp': timestamp.isoformat(),
+                    'node': node.name,
+                    'event_type': event_type,
+                    'raw_message': event.get('raw_message', ''),
+                    'metadata': event.get('metadata', {})
+                }
+                
+                # Categorize events
+                if event_type in ['sst_event', 'ist_event', 'state_transition']:
+                    self.categorized_events['state_transfer'].append(categorized_event)
+                elif event_type == 'service_event':
+                    self.categorized_events['service'].append(categorized_event)
+                elif event_type in ['error', 'communication_issue']:
+                    self.categorized_events['warnings_errors'].append(categorized_event)
+        
+        # Sort events by timestamp within each category
+        for category in self.categorized_events:
+            self.categorized_events[category].sort(key=lambda x: x['timestamp'])
     
     def detect_split_brain(self) -> List[Dict[str, Any]]:
         """Detect split-brain scenarios from cluster views"""
@@ -505,7 +549,12 @@ class GramboClusterAnalyzer:
                         'seqno': t.seqno
                     }
                     for t in self.state_transitions
-                ]
+                ],
+                'categorized_events': getattr(self, 'categorized_events', {
+                    'state_transfer': [],
+                    'service': [],
+                    'warnings_errors': []
+                })
             }
         }
         

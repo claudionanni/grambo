@@ -176,21 +176,22 @@ class DialectRegistry:
             
             # ===== SERVICE EVENT PATTERNS =====
             'service_event_patterns': {
-                # Startup patterns
+                # Server startup patterns (actual MariaDB/MySQL server lifecycle)
                 'server_startup': re.compile(r'Starting\s+(MariaDB|MySQL)(?:\s+([0-9][0-9\.-]+))?', re.IGNORECASE),
-                'wsrep_startup': re.compile(r'WSREP:\s*(Loading|Initializing|Starting)', re.IGNORECASE),
-                'ready_for_connections': re.compile(r'ready\s+for\s+connections', re.IGNORECASE),
-                'galera_ready': re.compile(r'Galera\s+cluster\s+ready', re.IGNORECASE),
+                'mysqld_starting': re.compile(r'(mariadbd|mysqld).*starting', re.IGNORECASE),
+                'server_ready': re.compile(r'^(?!.*WSREP:).*ready\s+for\s+connections', re.IGNORECASE),  # Exclude WSREP messages
+                'server_version_start': re.compile(r'Starting\s+(MariaDB|MySQL)\s+\d+\.\d+', re.IGNORECASE),
                 
-                # Shutdown patterns
+                # Shutdown patterns (actual server shutdown)
                 'shutdown_signal': re.compile(r'received\s+SHUTDOWN_SIGNAL', re.IGNORECASE),
-                'shutdown_complete': re.compile(r'shutdown\s+complete', re.IGNORECASE),
+                'shutdown_complete': re.compile(r'(mariadbd|mysqld):\s*shutdown\s+complete', re.IGNORECASE),
                 'normal_shutdown': re.compile(r'Normal\s+shutdown', re.IGNORECASE),
                 'shutting_down': re.compile(r'Shutting\s+down', re.IGNORECASE),
                 
-                # Crash/Signal patterns  
+                # Crash/Signal patterns - updated for actual log formats
                 'signal_received': re.compile(r'signal\s+(\d+)\s+received', re.IGNORECASE),
                 'fatal_signal': re.compile(r'Fatal\s+signal\s+(\d+)', re.IGNORECASE),
+                'mariadb_got_signal': re.compile(r'(mariadbd|mysqld)\s+got\s+signal\s+(\d+)', re.IGNORECASE),
                 'segfault': re.compile(r'segmentation\s+fault|SIGSEGV', re.IGNORECASE),
                 'abort_signal': re.compile(r'SIGABRT|abort', re.IGNORECASE),
                 'killed_signal': re.compile(r'SIGKILL|killed', re.IGNORECASE),
@@ -2174,24 +2175,25 @@ class GaleraLogAnalyzer:
             self.events.append(event)
             return True
         
-        if patterns['wsrep_startup'].search(line):
+        # Check for additional server startup patterns
+        if patterns['mysqld_starting'].search(line):
             event = LogEvent(
                 event_type=EventType.SERVICE_EVENT,
                 timestamp=self.current_timestamp,
                 raw_message=line.strip(),
                 node=self._get_local_node(),
-                metadata={'subtype': 'startup', 'event': 'wsrep_start'}
+                metadata={'subtype': 'startup', 'event': 'mysqld_starting'}
             )
             self.events.append(event)
             return True
         
-        if patterns['ready_for_connections'].search(line):
+        if patterns['server_ready'].search(line):
             event = LogEvent(
                 event_type=EventType.SERVICE_EVENT,
                 timestamp=self.current_timestamp,
                 raw_message=line.strip(),
                 node=self._get_local_node(),
-                metadata={'subtype': 'startup', 'event': 'ready_for_connections'}
+                metadata={'subtype': 'startup', 'event': 'server_ready'}
             )
             self.events.append(event)
             return True
@@ -2242,6 +2244,20 @@ class GaleraLogAnalyzer:
                 raw_message=line.strip(),
                 node=self._get_local_node(),
                 metadata={'subtype': 'crash', 'event': 'fatal_signal', 'signal': signal_num}
+            )
+            self.events.append(event)
+            return True
+        
+        # Check for mariadb/mysqld got signal pattern
+        mariadb_signal_match = patterns['mariadb_got_signal'].search(line)
+        if mariadb_signal_match:
+            signal_num = mariadb_signal_match.group(2)
+            event = LogEvent(
+                event_type=EventType.SERVICE_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'crash', 'event': 'mariadb_got_signal', 'signal': signal_num}
             )
             self.events.append(event)
             return True
