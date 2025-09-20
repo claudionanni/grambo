@@ -1165,7 +1165,32 @@ class WebClusterVisualizer:
                         }),
                         html.P(f"Total frames: {len(self.states)} | Current frame: 0", 
                                id='frame-info',
-                               style={'fontSize': '11px', 'color': '#888', 'margin': '5px 0 0 0', 'textAlign': 'center'})
+                               style={'fontSize': '11px', 'color': '#888', 'margin': '5px 0 0 0', 'textAlign': 'center'}),
+                        
+                        # Timeline markers for events
+                        html.Div([
+                            html.H4("Timeline Markers", style={'fontSize': '14px', 'margin': '15px 0 10px 0', 'color': '#2c3e50'}),
+                            html.Div(id='timeline-markers', style={
+                                'height': '40px',
+                                'width': '100%',
+                                'position': 'relative',
+                                'backgroundColor': '#f8f9fa',
+                                'border': '1px solid #dee2e6',
+                                'borderRadius': '4px',
+                                'margin': '5px 0'
+                            }),
+                            html.Div([
+                                html.Span("🕐 Time Gap", style={'fontSize': '12px', 'color': '#e74c3c', 'marginRight': '15px'}),
+                                html.Span("📡 SST Transfer", style={'fontSize': '12px', 'color': '#3498db', 'marginRight': '15px'}),
+                                html.Span("⚠️ Multiple Events", style={'fontSize': '12px', 'color': '#f39c12'})
+                            ], style={'textAlign': 'center', 'margin': '5px 0', 'fontSize': '11px'})
+                        ], style={
+                            'marginTop': '15px',
+                            'padding': '10px',
+                            'backgroundColor': 'white',
+                            'border': '1px solid #dee2e6',
+                            'borderRadius': '5px'
+                        })
                     ], style={
                         'padding': '20px',
                         'backgroundColor': '#f8f9fa',
@@ -1406,6 +1431,83 @@ class WebClusterVisualizer:
         
         return events if events else [html.P("No recent warnings or errors", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
     
+    def generate_timeline_markers(self, current_frame_index):
+        """Generate visual markers for the timeline showing gaps and SST events"""
+        markers = []
+        
+        # Analyze all frames to identify events
+        gap_threshold_minutes = 60  # Same threshold as timeline marks
+        
+        for i, state in enumerate(self.states):
+            marker_events = []
+            
+            # Check for time gaps
+            if i > 0:
+                current_time = state.timestamp
+                previous_time = self.states[i-1].timestamp
+                time_diff = (current_time - previous_time).total_seconds() / 60
+                
+                if time_diff >= gap_threshold_minutes:
+                    marker_events.append(('gap', f'{time_diff:.0f}min gap'))
+            
+            # Check for SST transfers
+            if state.transfers:
+                sst_count = len([t for t in state.transfers if t.get('type') == 'SST'])
+                if sst_count > 0:
+                    marker_events.append(('sst', f'{sst_count} SST'))
+            
+            # Create marker if there are events
+            if marker_events:
+                # Calculate position as percentage of total frames
+                position_percent = (i / max(1, len(self.states) - 1)) * 100
+                
+                # Determine marker color and icon based on event types
+                has_gap = any(event[0] == 'gap' for event in marker_events)
+                has_sst = any(event[0] == 'sst' for event in marker_events)
+                
+                if has_gap and has_sst:
+                    color = '#f39c12'  # Orange for multiple events
+                    icon = '⚠️'
+                    title = f"Frame {i}: " + ", ".join([event[1] for event in marker_events])
+                elif has_gap:
+                    color = '#e74c3c'  # Red for time gaps
+                    icon = '🕐'
+                    title = f"Frame {i}: {marker_events[0][1]}"
+                else:  # has_sst
+                    color = '#3498db'  # Blue for SST
+                    icon = '📡'
+                    title = f"Frame {i}: {marker_events[0][1]}"
+                
+                # Highlight current frame
+                is_current = (i == current_frame_index)
+                border_style = '3px solid #2c3e50' if is_current else '1px solid white'
+                
+                marker = html.Div(
+                    icon,
+                    style={
+                        'position': 'absolute',
+                        'left': f'{position_percent}%',
+                        'top': '50%',
+                        'transform': 'translate(-50%, -50%)',
+                        'width': '20px',
+                        'height': '20px',
+                        'backgroundColor': color,
+                        'border': border_style,
+                        'borderRadius': '50%',
+                        'display': 'flex',
+                        'alignItems': 'center',
+                        'justifyContent': 'center',
+                        'fontSize': '10px',
+                        'color': 'white',
+                        'cursor': 'pointer',
+                        'zIndex': '10'
+                    },
+                    title=title
+                )
+                markers.append(marker)
+        
+        return markers
+    
     def setup_callbacks(self):
         """Setup Dash callbacks for interactivity"""
         
@@ -1415,7 +1517,8 @@ class WebClusterVisualizer:
              Output('state-transfer-log', 'children'),
              Output('service-log', 'children'),
              Output('warnings-errors-log', 'children'),
-             Output('frame-info', 'children')],
+             Output('frame-info', 'children'),
+             Output('timeline-markers', 'children')],
             [Input('timeline-slider', 'value')]
         )
         def update_visualization(frame_index):
@@ -1580,7 +1683,10 @@ class WebClusterVisualizer:
             current_timestamp = state.timestamp.strftime('%Y-%m-%d %H:%M:%S')
             frame_info_text = f"Total frames: {len(self.states)} | Current frame: {frame_index + 1} | ⏰ {current_timestamp}"
             
-            return network_fig, details, state_transfer_events, service_events, warnings_errors, frame_info_text
+            # Generate timeline markers
+            timeline_markers = self.generate_timeline_markers(frame_index)
+            
+            return network_fig, details, state_transfer_events, service_events, warnings_errors, frame_info_text, timeline_markers
         
         @self.app.callback(
             [Output('timeline-slider', 'value'),
