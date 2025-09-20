@@ -316,8 +316,9 @@ class GramboClusterAnalyzer:
                 # Create workflow key based on joiner and approximate time
                 joiner = details.get('joiner')
                 if joiner:
-                    # Group workflows within 1-minute windows instead of 5-minute to handle rapid SST retries
-                    time_key = event.timestamp.replace(second=0, microsecond=0)
+                    # Group workflows within 30-minute windows to handle long-running SST operations
+                    # SST can take much longer than 1 minute, especially with large databases
+                    time_key = event.timestamp.replace(minute=event.timestamp.minute//30*30, second=0, microsecond=0)
                     workflow_key = f"{joiner}_{time_key.isoformat()}"
                     
                     if workflow_key not in workflows:

@@ -5,6 +5,7 @@ Analyze MySQL/MariaDB Galera cluster log files with full object modeling.
 
 Usage:
     python gramboo.py <log_file>
+    python gramboo.py --node NODE_NAME <log_file>
     cat <log_file> | python gramboo.py
     python gramboo.py --format=json <log_file>
 """
@@ -18,6 +19,95 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass, asdict, field
 from enum import Enum
+
+# UUID Helper Functions
+def long_to_short_uuid(long_uuid: str) -> str:
+    """Convert long UUID format to short format (segments 1 and 4)
+    
+    Args:
+        long_uuid: Full UUID like '4bff9935-956b-11f0-9e34-beb439e24709'
+    
+    Returns:
+        Short UUID like '4bff9935-9e34'
+    """
+    if not long_uuid or len(long_uuid) != 36:
+        return long_uuid
+    
+    parts = long_uuid.split('-')
+    if len(parts) != 5:
+        return long_uuid
+    
+    return f"{parts[0]}-{parts[3]}"
+
+def short_to_long_uuid_candidates(short_uuid: str, known_uuids: List[str]) -> List[str]:
+    """Find long UUID candidates that match the given short UUID
+    
+    Args:
+        short_uuid: Short UUID like '4bff9935-9e34'
+        known_uuids: List of known full UUIDs to search
+    
+    Returns:
+        List of matching full UUIDs
+    """
+    if not short_uuid or '-' not in short_uuid:
+        return []
+    
+    parts = short_uuid.split('-')
+    if len(parts) != 2:
+        return []
+    
+    segment1, segment4 = parts[0], parts[1]
+    
+    candidates = []
+    for full_uuid in known_uuids:
+        if len(full_uuid) == 36:
+            full_parts = full_uuid.split('-')
+            if len(full_parts) == 5 and full_parts[0] == segment1 and full_parts[3] == segment4:
+                candidates.append(full_uuid)
+    
+    return candidates
+
+def uuids_match(uuid1: str, uuid2: str, known_uuids: Optional[List[str]] = None) -> bool:
+    """Check if two UUIDs match, handling both long and short formats
+    
+    Args:
+        uuid1: First UUID (can be long or short format)
+        uuid2: Second UUID (can be long or short format)  
+        known_uuids: Optional list of known full UUIDs for resolving short formats
+    
+    Returns:
+        True if UUIDs match
+    """
+    if not uuid1 or not uuid2:
+        return False
+    
+    # Exact match
+    if uuid1 == uuid2:
+        return True
+    
+    # Convert to consistent format for comparison
+    def normalize_uuid(uuid_str):
+        if len(uuid_str) == 36:  # Long format
+            return uuid_str
+        elif len(uuid_str) == 13 and uuid_str.count('-') == 1:  # Short format
+            return uuid_str
+        else:
+            return uuid_str
+    
+    norm1 = normalize_uuid(uuid1)
+    norm2 = normalize_uuid(uuid2)
+    
+    # If both are same format, direct comparison
+    if len(norm1) == len(norm2):
+        return norm1 == norm2
+    
+    # Mixed formats - convert to comparable format
+    if len(norm1) == 36 and len(norm2) == 13:  # long vs short
+        return long_to_short_uuid(norm1) == norm2
+    elif len(norm1) == 13 and len(norm2) == 36:  # short vs long
+        return norm1 == long_to_short_uuid(norm2)
+    
+    return False
 
 class DialectRegistry:
     """
@@ -76,9 +166,11 @@ class DialectRegistry:
             # ===== SST PATTERNS (State Snapshot Transfer) =====
             'sst_patterns': {
                 # SST Request and selection patterns
+                'sst_required': re.compile(r'State\s+transfer\s+required:', re.IGNORECASE),
                 'request_with_donor': re.compile(r'Member\s+(\d+\.\d+)\s+\(([^)]+)\)\s+requested\s+state\s+transfer\s+from\s+[\'\"]([^\'\"]+)[\'\"]\.\s+Selected\s+(\d+\.\d+)\s+\(([^)]+)\)\(([^)]+)\)\s+as\s+donor', re.IGNORECASE),
                 'simple_request': re.compile(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', re.IGNORECASE),
                 'request_from': re.compile(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer from', re.IGNORECASE),
+                'joiner_request_sent': re.compile(r"Running:\s+'wsrep_sst_[a-z0-9_]+\s+--role\s+'joiner'\s+--address\s+'([^']+)'", re.IGNORECASE),
                 
                 # SST Role and initialization patterns
                 'joiner_role': re.compile(r"wsrep_sst_[a-z0-9_]+.*--role\s+'joiner'.*--address\s+'([0-9.]+)", re.IGNORECASE),
@@ -89,6 +181,7 @@ class DialectRegistry:
                 'started': re.compile(r'WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+started\s+on\s+(donor|joiner)\s+\(([^)]+)\)', re.IGNORECASE),
                 'completed': re.compile(r"WSREP_SST:\s+\[INFO\]\s+(\w+)\s+SST\s+completed\s+on\s+(donor|joiner)\s+\(([^)]+)\)", re.IGNORECASE),
                 'proceeding': re.compile(r'WSREP_SST:\s+\[INFO\]\s+Proceeding\s+with\s+SST', re.IGNORECASE),
+                'state_transfer_complete': re.compile(r'(\d+\.\d+)\s+\(([^)]+)\):\s+State\s+transfer\s+to\s+(\d+\.\d+)\s+\(([^)]+)\)\s+complete', re.IGNORECASE),
                 
                 # SST Failure patterns (Enhanced)
                 'reject_in_state': re.compile(r"Rejecting\s+State\s+Transfer\s+Request\s+in\s+state\s+'([^']+)'.", re.IGNORECASE),
@@ -101,6 +194,10 @@ class DialectRegistry:
                 'joiner_error': re.compile(r'JOINER\s+ERROR:\s*(.+)$', re.IGNORECASE),
                 'sst_timeout': re.compile(r'SST\s+timeout', re.IGNORECASE),
                 'sst_connection_failed': re.compile(r'SST\s+connection\s+failed', re.IGNORECASE),
+                # Enhanced error patterns from SST key messages
+                'failed_to_read': re.compile(r'Failed\s+to\s+read\s+from:\s+wsrep_sst_[a-z0-9_]+.*?:\s+(\d+)\s+\(([^)]+)\)', re.IGNORECASE),
+                'process_completed_error': re.compile(r'Process\s+completed\s+with\s+error:\s+wsrep_sst_[a-z0-9_]+.*?:\s+(\d+)\s+\(([^)]+)\)', re.IGNORECASE),
+                'command_did_not_run': re.compile(r'Command\s+did\s+not\s+run:\s+wsrep_sst_[a-z0-9_]+', re.IGNORECASE),
                 
                 # SST Connection and streaming
                 'stream_addr': re.compile(r"SST\s+request\s+sent,\s+waiting\s+for\s+connection\s+at\s+([^'\s]+)", re.IGNORECASE),
@@ -141,7 +238,7 @@ class DialectRegistry:
             # ===== COMMUNICATION PATTERNS =====
             'communication_patterns': {
                 'connection_established': re.compile(r'connection established to ([0-9a-f]{8}(?:-[0-9a-f]{4})?) tcp://([0-9a-fA-F:.]+)', re.IGNORECASE),
-                'server_connected': re.compile(r"Server ([A-Za-z0-9_.-]+) connected to cluster at position [0-9a-f:-]+ with ID ([0-9a-f]{8}-[0-9a-f]{4,})", re.IGNORECASE),
+                'server_connected': re.compile(r"Server ([A-Za-z0-9_.-]+) connected to cluster at position [0-9a-f:-]+ with ID ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", re.IGNORECASE),
                 'listening_uuid': re.compile(r"\(([0-9a-f]{8}(?:-[0-9a-f]{4}){0,3}-?[0-9a-f]{0,12}), *'tcp://([0-9a-fA-F:.]+)'\) listening at tcp://\2", re.IGNORECASE),
                 'cluster_address': re.compile(r'wsrep_cluster_address=gcomm://([0-9.:,]+)', re.IGNORECASE),
                 'state_exchange_sent': re.compile(r'STATE_EXCHANGE:\s+(sent|got)\s+state\s+(UUID|msg):\s+([0-9a-f-]+)', re.IGNORECASE),
@@ -408,15 +505,20 @@ class Cluster:
         return next((node for node in self.nodes.values() if node.name == name), None)
     
     def get_node_by_uuid(self, uuid: str) -> Optional[Node]:
-        """Find node by UUID (supports both full and short UUIDs)"""
-        # First try exact match
+        """Find node by UUID (supports both full and short UUIDs, searches current and historical UUIDs)"""
+        # First try exact match with current UUIDs
         if uuid in self.nodes:
             return self.nodes[uuid]
         
-        # If not found and this looks like a short UUID, try to find matching full UUID
-        if len(uuid) < 36 and '-' in uuid:  # Short UUID format like 378c0ec7-a3db
-            for full_uuid, node in self.nodes.items():
-                if full_uuid.startswith(uuid.split('-')[0]) and uuid in full_uuid:
+        # Use UUID matching helper to find matches with long/short format conversion
+        for full_uuid, node in self.nodes.items():
+            # Check current UUID
+            if uuids_match(uuid, full_uuid):
+                return node
+            
+            # Check historical UUIDs
+            for historical_uuid in node.uuid_history:
+                if uuids_match(uuid, historical_uuid):
                     return node
         
         return None
@@ -559,7 +661,8 @@ class GaleraLogAnalyzer:
     def __init__(self, dialect: str = 'auto', report_unknown: bool = False,
                  mariadb_version: Optional[str] = None,
                  mariadb_edition: Optional[str] = None,
-                 galera_version: Optional[str] = None):
+                 galera_version: Optional[str] = None,
+                 local_node_name: Optional[str] = None):
         self.cluster = Cluster()
         self.events: List[LogEvent] = []
         self.health_metrics = ClusterHealthMetrics()
@@ -572,6 +675,10 @@ class GaleraLogAnalyzer:
         self.mariadb_edition = mariadb_edition
         self.galera_version = galera_version
         self._unknown_lines: List[str] = []
+        
+        # Set explicit local node name if provided
+        if local_node_name:
+            self.cluster.local_node_name = local_node_name
         
         # Initialize dialect registry
         self.dialect_registry = DialectRegistry()
@@ -621,6 +728,43 @@ class GaleraLogAnalyzer:
             'ist_async_peer': 50,     # async IST sender peer
             'cluster_address': 40,    # wsrep_cluster_address list
         }
+
+    def _validate_local_node_detection(self):
+        """
+        Validate that we can reliably determine the local node name.
+        Returns True if reliable detection is possible, False otherwise.
+        """
+        # If local_node_name is None, detection failed
+        if not self.cluster.local_node_name:
+            return False
+            
+        # If local_node_name is a placeholder (starts with "Local-"), detection failed
+        if self.cluster.local_node_name.startswith('Local-'):
+            return False
+            
+        # If we reach here, we have a real node name that was either:
+        # 1. Explicitly set via --node parameter, or 
+        # 2. Reliably detected via UUID matching
+        return True
+        
+    def _require_reliable_node_detection(self):
+        """
+        Check if local node detection is reliable. If not, exit with helpful message.
+        """
+        if not self._validate_local_node_detection():
+            print("ERROR: Cannot reliably determine the local node name from the log file.", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("This can happen when:", file=sys.stderr)
+            print("- The log doesn't contain cluster view information with UUID->name mappings", file=sys.stderr)
+            print("- The log is truncated or incomplete", file=sys.stderr)
+            print("- Multiple nodes are referenced in a single log file", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Solution: Use the --node parameter to explicitly specify the local node name:", file=sys.stderr)
+            print("  python3 gramboo.py --node YOUR_NODE_NAME logfile.log", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Example:", file=sys.stderr)
+            print("  python3 gramboo.py --node db-node-01 /var/log/mysql/error.log", file=sys.stderr)
+            sys.exit(1)
 
     @property
     def _ist_patterns(self) -> Dict[str, Any]:
@@ -956,14 +1100,10 @@ class GaleraLogAnalyzer:
             minute = ts_match.group(3)
             second = ts_match.group(4)
             self.current_timestamp = f"{date_part} {hour:02d}:{minute}:{second}"
-        # Early local node detection from state transfer request lines
-        # NOTE: This detection can be ambiguous in multi-node scenarios where
-        # logs contain references to multiple nodes. See TROUBLESHOOTING_NODE_DETECTION.md
-        # for details on when automatic detection fails and manual mapping is needed.
-        if not self.cluster.local_node_name and 'requested state transfer' in line:
-            m_local = re.search(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', line)
-            if m_local:
-                self.cluster.local_node_name = m_local.group(1)
+        
+        # Remove problematic early local node detection from state transfer request lines
+        # This pattern incorrectly captures remote nodes mentioned in the log
+        # Proper detection should use UUID-based mapping from cluster views
         
         # Extract and track node information
         self._extract_node_info(line)
@@ -1010,7 +1150,7 @@ class GaleraLogAnalyzer:
           cluster_address: wsrep_cluster_address=gcomm://IP1,IP2,... (weak evidence)
         Keys can be UUIDs, short/composite UUIDs, or temporary names until identity resolution finalizes.
         """
-        if not line or 'tcp' not in line and 'IST' not in line and 'wsrep_sst' not in line and 'gcomm://' not in line:
+        if not line or ('tcp' not in line and 'IST' not in line and 'wsrep_sst' not in line and 'gcomm://' not in line and 'Server' not in line):
             return  # fast path
         ts = self.current_timestamp
         # (UUID,'tcp://IP') listening at tcp://IP
@@ -1024,14 +1164,24 @@ class GaleraLogAnalyzer:
                 self.cluster.candidate_local_uuids.append(uuid_like)
             return
         # Server <NAME> connected to cluster ... with ID <UUID>
-        m = re.search(r"Server ([A-Za-z0-9_.-]+) connected to cluster at position [0-9a-f:-]+ with ID ([0-9a-f]{8}-[0-9a-f]{4,})", line)
+        m = re.search(r"Server ([A-Za-z0-9_.-]+) connected to cluster at position [0-9a-f:-]+ with ID ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", line)
         if m:
             name = m.group(1)
             raw_uuid = m.group(2)
-            if not self.cluster.local_node_name:
+            
+            # This creates a reliable UUID→name mapping
+            self._ensure_node_exists_with_uuid(name, raw_uuid)
+            
+            # If this UUID matches our local "My UUID", this is reliable local node detection
+            # Use UUID matching helper to handle both long and short formats
+            if (self.cluster.node_instance_uuid and 
+                uuids_match(raw_uuid, self.cluster.node_instance_uuid) and 
+                not self.cluster.local_node_name):
                 self.cluster.local_node_name = name
+                
             if raw_uuid not in self.cluster.candidate_local_uuids:
                 self.cluster.candidate_local_uuids.append(raw_uuid)
+        return
         # connection established to <short/composite> tcp://IP:PORT
         m = re.search(r'connection established to ([0-9a-f]{8}(?:-[0-9a-f]{4})?) tcp://([0-9a-fA-F:.]+)', line)
         if m:
@@ -1071,11 +1221,9 @@ class GaleraLogAnalyzer:
     
     def _extract_node_info(self, line: str) -> None:
         """Extract and maintain node information from log line"""
-        # Secondary local node detection (redundant safeguard)
-        if not self.cluster.local_node_name and 'requested state transfer' in line:
-            m_local2 = re.search(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', line)
-            if m_local2:
-                self.cluster.local_node_name = m_local2.group(1)
+        # Remove problematic secondary local node detection (redundant with UUID-based detection)
+        # This pattern incorrectly captures remote nodes mentioned in transfer requests
+        
         # Extract UUID and node name pairs from member lists (most accurate)
         uuid_name_match = re.search(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}),\s*([A-Za-z0-9_-]+)', line)
         if uuid_name_match:
@@ -1086,9 +1234,10 @@ class GaleraLogAnalyzer:
                 self._ensure_node_exists_with_uuid(name, uuid)
                 # Retroactively patch historical views with real name
                 self._retroactively_fill_name(uuid, name)
-                # If this UUID matches our local instance UUID, capture local node name
+                # If this UUID matches our local instance UUID, capture local node name (unless explicitly set)
                 if self.cluster.node_instance_uuid and uuid == self.cluster.node_instance_uuid:
-                    self.cluster.local_node_name = name
+                    if self.cluster.local_node_name is None:
+                        self.cluster.local_node_name = name
                 # Do NOT set current_node_name from membership lines to avoid misattribution
                 return
 
@@ -1461,6 +1610,35 @@ class GaleraLogAnalyzer:
     
     def _parse_sst_event(self, line: str) -> bool:
         """Parse SST (State Snapshot Transfer) events with detailed information"""
+        
+        # Pattern: State transfer required (JOINER:SST_REQUIRED)
+        if self._sst_patterns['sst_required'].search(line) and self.current_timestamp:
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_required'}
+            )
+            self.health_metrics.sst_events += 1
+            self.events.append(event)
+            return True
+        
+        # Pattern: Joiner request sent (JOINER:SST_REQUEST_SENT)
+        joiner_request = self._sst_patterns['joiner_request_sent'].search(line)
+        if joiner_request and self.current_timestamp:
+            address = joiner_request.group(1)
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'joiner_request_sent', 'address': address}
+            )
+            self.health_metrics.sst_events += 1
+            self.events.append(event)
+            return True
+        
         # gcs.cpp: Rejecting State Transfer Request in state 'STATE'. Joiner should be restarted.
         sst_reject = re.search(r"Rejecting\s+State\s+Transfer\s+Request\s+in\s+state\s+'([^']+)'.", line, re.IGNORECASE)
         if sst_reject and self.current_timestamp:
@@ -1981,6 +2159,84 @@ class GaleraLogAnalyzer:
                     )
                     self.events.append(event)
                     return True
+        
+        # Enhanced error patterns from SST key messages
+        # Failed to read from donor
+        failed_read = self._sst_patterns['failed_to_read'].search(line)
+        if failed_read and self.current_timestamp:
+            error_code = failed_read.group(1)
+            error_msg = failed_read.group(2)
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_failed_to_read', 'error_code': error_code, 'error_message': error_msg}
+            )
+            self.health_metrics.sst_events += 1
+            self.events.append(event)
+            return True
+        
+        # Process completed with error
+        proc_error = self._sst_patterns['process_completed_error'].search(line)
+        if proc_error and self.current_timestamp:
+            error_code = proc_error.group(1)
+            error_msg = proc_error.group(2)
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_process_error', 'error_code': error_code, 'error_message': error_msg}
+            )
+            self.health_metrics.sst_events += 1
+            self.events.append(event)
+            return True
+        
+        # Command did not run
+        if self._sst_patterns['command_did_not_run'].search(line) and self.current_timestamp:
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=self._get_local_node(),
+                metadata={'subtype': 'sst_command_failed'}
+            )
+            self.health_metrics.sst_events += 1
+            self.events.append(event)
+            return True
+        
+        # State transfer complete (NODE:SST_SUCCEEDED)
+        complete_match = self._sst_patterns['state_transfer_complete'].search(line)
+        if complete_match and self.current_timestamp:
+            donor_id = complete_match.group(1)
+            donor_name = complete_match.group(2)
+            joiner_id = complete_match.group(3)
+            joiner_name = complete_match.group(4)
+            
+            # Ensure nodes exist
+            donor_node = self._ensure_node_exists(donor_name)
+            donor_node.node_id = donor_id
+            joiner_node = self._ensure_node_exists(joiner_name)
+            joiner_node.node_id = joiner_id
+            
+            event = LogEvent(
+                event_type=EventType.SST_EVENT,
+                timestamp=self.current_timestamp,
+                raw_message=line.strip(),
+                node=donor_node,
+                metadata={
+                    'subtype': 'sst_completed_successfully',
+                    'donor': donor_name,
+                    'donor_id': donor_id,
+                    'joiner': joiner_name,
+                    'joiner_id': joiner_id,
+                    'status': 'completed'
+                }
+            )
+            self.health_metrics.sst_events += 1
+            self.events.append(event)
+            return True
         
         return False
     
@@ -2660,6 +2916,19 @@ class GaleraLogAnalyzer:
         my_uuid_line = re.search(r'My\s+UUID:\s+([0-9a-f-]{36})', line, re.IGNORECASE)
         if my_uuid_line:
             self.cluster.node_instance_uuid = my_uuid_line.group(1)
+            
+            # Check if we already have a server connection mapping for this UUID
+            # This handles the case where "My UUID" comes after "Server connected"
+            # Use UUID matching helper to handle both long and short formats
+            if not self.cluster.local_node_name and self.cluster.node_instance_uuid:
+                # Check all known nodes for UUID match
+                for node in self.cluster.nodes.values():
+                    if (node.uuid and 
+                        uuids_match(self.cluster.node_instance_uuid, node.uuid) and
+                        node.name and not node.name.startswith('Local-')):
+                        self.cluster.local_node_name = node.name
+                        break
+            
             return True
         # STATE_EXCHANGE messages with state transaction UUIDs
         state_exchange_match = re.search(r'STATE_EXCHANGE:\s+(sent|got)\s+state\s+(UUID|msg):\s+([0-9a-f-]+)', line, re.IGNORECASE)
@@ -2850,11 +3119,8 @@ class GaleraLogAnalyzer:
             # Update node status
             node = self._ensure_node_exists(node_name)
             node.status = 'SYNCED'
-            # If this server name matches our local node, record it
-            if node_name and (self.cluster.local_node_name is None):
-                # Prefer to set local node name only if we already know My UUID
-                if self.cluster.node_instance_uuid:
-                    self.cluster.local_node_name = node_name
+            # NOTE: Do not auto-detect local node name from this pattern as it's unreliable
+            # Server sync messages can refer to any node in the cluster, not necessarily the local node
             
             if self.current_timestamp:
                 event = LogEvent(
@@ -3851,6 +4117,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             local_name = cluster_info.get('local_node_name')
             sole_physical = len(phys_map) == 1
             target_name = local_name
+            # Only use heuristic if we don't already have a local node name (either auto-detected or explicitly set)
             if not target_name:
                 # Heuristic: choose name containing '01' else first alphabetically
                 for candidate_name in sorted(phys_map.keys()):
@@ -3861,7 +4128,9 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
                     target_name = sorted(phys_map.keys())[0]
                 if target_name:
                     # We are in rendering context; 'analyzer' holds the instance
-                    analyzer.cluster.local_node_name = target_name
+                    # Only override if local node name wasn't explicitly set by user
+                    if analyzer.cluster.local_node_name is None:
+                        analyzer.cluster.local_node_name = target_name
             if target_name == pname or sole_physical:
                 seen_raw = set()
                 ordered_full = []
@@ -4503,6 +4772,7 @@ def main():
     parser.add_argument('--format', choices=['text', 'json'], default='text',
                         help='Output format (default: text)')
     parser.add_argument('--filter', help='Filter events by type (comma-separated)')
+    parser.add_argument('--node', help='Explicitly specify the local node name (overrides automatic detection)')
     parser.add_argument('--dialect', default='auto', help='(DEPRECATED) Previously forced log dialect; now deduced from MariaDB version/edition. Ignored.')
     parser.add_argument('--report-unknown', action='store_true', help='Report unknown WSREP/IST lines')
     parser.add_argument('--mariadb-version', help='MariaDB server version (e.g., 10.6.16, 11.4.7-4)')
@@ -4537,8 +4807,12 @@ def main():
         mariadb_version=getattr(args, 'mariadb_version', None),
         mariadb_edition=getattr(args, 'mariadb_edition', None),
         galera_version=None,  # ignore deprecated explicit galera version
+        local_node_name=getattr(args, 'node', None),  # explicit local node name
     )
     analyzer.parse_log(log_lines)
+
+    # Validate that we can reliably determine the local node name
+    analyzer._require_reliable_node_detection()
 
     # Infer Galera from MariaDB if missing
     analyzer.infer_galera_from_mariadb()

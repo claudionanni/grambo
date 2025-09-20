@@ -66,6 +66,7 @@ class ClusterState:
         self.transfers: List[Dict] = []   # active transfers
         self.events: List[str] = []       # events in this frame
         self.issues: List[str] = []       # cluster issues
+        self.sst_statuses: Dict[str, Dict] = {}  # SST transfer statuses per node
     
     def add_node(self, name: str, state: str, **kwargs):
         """Add or update a node in this cluster state"""
@@ -74,7 +75,8 @@ class ClusterState:
             'seqno': kwargs.get('seqno'),
             'issues': kwargs.get('issues', []),
             'sst_status': kwargs.get('sst_status'),
-            'ist_status': kwargs.get('ist_status')
+            'ist_status': kwargs.get('ist_status'),
+            'service_available': kwargs.get('service_available', True)  # Track service availability
         }
     
     def add_transfer(self, transfer_type: str, joiner: str, donor: str, status: str, method: str = 'unknown'):
@@ -213,10 +215,76 @@ class WebClusterVisualizer:
                         'data': workflow
                     })
         
+        # Add service events (startup/shutdown/crashes)
+        for service_event in self.categorized_events.get('service', []):
+            timestamp_str = service_event.get('timestamp', '')
+            if timestamp_str:
+                timestamp = self.parse_timestamp(timestamp_str)
+                if timestamp:
+                    # Map file node to Galera node name
+                    file_node = service_event.get('node')
+                    galera_node = self.node_name_mapping.get(file_node, file_node)
+                    
+                    all_events.append({
+                        'timestamp': timestamp,
+                        'type': 'service_event',
+                        'node': galera_node,
+                        'data': service_event
+                    })
+        
+        # Also check other categories for service lifecycle events
+        for category_name in ['warnings_errors', 'state_transfer', 'communication_issue']:
+            for event in self.categorized_events.get(category_name, []):
+                timestamp_str = event.get('timestamp', '')
+                raw_message = event.get('raw_message', '').lower()
+                
+                # Look for service shutdown indicators in any category
+                if (timestamp_str and ('gcomm: closed' in raw_message or 
+                                      'terminating thread' in raw_message or
+                                      'cleanup after exit' in raw_message)):
+                    timestamp = self.parse_timestamp(timestamp_str)
+                    if timestamp:
+                        # Map file node to Galera node name
+                        file_node = event.get('node')
+                        galera_node = self.node_name_mapping.get(file_node, file_node)
+                        
+                        all_events.append({
+                            'timestamp': timestamp,
+                            'type': 'service_event',
+                            'node': galera_node,
+                            'data': event  # Use the original event data
+                        })
+                
+                # Look for actual SST failure events in state_transfer category
+                if (category_name == 'state_transfer' and 
+                    event.get('event_type') == 'sst_event' and 
+                    event.get('metadata', {}).get('subtype') == 'sst_failed'):
+                    
+                    timestamp = self.parse_timestamp(timestamp_str)
+                    if timestamp:
+                        # Map file node to Galera node name
+                        file_node = event.get('node')
+                        galera_node = self.node_name_mapping.get(file_node, file_node)
+                        
+                        all_events.append({
+                            'timestamp': timestamp,
+                            'type': 'sst_failure_event',
+                            'node': galera_node,
+                            'data': event
+                        })
+        
         # Sort events by timestamp first, then by causal priority for same timestamp
         def get_causal_priority(event):
             """Return priority for events at same timestamp (lower = earlier)"""
-            if event['type'] != 'state_transition':
+            if event['type'] == 'service_event':
+                # Service events affect node availability
+                metadata = event['data'].get('metadata', {})
+                if metadata.get('event') == 'server_start':
+                    return 5  # Service starts should happen before state transitions
+                elif 'shutdown' in event['data'].get('raw_message', '').lower() or 'terminating' in event['data'].get('raw_message', '').lower():
+                    return 200  # Service shutdowns happen after state transitions
+                return 150  # Other service events in middle
+            elif event['type'] != 'state_transition':
                 return 100  # Process non-transitions last
             
             transition = event['data']
@@ -332,6 +400,12 @@ class WebClusterVisualizer:
         # But only for nodes that should be active at the beginning
         current_node_states = {}
         
+        # Track service availability for each node (default to available)
+        service_availability = {}
+        
+        # Track persistent node issues that carry over between frames until resolved
+        node_issues = {}  # node_name -> list of issues
+        
         # Get initial timestamp to determine which nodes should be active
         initial_timestamp = all_events[0]['timestamp']
         active_nodes_initially = get_active_nodes_at_timestamp(initial_timestamp)
@@ -392,7 +466,18 @@ class WebClusterVisualizer:
             # Copy current state for all active nodes BEFORE applying changes
             for node_name in active_nodes_now:
                 if node_name in current_node_states:
-                    new_state.add_node(node_name, current_node_states[node_name])
+                    new_state.add_node(
+                        node_name, 
+                        current_node_states[node_name],
+                        service_available=service_availability.get(node_name, True),
+                        issues=node_issues.get(node_name, [])  # Copy persistent issues
+                    )
+            
+            # Copy SST statuses from previous state
+            if len(self.states) > 0:
+                prev_state = self.states[-1]
+                if hasattr(prev_state, 'sst_statuses'):
+                    new_state.sst_statuses = prev_state.sst_statuses.copy()
             
             # Apply event changes AFTER copying current state
             if event['type'] == 'state_transition':
@@ -493,6 +578,12 @@ class WebClusterVisualizer:
                             self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'requested', method)
                             print(f"DEBUG: Also added to previous state (frame {len(self.states)-1})")
                         new_state.events.append(f"SST requested: {joiner_node} requesting from {donor_node or 'cluster'}")
+                        # Track SST status
+                        new_state.sst_statuses[joiner_node] = {
+                            'status': 'REQUESTED',
+                            'timestamp': event['timestamp'],
+                            'details': f"Requesting from {donor_node or 'cluster'}"
+                        }
                     elif status == 'started':
                         # Only update the joiner node in this frame - donor will be updated in subsequent frame
                         current_node_states[mapped_joiner] = 'JOINER'
@@ -508,6 +599,12 @@ class WebClusterVisualizer:
                             self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'started', method)
                             print(f"DEBUG: Also added to previous state (frame {len(self.states)-1})")
                         new_state.events.append(f"SST started: {joiner_node} ← {donor_node or 'unknown'} ({method})")
+                        # Track SST status
+                        new_state.sst_statuses[joiner_node] = {
+                            'status': 'IN PROCESS',
+                            'timestamp': event['timestamp'],
+                            'details': f"Receiving from {donor_node or 'unknown'} via {method}"
+                        }
                         
                         # Create a separate frame for donor state change if donor exists
                         if mapped_donor and mapped_donor in current_node_states:
@@ -521,7 +618,14 @@ class WebClusterVisualizer:
                             # Copy all current states to the donor frame
                             for node_name in active_nodes_now:
                                 if node_name in current_node_states:
-                                    donor_state.add_node(node_name, current_node_states[node_name])
+                                    donor_state.add_node(
+                                        node_name, 
+                                        current_node_states[node_name],
+                                        service_available=service_availability.get(node_name, True)
+                                    )
+                            
+                            # Copy SST statuses from the just-added state
+                            donor_state.sst_statuses = new_state.sst_statuses.copy()
                             
                             # Update only the donor node in this separate frame
                             current_node_states[mapped_donor] = 'DONOR'
@@ -544,8 +648,19 @@ class WebClusterVisualizer:
                             current_node_states[mapped_joiner] = 'SYNCED'
                             new_state.nodes[mapped_joiner]['state'] = 'SYNCED'
                             new_state.nodes[mapped_joiner]['sst_status'] = None
+                            # Clear any persistent issues since SST completed successfully
+                            if mapped_joiner in node_issues:
+                                del node_issues[mapped_joiner]
+                                new_state.nodes[mapped_joiner]['issues'] = []
+                                print(f"DEBUG: Cleared issues for {mapped_joiner} - SST completed")
                         
                         new_state.events.append(f"SST completed: {joiner_node} now synchronized")
+                        # Track SST success status
+                        new_state.sst_statuses[joiner_node] = {
+                            'status': 'SUCCEEDED',
+                            'timestamp': event['timestamp'],
+                            'details': 'SST transfer completed successfully'
+                        }
                         
                         # Create a separate frame for donor state change if donor exists
                         if mapped_donor and mapped_donor in current_node_states:
@@ -559,7 +674,30 @@ class WebClusterVisualizer:
                             # Copy all current states to the donor frame
                             for node_name in active_nodes_now:
                                 if node_name in current_node_states:
-                                    donor_state.add_node(node_name, current_node_states[node_name])
+                                    donor_state.add_node(
+                                        node_name, 
+                                        current_node_states[node_name],
+                                        service_available=service_availability.get(node_name, True)
+                                    )
+                            
+                            # Copy SST statuses from the just-added state
+                            donor_state.sst_statuses = new_state.sst_statuses.copy()
+                        if mapped_donor and mapped_donor in current_node_states:
+                            # Append this frame first
+                            self.states.append(new_state)
+                            state_id += 1
+                            
+                            # Create new frame for donor state change
+                            donor_state = ClusterState(event['timestamp'], state_id)
+                            
+                            # Copy all current states to the donor frame
+                            for node_name in active_nodes_now:
+                                if node_name in current_node_states:
+                                    donor_state.add_node(
+                                        node_name, 
+                                        current_node_states[node_name],
+                                        service_available=service_availability.get(node_name, True)
+                                    )
                             
                             # Update only the donor node in this separate frame
                             current_node_states[mapped_donor] = 'SYNCED'
@@ -573,14 +711,87 @@ class WebClusterVisualizer:
                             new_state = donor_state
                     
                     elif status == 'failed':
-                        if mapped_joiner in current_node_states:
-                            new_state.nodes[mapped_joiner]['issues'] = ['SST failed']
+                        # For failed SST workflows, don't set node issues immediately
+                        # We'll set them only when we encounter actual sst_failed events
+                        print(f"DEBUG: SST workflow marked as failed for {mapped_joiner}, but not setting node issues yet")
                         new_state.issues.append("SST failure")
                         new_state.add_transfer('SST', joiner_node, donor_node or 'unknown', 'failed', method)
                         # Also add to previous state to show the arrow during the transition
                         if len(self.states) > 0:
                             self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'failed', method)
                         new_state.events.append(f"SST failed: {joiner_node} failed to synchronize from {donor_node or 'unknown'}")
+            
+            elif event['type'] == 'service_event':
+                service_data = event['data']
+                service_node = event['node']
+                raw_message = service_data.get('raw_message', '').lower()
+                metadata = service_data.get('metadata', {})
+                
+                # Track service lifecycle for node availability
+                if metadata.get('event') == 'server_start' or 'starting mariadb' in raw_message:
+                    # Service starting - node becomes available
+                    print(f"DEBUG: Service starting on {service_node}")
+                    service_availability[service_node] = True
+                    new_state.events.append(f"Service started: {service_node}")
+                    # Update node in current frame
+                    if service_node in new_state.nodes:
+                        new_state.nodes[service_node]['service_available'] = True
+                            
+                elif ('shutdown' in raw_message or 'terminating' in raw_message or 
+                      'gcomm: closed' in raw_message or 'cleanup after exit' in raw_message):
+                    # Service shutting down - node becomes unavailable
+                    print(f"DEBUG: Service terminating on {service_node}: {raw_message[:100]}")
+                    service_availability[service_node] = False
+                    new_state.events.append(f"Service terminating: {service_node}")
+                    # Update node in current frame
+                    if service_node in new_state.nodes:
+                        new_state.nodes[service_node]['service_available'] = False
+            
+            elif event['type'] == 'sst_failure_event':
+                # This is an actual SST failure event - set node issues at the correct time
+                failure_data = event['data']
+                failure_node = event['node']
+                metadata = failure_data.get('metadata', {})
+                operation = metadata.get('operation', '')
+                raw_message = failure_data.get('raw_message', '')
+                
+                print(f"DEBUG: Processing SST failure event at {event['timestamp']} for node {failure_node}, operation: {operation}")
+                
+                # Determine which node should be marked as failed based on the operation type
+                failed_node = None
+                
+                if operation in ['abort', 'receiving', 'joiner']:
+                    # Joiner-side failure: mark the joiner (current node) as failed
+                    failed_node = failure_node
+                    print(f"DEBUG: Joiner-side failure ({operation}), marking {failure_node} as failed")
+                    
+                elif operation in ['sending', 'provider', 'donor']:
+                    # Donor-side failure: extract the target joiner from the message and mark it as failed
+                    # Look for patterns like "State transfer to 0.4 (vinfr-db-d-l05) failed"
+                    import re
+                    joiner_match = re.search(r'to\s+[\d.]+\s+\(([^)]+)\)', raw_message)
+                    if joiner_match:
+                        target_joiner = joiner_match.group(1)
+                        # Map to our node naming
+                        mapped_joiner = self.cluster_data.get('node_mapping', {}).get(target_joiner, target_joiner)
+                        failed_node = mapped_joiner
+                        print(f"DEBUG: Donor-side failure ({operation}), marking target joiner {failed_node} as failed")
+                    else:
+                        print(f"DEBUG: Could not extract joiner from donor failure message: {raw_message}")
+                
+                # Track SST failure status separately (don't mark node as failed)
+                if failed_node and failed_node in new_state.nodes:
+                    # Add to SST statuses instead of node issues
+                    if 'sst_statuses' not in new_state.__dict__:
+                        new_state.sst_statuses = {}
+                    new_state.sst_statuses[failed_node] = {
+                        'status': 'FAILED',
+                        'timestamp': event['timestamp'],
+                        'details': 'SST transfer failed'
+                    }
+                    print(f"DEBUG: Recording SST failure status for {failed_node} at {event['timestamp']}")
+                else:
+                    print(f"DEBUG: Skipping SST failure - no valid target node determined")
             
             # After processing all events in this frame, check for DONOR/DESYNCED ↔ JOINER pairs
             # that might exist simultaneously but weren't detected during individual state transitions
@@ -893,6 +1104,10 @@ class WebClusterVisualizer:
             node_data = state.nodes[node]
             node_state = node_data['state']
             
+            # Get clean display name (remove NODE_ prefix if present)
+            original_name = self.node_name_mapping.get(node, node)
+            clean_node_name = original_name.replace('NODE_', '') if original_name.startswith('NODE_') else original_name
+            
             # Color based on state - consistent with status display
             color_map = {
                 # Established cluster members (can process transactions)
@@ -916,8 +1131,15 @@ class WebClusterVisualizer:
             }
             color = color_map.get(node_state, 'gray')
             
-            # Add issues indicator
-            if node_data.get('issues'):
+            # Check service availability - if service is down, show as gray regardless of state
+            if not node_data.get('service_available', True):
+                color = 'lightgray'  # Service unavailable - show as gray
+                node_text_label = f"{clean_node_name} (DOWN)"  # Indicate service is down
+            else:
+                node_text_label = clean_node_name
+            
+            # Add issues indicator (only if service is available)
+            if node_data.get('service_available', True) and node_data.get('issues'):
                 color = 'darkred'
             
             # Special styling for uncertain nodes
@@ -927,17 +1149,18 @@ class WebClusterVisualizer:
             node_y.append(y)
             node_colors.append(color)
             
-            # Different node text styling for uncertain nodes
-            display_name = self.node_name_mapping.get(node, node)
+            # Different node text styling for uncertain nodes and service availability
             if is_uncertain:
-                node_text.append(f"{display_name}?")  # Add question mark to uncertain nodes
+                node_text.append(f"{node_text_label}?")  # Add question mark to uncertain nodes
             else:
-                node_text.append(display_name)
+                node_text.append(node_text_label)
             
             # Hover text with details
-            hover_info = f"<b>{display_name}</b><br>"
+            hover_info = f"<b>{clean_node_name}</b><br>"
             hover_info += f"File ID: {node}<br>"
             hover_info += f"State: {node_state}<br>"
+            if not node_data.get('service_available', True):
+                hover_info += "<b>Service: DOWN</b><br>"
             if is_uncertain:
                 hover_info += "<b>Status: Not fully joined to cluster</b><br>"
             if node_data.get('seqno'):
@@ -1687,6 +1910,39 @@ class WebClusterVisualizer:
                         html.P(f"  {display_name}: {node_state}", 
                               style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '20px', 'fontStyle': 'italic'})
                     )
+            
+            # Display SST Status section (always visible)
+            details.append(html.P("🔄 STATE TRANSFER", style={'margin': '12px 0 6px 0', 'fontWeight': 'bold', 'fontSize': '16px', 'color': '#333'}))
+            
+            if hasattr(state, 'sst_statuses') and state.sst_statuses:
+                # Sort SST statuses by timestamp for better display
+                sorted_sst = sorted(state.sst_statuses.items(), key=lambda x: x[1]['timestamp'])
+                
+                for node_name, sst_info in sorted_sst:
+                    display_name = self.node_name_mapping.get(node_name, node_name)
+                    status = sst_info['status']
+                    timestamp = sst_info['timestamp'].strftime('%H:%M:%S')
+                    details_text = sst_info.get('details', '')
+                    
+                    # Color code by status
+                    status_colors = {
+                        'REQUESTED': '#FFA500',    # Orange
+                        'IN PROCESS': '#1E90FF',   # Blue
+                        'SUCCEEDED': '#32CD32',    # Green
+                        'FAILED': '#FF6347'        # Red
+                    }
+                    color = status_colors.get(status, 'gray')
+                    
+                    details.append(
+                        html.P(f"  {display_name}: {status} at {timestamp} - {details_text}", 
+                              style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '20px'})
+                    )
+            else:
+                # Show "No active transfers" when there are no SST statuses
+                details.append(
+                    html.P(" ", 
+                          style={'margin': '2px 0', 'fontSize': '14px', 'color': '#666', 'marginLeft': '20px', 'fontStyle': 'italic'})
+                )
             
             if state.transfers:
                 details.append(html.P(f"📡 Active Transfers: {len(state.transfers)}", style={'margin': '5px 0', 'color': 'orange'}))
