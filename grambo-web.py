@@ -433,6 +433,22 @@ class WebClusterVisualizer:
                             print(f"DEBUG: Skipping automatic transfer for {mapped_node}, existing transfer found")
                 elif from_state == 'JOINER' and to_state in ['SYNCED', 'PRIMARY']:
                     new_state.nodes[mapped_node]['sst_status'] = None
+                
+                # Add special handling for DONOR/DESYNCED state (implies providing SST)
+                elif to_state == 'DONOR/DESYNCED':
+                    new_state.nodes[mapped_node]['sst_status'] = 'donating'
+                    # Look for any JOINER nodes and create transfer arrows
+                    existing_transfer = any(t.get('donor') == mapped_node for t in new_state.transfers)
+                    has_explicit_workflow = mapped_node in explicit_sst_joiners
+                    
+                    if not existing_transfer and not has_explicit_workflow:
+                        for other_node, other_state in current_node_states.items():
+                            if other_node != mapped_node and other_state == 'JOINER':
+                                new_state.add_transfer('SST', other_node, mapped_node, 'in_progress', 'rsync')
+                                print(f"DEBUG: Adding automatic SST transfer for donor: {other_node} ← {mapped_node} (DONOR/DESYNCED → JOINER)")
+                                break
+                elif from_state == 'DONOR/DESYNCED' and to_state in ['SYNCED', 'JOINED']:
+                    new_state.nodes[mapped_node]['sst_status'] = None
             
             elif event['type'] == 'sst_workflow':
                 workflow = event['data']
@@ -560,9 +576,55 @@ class WebClusterVisualizer:
                             self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'failed', method)
                         new_state.events.append(f"SST failed: {joiner_node} failed to synchronize from {donor_node or 'unknown'}")
             
+            # After processing all events in this frame, check for DONOR/DESYNCED ↔ JOINER pairs
+            # that might exist simultaneously but weren't detected during individual state transitions
+            joiner_nodes = [node for node, data in new_state.nodes.items() if data['state'] == 'JOINER']
+            donor_nodes = [node for node, data in new_state.nodes.items() if data['state'] == 'DONOR/DESYNCED']
+            
+            for joiner in joiner_nodes:
+                for donor in donor_nodes:
+                    # Check if this transfer pair doesn't already exist
+                    existing_transfer = any(
+                        t.get('joiner') == joiner and t.get('donor') == donor 
+                        for t in new_state.transfers
+                    )
+                    if not existing_transfer and joiner not in explicit_sst_joiners:
+                        new_state.add_transfer('SST', joiner, donor, 'in_progress', 'detected')
+                        print(f"DEBUG: Adding detected SST transfer: {joiner} ← {donor} (JOINER ↔ DONOR/DESYNCED)")
+            
             self.states.append(new_state)
             state_id += 1
         
+        # Post-frame analysis: Add missing SST arrows for DONOR/DESYNCED ↔ JOINER pairs
+        print("DEBUG: Starting post-frame analysis for missing DONOR/DESYNCED ↔ JOINER transfers...")
+        for i, state in enumerate(self.states):
+            # Look for DONOR/DESYNCED nodes without transfers
+            donor_desynced_nodes = []
+            joiner_nodes = []
+            
+            for node_name, node_data in state.nodes.items():
+                if node_data.get('state') == 'DONOR/DESYNCED':
+                    donor_desynced_nodes.append(node_name)
+                elif node_data.get('state') == 'JOINER':
+                    joiner_nodes.append(node_name)
+            
+            # If we have both DONOR/DESYNCED and JOINER nodes, check for missing transfers
+            if donor_desynced_nodes and joiner_nodes:
+                print(f"DEBUG: Frame {i} has DONOR/DESYNCED: {donor_desynced_nodes}, JOINER: {joiner_nodes}")
+                existing_transfers = set()
+                for transfer in state.transfers:
+                    if transfer.get('donor') in donor_desynced_nodes and transfer.get('joiner') in joiner_nodes:
+                        existing_transfers.add((transfer.get('donor'), transfer.get('joiner')))
+                        print(f"DEBUG: Frame {i} existing transfer: {transfer.get('joiner')} ← {transfer.get('donor')}")
+                
+                # Add missing transfers for all DONOR/DESYNCED ↔ JOINER pairs
+                for donor in donor_desynced_nodes:
+                    for joiner in joiner_nodes:
+                        if (donor, joiner) not in existing_transfers:
+                            # Always add missing DONOR/DESYNCED ↔ JOINER transfers
+                            state.add_transfer('SST', joiner, donor, 'in_progress', 'rsync')
+                            print(f"DEBUG: Post-frame analysis: Added missing transfer {joiner} ← {donor} (DONOR/DESYNCED → JOINER) in frame {i}")
+
         print(f"✓ Created {len(self.states)} cluster states from {len(all_events)} events")
         print(f"  - State transitions: {len([e for e in all_events if e['type'] == 'state_transition'])}")
         print(f"  - SST workflows: {len([e for e in all_events if e['type'] == 'sst_workflow'])}")
@@ -873,13 +935,13 @@ class WebClusterVisualizer:
             x=node_x, y=node_y,
             mode='markers+text',
             marker=dict(
-                size=120,  # Increased from 80 to 120 for better text visibility
+                size=80,  # Reduced from 120 to 80 for better proportions
                 color=node_colors,
                 line=dict(width=3, color='white')
             ),
             text=node_text,
             textposition="bottom center",  # Place text below the circle
-            textfont=dict(size=12, color="black", family="Arial Black"),  # Black text, slightly smaller
+            textfont=dict(size=14, color="black", family="Arial Black"),  # Increased from 12 to 14 for better readability
             hovertext=hover_text,
             hoverinfo='text',
             name='nodes'
@@ -928,7 +990,12 @@ class WebClusterVisualizer:
                 print(f"DEBUG: Cannot draw arrow - mapped_joiner '{mapped_joiner}' in positions: {mapped_joiner in positions if mapped_joiner else False}, mapped_donor '{mapped_donor}' in positions: {mapped_donor in positions if mapped_donor else False}")
                 print(f"DEBUG: Available positions: {list(positions.keys())}")
         
-        # Update layout
+        # Update layout with proper axis ranges to keep nodes within canvas
+        # Calculate the maximum radius used for positioning
+        max_radius = 2.4  # Maximum radius used in excluded nodes
+        canvas_margin = 0.5  # Extra margin to ensure nodes don't touch edges
+        axis_range = max_radius + canvas_margin
+        
         fig.update_layout(
             title={
                 'text': f"Cluster State - Frame {state.frame_id + 1}",
@@ -937,16 +1004,88 @@ class WebClusterVisualizer:
             showlegend=False,
             hovermode='closest',
             margin=dict(b=20,l=5,r=5,t=40),
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            xaxis=dict(
+                showgrid=False, 
+                zeroline=False, 
+                showticklabels=False,
+                range=[-axis_range, axis_range],  # Set axis range to contain all nodes
+                scaleanchor="y",  # Maintain aspect ratio
+                scaleratio=1
+            ),
+            yaxis=dict(
+                showgrid=False, 
+                zeroline=False, 
+                showticklabels=False,
+                range=[-axis_range, axis_range]  # Set axis range to contain all nodes
+            ),
             plot_bgcolor='rgba(0,0,0,0)',
             height=500
         )
         
         return fig
     
+    def create_timeline_marks(self, gap_threshold_minutes=60):
+        """Create timeline marks with gap indicators and timestamps"""
+        marks = {}
+        gap_frames = set()
+        
+        # Detect frames with significant time gaps
+        for i in range(1, len(self.states)):
+            current_time = self.states[i].timestamp
+            previous_time = self.states[i-1].timestamp
+            
+            time_diff = (current_time - previous_time).total_seconds() / 60  # Convert to minutes
+            
+            if time_diff >= gap_threshold_minutes:
+                gap_frames.add(i)
+        
+        # Create marks for timeline slider
+        # Show marks every ~10% of frames, but always include gap frames
+        mark_interval = max(1, len(self.states) // 10)
+        
+        for i in range(0, len(self.states)):
+            show_mark = (i % mark_interval == 0) or (i in gap_frames) or (i == len(self.states) - 1)
+            
+            if show_mark:
+                frame_time = self.states[i].timestamp.strftime('%H:%M:%S')
+                frame_label = f"Frame {i}"
+                
+                if i in gap_frames:
+                    # Find the gap duration
+                    if i > 0:
+                        gap_minutes = (self.states[i].timestamp - self.states[i-1].timestamp).total_seconds() / 60
+                        gap_label = f"🕐 Gap: {gap_minutes:.0f}min"
+                    else:
+                        gap_label = "🕐 Time Gap"
+                    
+                    marks[i] = {
+                        'label': html.Div([
+                            html.Div(frame_label, style={'fontSize': '10px', 'fontWeight': 'bold'}),
+                            html.Div(frame_time, style={'fontSize': '9px', 'color': '#666'}),
+                            html.Div(gap_label, style={'fontSize': '8px', 'color': '#e74c3c', 'fontWeight': 'bold'})
+                        ]),
+                        'style': {'color': '#e74c3c', 'fontWeight': 'bold'}
+                    }
+                else:
+                    marks[i] = {
+                        'label': html.Div([
+                            html.Div(frame_label, style={'fontSize': '10px'}),
+                            html.Div(frame_time, style={'fontSize': '9px', 'color': '#666'})
+                        ]),
+                        'style': {'color': '#34495e'}
+                    }
+        
+        return marks, gap_frames
+
     def setup_layout(self):
         """Setup the Dash app layout"""
+        # Create simple timeline marks for debugging
+        simple_marks = {}
+        for i in range(0, len(self.states), max(1, len(self.states)//10)):
+            simple_marks[i] = str(i)
+        if len(self.states) > 0:
+            simple_marks[len(self.states)-1] = str(len(self.states)-1)
+        
         self.app.layout = html.Div([
             # Keyboard event handler (invisible)
             html.Div(id='keyboard-listener', 
@@ -988,17 +1127,52 @@ class WebClusterVisualizer:
                     
                     # Timeline controls
                     html.Div([
-                        html.Label("Timeline Navigation:", style={'fontWeight': 'bold'}),
-                        dcc.Slider(
-                            id='timeline-slider',
-                            min=0,
-                            max=len(self.states) - 1,
-                            value=0,
-                            marks={i: f"Frame {i+1}" for i in range(0, len(self.states), max(1, len(self.states)//10))},
-                            step=1,
-                            tooltip={"placement": "bottom", "always_visible": True}
-                        )
-                    ], style={'padding': '20px'}),
+                        html.Label("Timeline Navigation:", 
+                                  htmlFor='timeline-slider',
+                                  style={
+                                      'fontWeight': 'bold', 
+                                      'marginBottom': '10px', 
+                                      'display': 'block',
+                                      'fontSize': '16px',
+                                      'color': '#2c3e50'
+                                  }),
+                        html.P(f"🕐 Navigating through {len(self.states)} cluster states", 
+                               style={'fontSize': '13px', 'color': '#7f8c8d', 'margin': '5px 0 10px 0'}),
+                        html.P("Drag slider or use arrow keys to navigate frames:", 
+                               style={'fontSize': '12px', 'color': '#666', 'margin': '0 0 15px 0'}),
+                        html.Div([
+                            dcc.Slider(
+                                id='timeline-slider',
+                                min=0,
+                                max=len(self.states) - 1,
+                                value=0,
+                                step=1,
+                                marks={0: 'Start', len(self.states)-1: 'End'},  # Simplified marks to avoid rendering issues
+                                tooltip={
+                                    "placement": "bottom", 
+                                    "always_visible": True
+                                },
+                                updatemode='drag'
+                            )
+                        ], style={
+                            'height': '60px',
+                            'width': '100%',
+                            'padding': '20px 10px',
+                            'backgroundColor': 'white',
+                            'border': '1px solid #ddd',
+                            'borderRadius': '5px',
+                            'marginBottom': '10px'
+                        }),
+                        html.P(f"Total frames: {len(self.states)} | Current frame: 0", 
+                               id='frame-info',
+                               style={'fontSize': '11px', 'color': '#888', 'margin': '5px 0 0 0', 'textAlign': 'center'})
+                    ], style={
+                        'padding': '20px',
+                        'backgroundColor': '#f8f9fa',
+                        'borderRadius': '10px',
+                        'margin': '15px 0',
+                        'border': '2px solid #bdc3c7'
+                    }),
                     
                     # Playback controls
                     html.Div([
@@ -1007,7 +1181,7 @@ class WebClusterVisualizer:
                         html.Button('⏯️', id='play-btn', n_clicks=0, style={'margin': '5px'}, title='Play/Pause'),
                         html.Button('⏩', id='next-btn', n_clicks=0, style={'margin': '5px'}, title='Next Frame'),
                         html.Button('⏭️', id='last-btn', n_clicks=0, style={'margin': '5px'}, title='Last Frame'),
-                        html.Span('Speed: ', style={'margin-left': '20px'}),
+                        html.Label('Speed: ', htmlFor='speed-dropdown', style={'margin-left': '20px', 'marginRight': '5px'}),
                         dcc.Dropdown(
                             id='speed-dropdown',
                             options=[
@@ -1017,7 +1191,9 @@ class WebClusterVisualizer:
                                 {'label': '5x', 'value': 200}
                             ],
                             value=1000,
-                            style={'width': '80px', 'display': 'inline-block'}
+                            style={'width': '80px', 'display': 'inline-block'},
+                            placeholder="Select speed",
+                            clearable=False
                         )
                     ], style={'textAlign': 'center', 'padding': '10px'}),
                     
@@ -1238,7 +1414,8 @@ class WebClusterVisualizer:
              Output('state-details', 'children'),
              Output('state-transfer-log', 'children'),
              Output('service-log', 'children'),
-             Output('warnings-errors-log', 'children')],
+             Output('warnings-errors-log', 'children'),
+             Output('frame-info', 'children')],
             [Input('timeline-slider', 'value')]
         )
         def update_visualization(frame_index):
@@ -1252,10 +1429,75 @@ class WebClusterVisualizer:
             
             # Update state details
             details = [
-                html.H4(f"Frame {state.frame_id + 1} of {len(self.states)}", style={'margin': '10px 0', 'color': '#2c3e50'}),
+                html.H4(f"Frame {state.frame_id} of {len(self.states)-1}", style={'margin': '10px 0', 'color': '#2c3e50'}),
                 html.P(f"⏱️ Time: {state.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", style={'margin': '5px 0'}),
-                html.P(f"�️ Nodes: {len(state.nodes)}", style={'margin': '5px 0'})
+                html.P(f"🔢 Nodes: {len(state.nodes)}", style={'margin': '5px 0'})
             ]
+            
+            # Always show time gap information (permanent display)
+            if frame_index > 0:
+                time_diff = (state.timestamp - self.states[frame_index-1].timestamp).total_seconds() / 60
+                
+                # Determine color and styling based on gap duration
+                if time_diff >= 60:  # Large gap (60+ minutes)
+                    gap_color = '#e74c3c'  # Red
+                    gap_bg = '#fef9f9'     # Light red background
+                    gap_icon = "🕐"
+                    gap_weight = 'bold'
+                elif time_diff >= 5:   # Medium gap (5-60 minutes)
+                    gap_color = '#f39c12'  # Orange
+                    gap_bg = '#fefaf3'     # Light orange background
+                    gap_icon = "⏱️"
+                    gap_weight = 'normal'
+                else:                   # Small gap (< 5 minutes)
+                    gap_color = '#27ae60'  # Green
+                    gap_bg = '#f8fff8'     # Light green background
+                    gap_icon = "⚡"
+                    gap_weight = 'normal'
+                
+                # Format time display with enhanced styling
+                if time_diff >= 1:
+                    time_text = f"{time_diff:.0f} min" if time_diff >= 60 else f"{time_diff:.1f} min"
+                else:
+                    time_text = f"{time_diff*60:.0f} sec"
+                
+                gap_info = html.P([
+                    gap_icon + " ",
+                    "Time gap: ",
+                    html.Span(time_text, style={
+                        'color': gap_color, 
+                        'fontWeight': gap_weight,
+                        'fontSize': '14px'
+                    }),
+                    " from previous"
+                ], style={
+                    'margin': '5px 0', 
+                    'backgroundColor': gap_bg, 
+                    'padding': '6px 8px', 
+                    'borderRadius': '4px',
+                    'borderLeft': f'3px solid {gap_color}',
+                    'fontSize': '13px'
+                })
+                details.append(gap_info)
+            else:
+                # First frame - show as starting point
+                gap_info = html.P([
+                    "🚀 ",
+                    "Timeline start: ",
+                    html.Span("First event", style={
+                        'color': '#3498db', 
+                        'fontWeight': 'bold',
+                        'fontSize': '14px'
+                    })
+                ], style={
+                    'margin': '5px 0', 
+                    'backgroundColor': '#f0f8ff', 
+                    'padding': '6px 8px', 
+                    'borderRadius': '4px',
+                    'borderLeft': '3px solid #3498db',
+                    'fontSize': '13px'
+                })
+                details.append(gap_info)
             
             # Add individual node states
             color_map = {
@@ -1333,7 +1575,12 @@ class WebClusterVisualizer:
             service_events = self.generate_service_events(state.timestamp)
             warnings_errors = self.generate_warnings_errors(state.timestamp)
             
-            return network_fig, details, state_transfer_events, service_events, warnings_errors
+            # Frame info for slider
+            # Enhanced frame info with timestamp (date + time)
+            current_timestamp = state.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            frame_info_text = f"Total frames: {len(self.states)} | Current frame: {frame_index + 1} | ⏰ {current_timestamp}"
+            
+            return network_fig, details, state_transfer_events, service_events, warnings_errors, frame_info_text
         
         @self.app.callback(
             [Output('timeline-slider', 'value'),
