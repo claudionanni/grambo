@@ -239,6 +239,8 @@ class GramboClusterAnalyzer:
                 # SST Status Events
                 if 'sst' in workflow and workflow['sst']:
                     sst = workflow['sst']
+                    
+                    # SST Start Event
                     if 'timestamp' in sst:
                         timestamp = self.parse_timestamp(sst['timestamp'])
                         if timestamp:
@@ -248,6 +250,23 @@ class GramboClusterAnalyzer:
                                 event_type='sst_event',
                                 details={
                                     'status': sst.get('status'),
+                                    'joiner': workflow.get('joiner'),
+                                    'donor': workflow.get('donor')
+                                },
+                                original_event=sst
+                            )
+                            self.cluster_events.append(event)
+                    
+                    # SST Completion Event
+                    if 'completed_at' in sst:
+                        completed_timestamp = self.parse_timestamp(sst['completed_at'])
+                        if completed_timestamp:
+                            event = ClusterEvent(
+                                timestamp=completed_timestamp,
+                                node=node.name,
+                                event_type='sst_event',
+                                details={
+                                    'status': 'completed',
                                     'joiner': workflow.get('joiner'),
                                     'donor': workflow.get('donor')
                                 },
@@ -297,8 +316,8 @@ class GramboClusterAnalyzer:
                 # Create workflow key based on joiner and approximate time
                 joiner = details.get('joiner')
                 if joiner:
-                    # Group workflows within 5-minute windows
-                    time_key = event.timestamp.replace(minute=event.timestamp.minute//5*5, second=0, microsecond=0)
+                    # Group workflows within 1-minute windows instead of 5-minute to handle rapid SST retries
+                    time_key = event.timestamp.replace(second=0, microsecond=0)
                     workflow_key = f"{joiner}_{time_key.isoformat()}"
                     
                     if workflow_key not in workflows:

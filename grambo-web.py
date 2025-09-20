@@ -46,7 +46,7 @@ import time
 
 try:
     import dash
-    from dash import dcc, html, Input, Output, State, callback
+    from dash import dcc, html, Input, Output, State, callback, no_update
     import plotly.graph_objects as go
     import plotly.express as px
     from plotly.subplots import make_subplots
@@ -212,8 +212,62 @@ class WebClusterVisualizer:
                         'data': workflow
                     })
         
-        # Sort events by timestamp
-        all_events.sort(key=lambda x: x['timestamp'])
+        # Sort events by timestamp first, then by causal priority for same timestamp
+        def get_causal_priority(event):
+            """Return priority for events at same timestamp (lower = earlier)"""
+            if event['type'] != 'state_transition':
+                return 100  # Process non-transitions last
+            
+            transition = event['data']
+            to_state = transition.get('to_state', '')
+            from_state = transition.get('from_state', '')
+            
+            # Priority rules for causal ordering at same timestamp
+            priorities = {
+                # Phase 1: Node initialization/connection (must happen first)
+                'CLOSED->OPEN': 10,
+                'OPEN->PRIMARY': 20,
+                
+                # Phase 2: SST request (triggers donor selection)
+                'PRIMARY->JOINER': 30,
+                'JOINER->JOINED': 35,
+                
+                # Phase 3: Donor response (happens AFTER joiner request)  
+                'SYNCED->DONOR/DESYNCED': 40,
+                'DONOR/DESYNCED->JOINED': 50,
+                
+                # Phase 4: Completion states (final synchronization)
+                'JOINED->SYNCED': 60,
+                
+                # Additional common patterns
+                'SYNCED->DONOR': 40,
+                'DONOR->SYNCED': 55,
+                'DESYNCED->SYNCED': 55,
+            }
+            
+            transition_key = f"{from_state}->{to_state}"
+            priority = priorities.get(transition_key, 50)  # Default middle priority
+            
+            # Secondary sort by node ID for deterministic ordering
+            node_id = event.get('node', '')
+            return priority
+        
+        # Sort by timestamp first, then by causal priority, then by node ID
+        all_events.sort(key=lambda x: (x['timestamp'], get_causal_priority(x), x.get('node', '')))
+        
+        # Debug: Show causal ordering for same-timestamp events
+        print("DEBUG: Causal ordering applied:")
+        prev_timestamp = None
+        for i, event in enumerate(all_events):
+            if event['timestamp'] == prev_timestamp:
+                if event['type'] == 'state_transition':
+                    transition = event['data']
+                    from_state = transition.get('from_state', '')
+                    to_state = transition.get('to_state', '')
+                    node = event.get('node', '')
+                    priority = get_causal_priority(event)
+                    print(f"  Frame {i}: {node}: {from_state}→{to_state} (priority: {priority})")
+            prev_timestamp = event['timestamp']
         
                 # Get node list and apply mapping, but don't add all nodes immediately
         # Only add nodes when they actually interact with the cluster
@@ -266,6 +320,13 @@ class WebClusterVisualizer:
                     
             return active_nodes
         
+        # Track joiners that have explicit SST workflows to prevent automatic transfers
+        explicit_sst_joiners = set()
+        for workflow in analysis.get('sst_workflows', []):
+            joiner = workflow.get('joiner')
+            if joiner:
+                explicit_sst_joiners.add(joiner)
+        
         # Initialize node states - determine initial states from first events
         # But only for nodes that should be active at the beginning
         current_node_states = {}
@@ -304,6 +365,7 @@ class WebClusterVisualizer:
         self.states.append(initial_state)
         state_id += 1
         
+        # Process events individually to maintain chronological order within each node's log
         for event in all_events:
             # Determine which nodes should be active at this timestamp
             active_nodes_now = get_active_nodes_at_timestamp(event['timestamp'])
@@ -326,12 +388,12 @@ class WebClusterVisualizer:
             # Create new state for each event
             new_state = ClusterState(event['timestamp'], state_id)
             
-            # Copy current state for all active nodes
+            # Copy current state for all active nodes BEFORE applying changes
             for node_name in active_nodes_now:
                 if node_name in current_node_states:
                     new_state.add_node(node_name, current_node_states[node_name])
             
-            # Apply event changes
+            # Apply event changes AFTER copying current state
             if event['type'] == 'state_transition':
                 transition = event['data']
                 original_node = transition.get('node')
@@ -341,21 +403,34 @@ class WebClusterVisualizer:
                 seqno = transition.get('seqno')
                 
                 if mapped_node and to_state:
-                    # Update node state
+                    # Update node state ONLY in the new frame and tracking
                     current_node_states[mapped_node] = to_state
-                    new_state.nodes[mapped_node]['state'] = to_state
-                    new_state.nodes[mapped_node]['seqno'] = seqno
+                    if mapped_node in new_state.nodes:  # Only update if node exists in this frame
+                        new_state.nodes[mapped_node]['state'] = to_state
+                        new_state.nodes[mapped_node]['seqno'] = seqno
                 
                 new_state.events.append(f"{mapped_node}: {from_state} → {to_state}" + (f" (seqno: {seqno})" if seqno else ""))
                 
                 # Add special handling for JOINER state (implies SST in progress)
                 if to_state == 'JOINER':
                     new_state.nodes[mapped_node]['sst_status'] = 'receiving'
-                    # Try to find the donor (usually the PRIMARY node)
-                    for other_node, other_state in current_node_states.items():
-                        if other_node != mapped_node and other_state in ['PRIMARY', 'SYNCED']:
-                            new_state.add_transfer('SST', mapped_node, other_node, 'in_progress', 'rsync')
-                            break
+                    # Only add automatic transfer if no explicit SST workflow transfer exists for this joiner
+                    # AND the joiner is not in the explicit SST workflows list
+                    existing_transfer = any(t.get('joiner') == mapped_node for t in new_state.transfers)
+                    has_explicit_workflow = mapped_node in explicit_sst_joiners
+                    
+                    if not existing_transfer and not has_explicit_workflow:
+                        # Try to find the donor (usually the PRIMARY node)
+                        for other_node, other_state in current_node_states.items():
+                            if other_node != mapped_node and other_state in ['PRIMARY', 'SYNCED']:
+                                new_state.add_transfer('SST', mapped_node, other_node, 'in_progress', 'rsync')
+                                print(f"DEBUG: Adding automatic SST transfer: {mapped_node} ← {other_node} (in_progress, no explicit workflow)")
+                                break
+                    else:
+                        if has_explicit_workflow:
+                            print(f"DEBUG: Skipping automatic transfer for {mapped_node}, has explicit SST workflow")
+                        else:
+                            print(f"DEBUG: Skipping automatic transfer for {mapped_node}, existing transfer found")
                 elif from_state == 'JOINER' and to_state in ['SYNCED', 'PRIMARY']:
                     new_state.nodes[mapped_node]['sst_status'] = None
             
@@ -370,41 +445,110 @@ class WebClusterVisualizer:
                 joiner_node = joiner
                 donor_node = donor
                 
-                # Map to the NODE_ prefixed versions used in current_node_states
-                mapped_joiner = f"NODE_{joiner_node}" if joiner_node else None
-                mapped_donor = f"NODE_{donor_node}" if donor_node else None
+                # The node names from SST workflows already have NODE_ prefix, no need to add another
+                mapped_joiner = joiner_node
+                mapped_donor = donor_node
                 
                 if mapped_joiner and mapped_joiner in current_node_states:
+                    # Remove any existing automatic transfers for this joiner from ALL previous states
+                    for i, state in enumerate(self.states):
+                        old_count = len(state.transfers)
+                        state.transfers = [t for t in state.transfers if t.get('joiner') != joiner_node]
+                        if len(state.transfers) < old_count:
+                            print(f"DEBUG: Cleaned conflicting transfers for {joiner_node} from frame {i}")
+                    
+                    # Remove any existing automatic transfers for this joiner to avoid conflicts
+                    new_state.transfers = [t for t in new_state.transfers if t.get('joiner') != joiner_node]
+                    print(f"DEBUG: Removed any existing transfers for joiner {joiner_node}")
+                    
                     if status == 'requested':
+                        new_state.add_transfer('SST', joiner_node, donor_node or 'unknown', 'requested', method)
+                        print(f"DEBUG: Adding SST transfer: {joiner_node} ← {donor_node} (method: {method}, status: requested)")
+                        # Also add to previous state to show the arrow during the transition
+                        if len(self.states) > 0:
+                            # Remove conflicting transfers from previous state too
+                            self.states[-1].transfers = [t for t in self.states[-1].transfers if t.get('joiner') != joiner_node]
+                            self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'requested', method)
+                            print(f"DEBUG: Also added to previous state (frame {len(self.states)-1})")
                         new_state.events.append(f"SST requested: {joiner_node} requesting from {donor_node or 'cluster'}")
                     elif status == 'started':
+                        # Only update the joiner node in this frame - donor will be updated in subsequent frame
                         current_node_states[mapped_joiner] = 'JOINER'
                         new_state.nodes[mapped_joiner]['state'] = 'JOINER'
                         new_state.nodes[mapped_joiner]['sst_status'] = 'receiving'
                         
-                        if mapped_donor and mapped_donor in current_node_states:
-                            current_node_states[mapped_donor] = 'DONOR'
-                            new_state.nodes[mapped_donor]['state'] = 'DONOR'
-                            new_state.nodes[mapped_donor]['sst_status'] = 'sending'
-                        
                         new_state.add_transfer('SST', joiner_node, donor_node or 'unknown', 'started', method)
+                        print(f"DEBUG: Adding SST transfer: {joiner_node} ← {donor_node} (method: {method})")
                         # Also add to previous state to show the arrow during the transition
                         if len(self.states) > 0:
+                            # Remove conflicting transfers from previous state too
+                            self.states[-1].transfers = [t for t in self.states[-1].transfers if t.get('joiner') != joiner_node]
                             self.states[-1].add_transfer('SST', joiner_node, donor_node or 'unknown', 'started', method)
+                            print(f"DEBUG: Also added to previous state (frame {len(self.states)-1})")
                         new_state.events.append(f"SST started: {joiner_node} ← {donor_node or 'unknown'} ({method})")
+                        
+                        # Create a separate frame for donor state change if donor exists
+                        if mapped_donor and mapped_donor in current_node_states:
+                            # Append this frame first
+                            self.states.append(new_state)
+                            state_id += 1
+                            
+                            # Create new frame for donor state change
+                            donor_state = ClusterState(event['timestamp'], state_id)
+                            
+                            # Copy all current states to the donor frame
+                            for node_name in active_nodes_now:
+                                if node_name in current_node_states:
+                                    donor_state.add_node(node_name, current_node_states[node_name])
+                            
+                            # Update only the donor node in this separate frame
+                            current_node_states[mapped_donor] = 'DONOR'
+                            if mapped_donor in donor_state.nodes:
+                                donor_state.nodes[mapped_donor]['state'] = 'DONOR'
+                                donor_state.nodes[mapped_donor]['sst_status'] = 'sending'
+                            
+                            # Copy transfer from previous frame
+                            for transfer in new_state.transfers:
+                                donor_state.transfers.append(transfer.copy())
+                            
+                            donor_state.events.append(f"SST donor selected: {mapped_donor} becomes DONOR")
+                            
+                            # This becomes the new_state to be appended at the end
+                            new_state = donor_state
                     
                     elif status == 'completed':
+                        # Only update the joiner node in this frame - donor will be updated in subsequent frame
                         if mapped_joiner in current_node_states:
                             current_node_states[mapped_joiner] = 'SYNCED'
                             new_state.nodes[mapped_joiner]['state'] = 'SYNCED'
                             new_state.nodes[mapped_joiner]['sst_status'] = None
                         
-                        if mapped_donor and mapped_donor in current_node_states:
-                            current_node_states[mapped_donor] = 'SYNCED'
-                            new_state.nodes[mapped_donor]['state'] = 'SYNCED'
-                            new_state.nodes[mapped_donor]['sst_status'] = None
-                        
                         new_state.events.append(f"SST completed: {joiner_node} now synchronized")
+                        
+                        # Create a separate frame for donor state change if donor exists
+                        if mapped_donor and mapped_donor in current_node_states:
+                            # Append this frame first
+                            self.states.append(new_state)
+                            state_id += 1
+                            
+                            # Create new frame for donor state change
+                            donor_state = ClusterState(event['timestamp'], state_id)
+                            
+                            # Copy all current states to the donor frame
+                            for node_name in active_nodes_now:
+                                if node_name in current_node_states:
+                                    donor_state.add_node(node_name, current_node_states[node_name])
+                            
+                            # Update only the donor node in this separate frame
+                            current_node_states[mapped_donor] = 'SYNCED'
+                            if mapped_donor in donor_state.nodes:
+                                donor_state.nodes[mapped_donor]['state'] = 'SYNCED'
+                                donor_state.nodes[mapped_donor]['sst_status'] = None
+                            
+                            donor_state.events.append(f"SST donor complete: {mapped_donor} returns to SYNCED")
+                            
+                            # This becomes the new_state to be appended at the end
+                            new_state = donor_state
                     
                     elif status == 'failed':
                         if mapped_joiner in current_node_states:
@@ -668,19 +812,21 @@ class WebClusterVisualizer:
             
             # Color based on state - consistent with status display
             color_map = {
-                # Node sync states (established cluster members)
+                # Established cluster members (can process transactions)
                 'SYNCED': 'green',
+                'JOINED': 'green', 
+                # Helping cluster (SST operations)
                 'DONOR': 'blue', 
                 'DONOR/DESYNCED': 'blue',
-                'JOINED': 'darkorange',
-                'CONNECTED': 'lightblue',
-                'PRIMARY': 'darkgreen',
+                # Not part of cluster (No Flow Control)
+                'PRIMARY': 'lightcoral',
+                'OPEN': 'lightcoral',
                 'NON_PRIMARY': 'lightcoral',
-                # Uncertain/transitional states
+                # Transitional states (Write-set Caching)
                 'JOINER': 'orange',
                 'JOINING': 'orange', 
                 'DESYNCED': 'orange',
-                'OPEN': 'lightcoral',
+                'CONNECTED': 'lightblue',
                 'CLOSED': 'gray',
                 # Unknown/problematic
                 'UNKNOWN': 'lightgray'
@@ -740,13 +886,16 @@ class WebClusterVisualizer:
         ))
         
         # Add transfer arrows
-        for transfer in state.transfers:
+        print(f"DEBUG: Frame {state.frame_id} has {len(state.transfers)} transfers")
+        for i, transfer in enumerate(state.transfers):
             joiner = transfer.get('joiner')
             donor = transfer.get('donor')
+            status = transfer.get('status')
+            print(f"DEBUG: Transfer {i}: {joiner} ← {donor} (status: {status})")
             
-            # Map transfer node names to NODE_ prefixed versions for position lookup
-            mapped_joiner = f"NODE_{joiner}" if joiner else None
-            mapped_donor = f"NODE_{donor}" if donor else None
+            # Use transfer node names directly (they already have NODE_ prefix)
+            mapped_joiner = joiner
+            mapped_donor = donor
             
             if mapped_joiner in positions and mapped_donor in positions:
                 x1, y1 = positions[mapped_donor]
@@ -755,6 +904,7 @@ class WebClusterVisualizer:
                 # Arrow color based on transfer status
                 status = transfer.get('status', 'unknown')
                 arrow_color = {
+                    'requested': 'purple',
                     'started': 'orange',
                     'completed': 'green',
                     'failed': 'red'
@@ -870,25 +1020,6 @@ class WebClusterVisualizer:
                             style={'width': '80px', 'display': 'inline-block'}
                         )
                     ], style={'textAlign': 'center', 'padding': '10px'}),
-                    
-                    # Export controls
-                    html.Div([
-                        html.Label("Export Options:", style={'fontWeight': 'bold', 'marginBottom': '10px'}),
-                        html.Div([
-                            html.Button('📷 PNG', id='export-png-btn', n_clicks=0, 
-                                       style={'margin': '5px', 'backgroundColor': '#3498db', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
-                                       title='Export current frame as PNG'),
-                            html.Button('🎨 SVG', id='export-svg-btn', n_clicks=0, 
-                                       style={'margin': '5px', 'backgroundColor': '#9b59b6', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
-                                       title='Export current frame as SVG'),
-                            html.Button('📄 PDF', id='export-pdf-btn', n_clicks=0, 
-                                       style={'margin': '5px', 'backgroundColor': '#e74c3c', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
-                                       title='Export current frame as PDF'),
-                            html.Button('🎥 GIF', id='export-gif-btn', n_clicks=0, 
-                                       style={'margin': '5px', 'backgroundColor': '#f39c12', 'color': 'white', 'border': 'none', 'padding': '8px 12px'}, 
-                                       title='Export timeline as animated GIF')
-                        ], style={'textAlign': 'center'})
-                    ], style={'padding': '10px', 'backgroundColor': '#f8f9fa', 'border': '1px solid #dee2e6', 'borderRadius': '5px', 'margin': '10px'})
                     
                 ], style={'width': '60%', 'display': 'inline-block', 'verticalAlign': 'top'}),
                 
@@ -1128,18 +1259,21 @@ class WebClusterVisualizer:
             
             # Add individual node states
             color_map = {
-                # Node sync states (established cluster members)
+                # Established cluster members (can process transactions)
                 'SYNCED': 'green',
+                'JOINED': 'green', 
+                # Helping cluster (SST operations)
                 'DONOR': 'blue', 
                 'DONOR/DESYNCED': 'blue',
-                'JOINED': 'darkorange',
-                'CONNECTED': 'lightblue',
-                'PRIMARY': 'darkgreen',
+                # Not part of cluster (No Flow Control)
+                'PRIMARY': 'lightcoral',
+                'OPEN': 'lightcoral',
                 'NON_PRIMARY': 'lightcoral',
-                # Uncertain/transitional states
+                # Transitional states (Write-set Caching)
                 'JOINER': 'orange',
                 'JOINING': 'orange', 
                 'DESYNCED': 'orange',
+                'CONNECTED': 'lightblue',
                 'OPEN': 'lightcoral',
                 'CLOSED': 'gray',
                 # Unknown/problematic
@@ -1249,61 +1383,32 @@ class WebClusterVisualizer:
         def update_auto_play(play_state, speed):
             disabled = play_state == 'paused'
             return disabled, speed
-        
-        # Export callbacks
-        @self.app.callback(
-            Output('cluster-network', 'figure', allow_duplicate=True),
-            [Input('export-png-btn', 'n_clicks'),
-             Input('export-svg-btn', 'n_clicks'),
-             Input('export-pdf-btn', 'n_clicks')],
-            [State('cluster-network', 'figure'),
-             State('timeline-slider', 'value')],
-            prevent_initial_call=True
-        )
-        def handle_exports(png_clicks, svg_clicks, pdf_clicks, current_figure, frame_index):
-            """Handle export button clicks"""
-            ctx = dash.callback_context
-            if not ctx.triggered:
-                raise dash.exceptions.PreventUpdate
-            
-            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-            
-            if button_id == 'export-png-btn' and png_clicks:
-                # Configure for PNG export
-                current_figure['layout']['width'] = 1200
-                current_figure['layout']['height'] = 800
-                current_figure['layout']['title']['text'] = f"Cluster State - Frame {frame_index + 1}"
-                
-            elif button_id == 'export-svg-btn' and svg_clicks:
-                # Configure for SVG export  
-                current_figure['layout']['width'] = 1200
-                current_figure['layout']['height'] = 800
-                current_figure['layout']['title']['text'] = f"Cluster State - Frame {frame_index + 1}"
-                
-            elif button_id == 'export-pdf-btn' and pdf_clicks:
-                # Configure for PDF export
-                current_figure['layout']['width'] = 1200
-                current_figure['layout']['height'] = 800  
-                current_figure['layout']['title']['text'] = f"Cluster State - Frame {frame_index + 1}"
-            
-            return current_figure
 
-        @self.app.callback(
-            [Output('state-transfer-log', 'children', allow_duplicate=True),
-             Output('service-log', 'children', allow_duplicate=True),
-             Output('warnings-errors-log', 'children', allow_duplicate=True)],
-            [Input('export-gif-btn', 'n_clicks')],
-            prevent_initial_call=True
+        # Add clientside callback for keyboard navigation
+        self.app.clientside_callback(
+            """
+            function(id) {
+                document.addEventListener('keydown', function(event) {
+                    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                        return; // Don't handle keyboard events when typing in inputs
+                    }
+                    
+                    if (event.key === 'ArrowLeft') {
+                        // Trigger previous button click
+                        document.getElementById('prev-btn').click();
+                        event.preventDefault();
+                    } else if (event.key === 'ArrowRight') {
+                        // Trigger next button click  
+                        document.getElementById('next-btn').click();
+                        event.preventDefault();
+                    }
+                });
+                return window.dash_clientside.no_update;
+            }
+            """,
+            Output('keyboard-store', 'data'),
+            Input('keyboard-listener', 'id')
         )
-        def handle_gif_export(gif_clicks):
-            """Handle GIF export - show progress message"""
-            if gif_clicks:
-                progress_msg = html.Div([
-                    html.P("🎬 Generating GIF animation...", style={'color': '#3498db', 'fontWeight': 'bold'}),
-                    html.P("This may take a few moments...", style={'color': '#7f8c8d'})
-                ])
-                return progress_msg, progress_msg, progress_msg
-            return dash.no_update, dash.no_update, dash.no_update
     
     def run(self, debug: bool = False, open_browser: bool = True):
         """Run the web application"""
