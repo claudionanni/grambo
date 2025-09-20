@@ -578,6 +578,51 @@ source grambo-env/bin/activate
 pip install dash plotly pandas networkx
 ```
 
+## 🚨 Troubleshooting
+
+### Node Name Conflicts
+
+If you see warnings like `⚠️ WARNING: Duplicate node name detected!` or notice:
+- Web UI shows fewer nodes than expected (e.g., "🧭 Nodes: 1" instead of "🧭 Nodes: 2")
+- Nodes appear overlapped in visualization
+- Missing SST transfer arrows
+
+This happens when multiple log files incorrectly identify themselves as the same node.
+
+**Quick Fix:**
+```bash
+# Check for conflicts first
+python3 check-node-mapping.py node1.json node2.json
+
+# Use explicit node mapping if conflicts detected
+python3 grambo-cluster.py \
+  --node actual-node-01:node1.json \
+  --node actual-node-02:node2.json \
+  --format=json > cluster-analysis.json
+```
+
+**Why This Happens:**
+- Log files from different nodes may contain ambiguous node identification
+- Centralized log collection can lose original node context
+- Missing or incorrect `wsrep_node_name` configuration
+- Multi-perspective logging where same events appear in multiple node logs
+
+**Detailed Guide:** See [TROUBLESHOOTING_NODE_DETECTION.md](TROUBLESHOOTING_NODE_DETECTION.md) for comprehensive explanation and solutions.
+
+### Diagnostic Tools
+
+**Node Mapping Checker:**
+```bash
+python3 check-node-mapping.py *.json
+# Automatically detects conflicts and suggests fixes
+```
+
+**Silent Operation:**
+```bash
+# Suppress all warnings for automated scripts
+python3 grambo-cluster.py --format=json --quiet file1.json file2.json > output.json
+```
+
 ## Development
 
 The code is organized into clear classes and functions:

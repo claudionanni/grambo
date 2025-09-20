@@ -896,6 +896,9 @@ class GaleraLogAnalyzer:
             second = ts_match.group(4)
             self.current_timestamp = f"{date_part} {hour:02d}:{minute}:{second}"
         # Early local node detection from state transfer request lines
+        # NOTE: This detection can be ambiguous in multi-node scenarios where
+        # logs contain references to multiple nodes. See TROUBLESHOOTING_NODE_DETECTION.md
+        # for details on when automatic detection fails and manual mapping is needed.
         if not self.cluster.local_node_name and 'requested state transfer' in line:
             m_local = re.search(r'Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested state transfer', line)
             if m_local:

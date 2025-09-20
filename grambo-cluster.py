@@ -80,10 +80,17 @@ class GramboClusterAnalyzer:
         self.cluster_views: List[ClusterView] = []
         self.state_transitions: List[StateTransition] = []
         
-    def log(self, message: str) -> None:
-        """Log message unless in quiet mode"""
-        if not self.quiet:
-            print(message)
+    def log(self, message: str, level: str = 'info') -> None:
+        """Log message to stderr with different levels"""
+        if level == 'warning':
+            # Always show warnings unless explicitly suppressed with --quiet
+            if not self.quiet:
+                print(message, file=sys.stderr)
+        elif level == 'info':
+            # Show info messages based on format and quiet flag
+            if self.output_format == 'text' and not self.quiet:
+                print(message, file=sys.stderr)
+            # In JSON mode, suppress info messages unless --verbose is added later
     
     def load_node_data(self, file_path: str, node_name: Optional[str] = None) -> None:
         """Load gramboo JSON output for a node"""
@@ -106,6 +113,13 @@ class GramboClusterAnalyzer:
             # Ensure node_name is not None
             if not node_name:
                 node_name = "unknown_node"
+            
+            # Check for potential duplicate node names
+            existing_names = [n.name for n in self.nodes]
+            if node_name in existing_names:
+                self.log(f"⚠️  WARNING: Duplicate node name '{node_name}' detected!", 'warning')
+                self.log(f"   This might cause visualization issues (overlapping nodes, missing arrows)", 'warning')
+                self.log(f"   Consider using explicit mapping: --node actual_name:{file_path}", 'warning')
                 
             self.nodes.append(NodeData(node_name, file_path, data))
             self.log(f"✓ Loaded {node_name} from {file_path}")
@@ -578,6 +592,13 @@ Examples:
   %(prog)s --node-names db1,db2,db3 file1.json file2.json file3.json
   %(prog)s --node db1:db1.json --node db2:db2.json
   %(prog)s --format=json cluster-logs/*.json
+
+Node Name Conflicts:
+  If you see "WARNING: Duplicate node name detected!", use explicit mapping:
+  %(prog)s --node actual-name-1:file1.json --node actual-name-2:file2.json
+  
+  Check for conflicts first:
+  python3 check-node-mapping.py file1.json file2.json
         """
     )
     
@@ -593,6 +614,9 @@ Examples:
     parser.add_argument('--node', action='append', dest='node_mappings',
                        help='Node mapping in format name:file.json (can be used multiple times)')
     
+    parser.add_argument('--quiet', action='store_true',
+                       help='Suppress all warnings and progress messages')
+    
     return parser.parse_args()
 
 def main():
@@ -603,7 +627,7 @@ def main():
         print("Error: No input files specified", file=sys.stderr)
         sys.exit(1)
     
-    analyzer = GramboClusterAnalyzer(output_format=args.format, quiet=(args.format == 'json'))
+    analyzer = GramboClusterAnalyzer(output_format=args.format, quiet=args.quiet)
     
     # Handle explicit node mappings
     if args.node_mappings:

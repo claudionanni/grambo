@@ -615,8 +615,12 @@ class WebClusterVisualizer:
             else:  # excluded
                 radius = 2.4
                 
+            # Ensure minimum spacing between nodes by using at least 3 positions
+            # This prevents overlapping when there are only 2 nodes
+            min_positions = max(3, len(all_possible_nodes))
+            
             # Use global index to determine angle to maintain consistency across frames
-            angle = 2 * math.pi * global_index / max(len(all_possible_nodes), 1)
+            angle = 2 * math.pi * global_index / min_positions
             
             x = radius * math.cos(angle)
             y = radius * math.sin(angle)
