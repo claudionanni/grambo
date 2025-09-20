@@ -798,13 +798,22 @@ class WebClusterVisualizer:
     def setup_layout(self):
         """Setup the Dash app layout"""
         self.app.layout = html.Div([
+            # Keyboard event handler (invisible)
+            html.Div(id='keyboard-listener', 
+                    style={'position': 'absolute', 'top': 0, 'left': 0, 'width': '100%', 'height': '100%', 'zIndex': -1},
+                    tabIndex='0'),  # Makes div focusable for keyboard events
+            dcc.Store(id='keyboard-store'),
+            
             # Header
             html.Div([
                 html.H1("🎬 Grambo Cluster Visualizer", 
                        style={'margin': '0', 'color': '#2c3e50'}),
                 html.P(f"Interactive visualization of {len(self.states)} cluster states",
-                       style={'margin': '5px 0', 'color': '#7f8c8d'})
-            ], style={'textAlign': 'center', 'padding': '20px', 'backgroundColor': '#ecf0f1'}),
+                       style={'margin': '5px 0', 'color': '#7f8c8d'}),
+                html.P("💡 Use ← → arrow keys or buttons to navigate frames",
+                       style={'margin': '2px 0', 'color': '#95a5a6', 'fontSize': '14px'})
+            ], style={'textAlign': 'center', 'padding': '20px', 'backgroundColor': '#ecf0f1'})
+            ,
             
             # Main content
             html.Div([
@@ -1137,41 +1146,46 @@ class WebClusterVisualizer:
                 'UNKNOWN': 'lightgray'
             }
             
-            # Separate established vs uncertain nodes in display using dynamic analysis
-            established_nodes = []
-            uncertain_nodes = []
+            # Separate nodes into primary group vs non-synchronized using refined criteria
+            established_nodes = []  # SYNCED, DONOR, DONOR/DESYNCED, JOINED - Primary Group
+            transitional_nodes = []  # All other states - Non-Synchronized Nodes
             
             for node_name, node_data in state.nodes.items():
                 node_state = node_data['state']
-                # Use the same uncertainty logic as the network graph
-                if self.is_node_uncertain(node_name, node_state, state.timestamp):
-                    uncertain_nodes.append((node_name, node_state))
-                else:
+                # Primary segment members: fully synchronized and operational
+                if node_state in ['SYNCED', 'DONOR', 'DONOR/DESYNCED', 'JOINED']:
                     established_nodes.append((node_name, node_state))
+                else:
+                    # All other states are transitional/not fully synchronized
+                    transitional_nodes.append((node_name, node_state))
             
-            # Display established cluster members first
+            # Display cluster members with two subsections
+            if established_nodes or transitional_nodes:
+                details.append(html.P("👥 CLUSTER MEMBERS", style={'margin': '12px 0 6px 0', 'fontWeight': 'bold', 'fontSize': '16px', 'color': '#333'}))
+            
+            # Display primary group first
             if established_nodes:
-                details.append(html.P("🔗 Cluster Members:", style={'margin': '8px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px'}))
-                # Sort cluster members alphabetically for consistent display
+                details.append(html.P("🔗 Primary Group:", style={'margin': '6px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px', 'marginLeft': '10px'}))
+                # Sort primary group members alphabetically for consistent display
                 for node_name, node_state in sorted(established_nodes, key=lambda x: x[0]):
                     # Use dynamic node name mapping
                     display_name = self.node_name_mapping.get(node_name, node_name)
                     color = color_map.get(node_state, 'gray')
                     details.append(
                         html.P(f"  {display_name}: {node_state}", 
-                              style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '10px'})
+                              style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '20px'})
                     )
             
-            # Display uncertain/joining nodes separately  
-            if uncertain_nodes:
-                details.append(html.P("⚠️ Uncertain Nodes:", style={'margin': '8px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px', 'color': 'orange'}))
-                for node_name, node_state in uncertain_nodes:
+            # Display non-synchronized nodes as second subsection
+            if transitional_nodes:
+                details.append(html.P("⚠️ Non-Synchronized Nodes:", style={'margin': '6px 0 2px 0', 'fontWeight': 'bold', 'fontSize': '15px', 'color': 'orange', 'marginLeft': '10px'}))
+                for node_name, node_state in transitional_nodes:
                     # Use dynamic node name mapping
                     display_name = self.node_name_mapping.get(node_name, node_name)
                     color = color_map.get(node_state, 'gray')
                     details.append(
-                        html.P(f"  {display_name}: {node_state} (not fully joined)", 
-                              style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '10px', 'fontStyle': 'italic'})
+                        html.P(f"  {display_name}: {node_state}", 
+                              style={'margin': '2px 0', 'fontSize': '14px', 'color': color, 'marginLeft': '20px', 'fontStyle': 'italic'})
                     )
             
             if state.transfers:

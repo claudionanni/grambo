@@ -217,7 +217,7 @@ class GramboClusterAnalyzer:
                     self.cluster_events.append(cluster_event)
             
             # Fallback: Extract from st_workflows (legacy format)
-            st_workflows = node_data.get('st_workflows', [])
+            st_workflows = node_data.get('st_workflows') or []
             for workflow in st_workflows:
                 # SST Request Event
                 if 'requested_at' in workflow:
@@ -259,7 +259,7 @@ class GramboClusterAnalyzer:
             cluster_info = node_data.get('cluster_info', {})
             if 'current_view' in cluster_info:
                 current_view = cluster_info['current_view']
-                if 'timestamp' in current_view:
+                if current_view and 'timestamp' in current_view:
                     timestamp = self.parse_timestamp(current_view['timestamp'])
                     if timestamp:
                         members = set()

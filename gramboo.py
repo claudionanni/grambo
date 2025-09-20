@@ -13,6 +13,7 @@ import sys
 import re
 import argparse
 import json
+import copy
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass, asdict, field
@@ -26,9 +27,21 @@ class DialectRegistry:
     """
     
     def __init__(self):
+        # Build the base pattern set first
+        default_patterns = self._build_default_patterns()
+        
         self.dialects: Dict[str, Dict[str, Dict[str, Any]]] = {
-            'default': self._build_default_patterns()
+            'default': default_patterns,
+            # Initialize all known dialects with default patterns
+            'mariadb-10.6-community': copy.deepcopy(default_patterns),
+            'mariadb-10.6-enterprise': copy.deepcopy(default_patterns),
+            'mariadb-11.4-community': copy.deepcopy(default_patterns),
+            'mariadb-11.4-enterprise': copy.deepcopy(default_patterns),
         }
+        
+        # Apply dialect-specific customizations
+        self._customize_dialect_patterns()
+        
         # Pattern resolution cache for performance
         self._pattern_cache: Dict[str, Any] = {}
     
@@ -170,7 +183,7 @@ class DialectRegistry:
                 'timestamp': re.compile(r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', re.IGNORECASE),
                 'dialect_detection_pxc': re.compile(r'PXC|Percona XtraDB Cluster', re.IGNORECASE),
                 'dialect_detection_galera': re.compile(r'Galera\s+26\.', re.IGNORECASE),
-                'dialect_detection_mariadb': re.compile(r'Maria(DB)?\s+10\.', re.IGNORECASE),
+                'dialect_detection_mariadb': re.compile(r'Maria(DB)?\s+(10|11)\.', re.IGNORECASE),
                 'dialect_detection_wsrep': re.compile(r'WSREP', re.IGNORECASE),
             },
             
@@ -261,6 +274,19 @@ class DialectRegistry:
         # Clear cache
         cache_key = f"{dialect}:{category}"
         self._pattern_cache.pop(cache_key, None)
+    
+    def _customize_dialect_patterns(self):
+        """Apply dialect-specific pattern customizations"""
+        # MariaDB 11.4 specific customizations
+        # The fix for SST method correlation is already applied in the base patterns
+        # via the sst_starts enhancement, so these dialects inherit the fix
+        
+        # Future customizations can be added here, for example:
+        # self.update_pattern('mariadb-11.4-enterprise', 'sst_patterns', 'some_pattern', 
+        #                    re.compile(r'MariaDB 11.4 specific pattern'))
+        
+        # For now, all dialects use the enhanced default patterns
+        pass
 
 class EventType(Enum):
     SERVER_INFO = "server_info"
@@ -542,6 +568,9 @@ class GaleraLogAnalyzer:
         self.line_number = 0
         self.dialect = dialect  # 'auto' | 'galera-26' | 'mariadb-10' | 'pxc-8' | 'unknown'
         self.report_unknown = report_unknown
+        self.mariadb_version = mariadb_version
+        self.mariadb_edition = mariadb_edition
+        self.galera_version = galera_version
         self._unknown_lines: List[str] = []
         
         # Initialize dialect registry
@@ -558,6 +587,10 @@ class GaleraLogAnalyzer:
         # self.dialect_registry.update_pattern('pxc-8.0', 'ist', 'complete_pattern',
         #     r'.*IST process completed successfully.*')
         
+        # Add MariaDB 11.x dialect for enhanced SST handling
+        self.dialect_registry.add_dialect_variant('mariadb-11')
+        # MariaDB 11.x uses 'Initiating SST/IST transfer' pattern more prominently
+        # The default patterns already handle this, but we ensure proper method correlation
         # Software/version info discovered while parsing
         self.software: Dict[str, Optional[str]] = {
             'mariadb_version': None,          # e.g., 10.6.16 or 11.4.7-4
@@ -665,7 +698,7 @@ class GaleraLogAnalyzer:
         """Parse log lines and build complete cluster state"""
         # Auto-detect dialect from the first ~200 lines if needed
         if self.dialect == 'auto':
-            self.dialect = self._detect_dialect(log_lines[:200])
+            self.dialect = self._detect_dialect(log_lines[:200], self.mariadb_version, self.mariadb_edition)
         for line in log_lines:
             self.line_number += 1
             self._parse_line(line)
@@ -871,18 +904,46 @@ class GaleraLogAnalyzer:
         if composite and composite not in self.cluster.uuid_aliases:
             self.cluster.uuid_aliases[composite] = full_uuid
 
-    def _detect_dialect(self, lines: List[str]) -> str:
+    def _detect_dialect(self, lines: List[str], mariadb_version: Optional[str] = None, mariadb_edition: Optional[str] = None) -> str:
+        """Detect dialect based on log content and optional command line hints"""
+        # If explicit version/edition provided, use them directly
+        if mariadb_version and mariadb_edition:
+            return self._resolve_explicit_dialect(mariadb_version, mariadb_edition)
+        
+        # Auto-detect from log content
         text = "\n".join(lines)
-        # Simple heuristics; extend as needed
+        
+        # Enhanced heuristics with version-specific detection
         if re.search(r'PXC|Percona XtraDB Cluster', text, re.IGNORECASE):
             return 'pxc-8'
         if re.search(r'Galera\s+26\.', text, re.IGNORECASE):
             return 'galera-26'
-        if re.search(r'Maria(DB)?\s+10\.', text, re.IGNORECASE):
-            return 'mariadb-10'
+            
+        # Enhanced MariaDB detection for 10.x and 11.x
+        mariadb_match = re.search(r'Maria(DB)?\s+(10|11)\.(\d+)', text, re.IGNORECASE)
+        if mariadb_match:
+            major = mariadb_match.group(2)
+            minor = mariadb_match.group(3)
+            # Try to detect edition from log content
+            edition = 'enterprise' if re.search(r'enterprise', text, re.IGNORECASE) else 'community'
+            return f'mariadb-{major}.{minor}-{edition}'
+            
         if re.search(r'WSREP', text):
             return 'galera'
         return 'unknown'
+    
+    def _resolve_explicit_dialect(self, mariadb_version: str, mariadb_edition: str) -> str:
+        """Resolve dialect from explicit version and edition"""
+        # Extract major.minor from version string (e.g., "10.6.16" -> "10.6")
+        version_match = re.match(r'^(\d+)\.(\d+)', mariadb_version)
+        if version_match:
+            major = version_match.group(1)
+            minor = version_match.group(2)
+            dialect = f'mariadb-{major}.{minor}-{mariadb_edition}'
+            # Fall back to default if specific dialect not available
+            if dialect in self.dialect_registry.dialects:
+                return dialect
+        return 'default'
     
     def _parse_line(self, line: str) -> None:
         """Parse a single log line and extract all relevant information"""
@@ -4030,7 +4091,7 @@ def output_text(analyzer: GaleraLogAnalyzer) -> str:
             lines.append("\n💾 STATE SNAPSHOT TRANSFER (SST)")
             lines.append("-" * 50)
             sst_requests = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_requested']
-            sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_started']
+            sst_starts = [e for e in sst_events if e.metadata and e.metadata.get('subtype') in ('sst_started', 'sst_initiated')]
             sst_failures = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_failed']
             sst_completions = [e for e in sst_events if e.metadata and e.metadata.get('subtype') == 'sst_completed']
 
