@@ -170,15 +170,16 @@ class WebClusterVisualizer:
                 if i < len(sorted_galera_nodes):
                     node_name_mapping[file_node] = sorted_galera_nodes[i]
         
-        # If mapping is incomplete, use file node ID as fallback with prefix
+        # If mapping is incomplete, use file node ID as fallback without prefix
         for file_node in file_node_ids:
             if file_node not in node_name_mapping:
-                # Check if it looks like a galera node already
+                # Use clean node ID without prefix
                 if file_node.startswith('NODE_'):
-                    node_name_mapping[file_node] = file_node
+                    # Remove NODE_ prefix if it exists
+                    node_name_mapping[file_node] = file_node[5:]  # Remove 'NODE_' prefix
                 else:
-                    # Use a more descriptive fallback
-                    node_name_mapping[file_node] = f"NODE_{file_node}"
+                    # Use file node ID directly
+                    node_name_mapping[file_node] = file_node
         
         # Store the mapping for use in display
         self.node_name_mapping = node_name_mapping
@@ -416,16 +417,28 @@ class WebClusterVisualizer:
                     new_state.nodes[mapped_node]['sst_status'] = 'receiving'
                     # Only add automatic transfer if no explicit SST workflow transfer exists for this joiner
                     # AND the joiner is not in the explicit SST workflows list
+                    # AND there's actually a DONOR/DESYNCED node available
                     existing_transfer = any(t.get('joiner') == mapped_node for t in new_state.transfers)
                     has_explicit_workflow = mapped_node in explicit_sst_joiners
                     
                     if not existing_transfer and not has_explicit_workflow:
-                        # Try to find the donor (usually the PRIMARY node)
+                        # Try to find the donor (preferably DONOR/DESYNCED, otherwise PRIMARY/SYNCED)
+                        donor_found = False
+                        # First check for DONOR/DESYNCED nodes
                         for other_node, other_state in current_node_states.items():
-                            if other_node != mapped_node and other_state in ['PRIMARY', 'SYNCED']:
+                            if other_node != mapped_node and other_state == 'DONOR/DESYNCED':
                                 new_state.add_transfer('SST', mapped_node, other_node, 'in_progress', 'rsync')
-                                print(f"DEBUG: Adding automatic SST transfer: {mapped_node} ← {other_node} (in_progress, no explicit workflow)")
+                                print(f"DEBUG: Adding automatic SST transfer: {mapped_node} ← {other_node} (in_progress, DONOR/DESYNCED available)")
+                                donor_found = True
                                 break
+                        
+                        # Only fallback to PRIMARY/SYNCED if no DONOR/DESYNCED found
+                        if not donor_found:
+                            for other_node, other_state in current_node_states.items():
+                                if other_node != mapped_node and other_state in ['PRIMARY', 'SYNCED']:
+                                    # Don't add automatic transfer yet - wait for DONOR/DESYNCED state
+                                    print(f"DEBUG: JOINER {mapped_node} detected but no DONOR/DESYNCED node yet (only {other_node}:{other_state}), waiting...")
+                                    break
                     else:
                         if has_explicit_workflow:
                             print(f"DEBUG: Skipping automatic transfer for {mapped_node}, has explicit SST workflow")
@@ -437,16 +450,9 @@ class WebClusterVisualizer:
                 # Add special handling for DONOR/DESYNCED state (implies providing SST)
                 elif to_state == 'DONOR/DESYNCED':
                     new_state.nodes[mapped_node]['sst_status'] = 'donating'
-                    # Look for any JOINER nodes and create transfer arrows
-                    existing_transfer = any(t.get('donor') == mapped_node for t in new_state.transfers)
-                    has_explicit_workflow = mapped_node in explicit_sst_joiners
-                    
-                    if not existing_transfer and not has_explicit_workflow:
-                        for other_node, other_state in current_node_states.items():
-                            if other_node != mapped_node and other_state == 'JOINER':
-                                new_state.add_transfer('SST', other_node, mapped_node, 'in_progress', 'rsync')
-                                print(f"DEBUG: Adding automatic SST transfer for donor: {other_node} ← {mapped_node} (DONOR/DESYNCED → JOINER)")
-                                break
+                    # NOTE: Don't add automatic transfers here during transition processing
+                    # Let the post-frame analysis handle DONOR/DESYNCED ↔ JOINER detection
+                    # to ensure both states are properly established in the same frame
                 elif from_state == 'DONOR/DESYNCED' and to_state in ['SYNCED', 'JOINED']:
                     new_state.nodes[mapped_node]['sst_status'] = None
             
@@ -814,19 +820,34 @@ class WebClusterVisualizer:
                 global_index = hash(node_name) % len(all_possible_nodes)
             
             # Create different radius zones for different categories
+            # Increased radii for better spacing, especially with 2 nodes
             if category == 'established':
-                radius = 1.0
+                radius = 1.5  # Increased from 1.2
+                category_offset = 0  # No offset for established nodes
             elif category == 'uncertain':
-                radius = 1.6
+                radius = 2.2  # Increased from 1.8
+                category_offset = math.pi / 6  # 30° offset for uncertain nodes
             else:  # excluded
-                radius = 2.4
-                
-            # Ensure minimum spacing between nodes by using at least 3 positions
-            # This prevents overlapping when there are only 2 nodes
-            min_positions = max(3, len(all_possible_nodes))
+                radius = 3.0  # Increased from 2.6
+                category_offset = math.pi / 3  # 60° offset for excluded nodes
+            
+            # Ensure minimum spacing between nodes - use at least 4 positions for better spacing
+            # For 2 nodes, this places them 180° apart (opposite sides)
+            # For 3+ nodes, maintains good spacing around the circle
+            min_positions = max(4, len(all_possible_nodes))
+            
+            # For better visual distribution, add offset when there are few nodes
+            angle_offset = 0
+            if len(all_possible_nodes) == 2:
+                # Place 2 nodes on opposite sides (left and right)
+                angle_offset = math.pi / 2  # 90° offset so they're horizontal
+            elif len(all_possible_nodes) == 3:
+                # Place 3 nodes in a triangle with one at the top
+                angle_offset = -math.pi / 2  # Start from top
             
             # Use global index to determine angle to maintain consistency across frames
-            angle = 2 * math.pi * global_index / min_positions
+            # Add category offset to ensure nodes in different categories don't overlap
+            angle = (2 * math.pi * global_index / min_positions) + angle_offset + category_offset
             
             x = radius * math.cos(angle)
             y = radius * math.sin(angle)
@@ -935,7 +956,7 @@ class WebClusterVisualizer:
             x=node_x, y=node_y,
             mode='markers+text',
             marker=dict(
-                size=80,  # Reduced from 120 to 80 for better proportions
+                size=55,  # Increased from 40 to 55 for better visibility
                 color=node_colors,
                 line=dict(width=3, color='white')
             ),
@@ -992,7 +1013,7 @@ class WebClusterVisualizer:
         
         # Update layout with proper axis ranges to keep nodes within canvas
         # Calculate the maximum radius used for positioning
-        max_radius = 2.4  # Maximum radius used in excluded nodes
+        max_radius = 3.0  # Updated maximum radius used in excluded nodes
         canvas_margin = 0.5  # Extra margin to ensure nodes don't touch edges
         axis_range = max_radius + canvas_margin
         
