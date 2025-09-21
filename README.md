@@ -6,29 +6,29 @@ A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log fi
 
 Grambo consists of three complementary tools that work together:
 
-1. **`gramboo.py`** - Single-node log analysis (Python rewrite)
-2. **`grambo-cluster.py`** - Multi-node cluster correlation 
-3. **`grambo-web.py`** - Interactive web visualization
+1. **`gra`** - Single-node log analysis (main analysis tool)
+2. **`gras`** - Multi-node cluster correlation (grambo state)
+3. **`graw`** - Interactive web visualization (grambo web)
 
 ### 📊 Complete Analysis Workflow
 
 ```bash
 # Step 1: Analyze individual node logs
-python3 gramboo.py --format=json node1.log > node1.json
-python3 gramboo.py --format=json node2.log > node2.json  
-python3 gramboo.py --format=json node3.log > node3.json
+./gra --format=json node1.log > node1.json
+./gra --format=json node2.log > node2.json  
+./gra --format=json node3.log > node3.json
 
 # Step 2: Correlate cluster-wide events
-python3 grambo-cluster.py --format=json node1.json node2.json node3.json > cluster-analysis.json
+./gras --format=json node1.json node2.json node3.json > cluster-analysis.json
 
 # Step 3: Launch interactive web visualization
-python3 grambo-web.py cluster-analysis.json
+./graw cluster-analysis.json
 # Opens browser at http://127.0.0.1:8050
 ```
 
 ### 🌐 Web Visualization Features
 
-The new **grambo-web.py** provides an interactive dashboard with:
+The new **`graw`** provides an interactive dashboard with:
 
 - **📈 Timeline Navigation** - Scrub through cluster events chronologically
 - **🌐 Network Topology** - Visual cluster state with dynamic node positioning
@@ -119,6 +119,57 @@ This enables version-specific parsing improvements:
 - **🚀 Community-Friendly** - Simple contribution of dialect-specific patterns
 - **📈 Scalable** - Supports unlimited dialect variants
 
+### 🎯 **Enhanced Local Node Detection (Latest)**
+
+Grambo Python Edition now features **robust automatic local node detection** that eliminates the need for the `--node` parameter in most scenarios:
+
+#### **🔧 What's New**
+- **✅ UUID Format Handling** - Supports both long (`4bff9935-956b-11f0-9e34-beb439e24709`) and short (`4bff9935-9e34`) UUID formats
+- **✅ Node Restart Tracking** - Handles nodes that restart and get new UUIDs, maintaining UUID history
+- **✅ Reliable Server Connection Mapping** - Matches "My UUID" lines with "Server connected" events for deterministic name resolution
+- **✅ Fixed Processing Bug** - Corrected filter that was skipping server connection lines in `_parse_ip_evidence`
+- **✅ Smart Fallback** - Only requests `--node` parameter when automatic detection truly fails
+
+#### **🚀 Before vs After**
+
+**Before (Often Required):**
+```bash
+# Manual node specification often needed
+./gra --node vinfr-db-d-l05 /var/log/mysql/l05.log --format=json > l05.json
+./gras --node l05:l05.json --node d01:d01.json
+```
+
+**After (Automatic):**
+```bash
+# Auto-detection works reliably
+./gra /var/log/mysql/l05.log --format=json > l05.json
+./gras l05.json d01.json  # No --node needed!
+```
+
+#### **🧠 How It Works**
+
+1. **UUID Collection**: Tracks all UUIDs from "My UUID" declarations and server connection events
+2. **Format Conversion**: Automatically converts between long and short UUID formats for matching
+3. **Historical Tracking**: Maintains UUID history when nodes restart and get new identifiers  
+4. **Reliable Mapping**: Uses deterministic UUID→name mappings from server connection logs
+5. **Validation**: Only succeeds when reliable detection is possible, fails safely otherwise
+
+#### **🎯 When --node Is Still Needed**
+
+- **Severely truncated logs** lacking server connection information
+- **Custom naming requirements** (display names different from Galera node names)
+- **Very old logs** that predate reliable detection patterns
+- **Mixed log files** containing multiple node perspectives
+
+#### **💡 Benefits**
+
+- **🚀 Simplified Workflow** - No more guessing node names from log content
+- **📊 Better gras** - Automatic node detection cascades to cluster analysis
+- **🔧 Fewer Errors** - Eliminates manual node name typos and mismatches
+- **⚡ Faster Analysis** - Skip the trial-and-error of determining correct node names
+
+**📖 Detailed Technical Documentation**: See [CHANGELOG_NODE_DETECTION.md](CHANGELOG_NODE_DETECTION.md) for complete technical details, test cases, and migration guide.
+
 ## Installation
 
 ```bash
@@ -126,8 +177,8 @@ This enables version-specific parsing improvements:
 git clone https://github.com/claudionanni/grambo.git
 cd grambo
 
-# Make the Python scripts executable (optional)
-chmod +x gramboo.py grambo-cluster.py grambo-web.py
+# The tools are ready to use
+chmod +x gra gras graw
 
 # Install dependencies for web visualization (optional)
 pip install dash plotly pandas networkx
@@ -139,120 +190,122 @@ pip install dash plotly pandas networkx
 
 ```bash
 # 1. Analyze individual Galera node logs
-python3 gramboo.py --format=json /var/log/mysql/node1-error.log > node1.json
-python3 gramboo.py --format=json /var/log/mysql/node2-error.log > node2.json
-python3 gramboo.py --format=json /var/log/mysql/node3-error.log > node3.json
+./gra --format=json /var/log/mysql/node1-error.log > node1.json
+./gra --format=json /var/log/mysql/node2-error.log > node2.json
+./gra --format=json /var/log/mysql/node3-error.log > node3.json
 
 # 2. Generate cluster-wide analysis
-python3 grambo-cluster.py --format=json node1.json node2.json node3.json > cluster-analysis.json
+./gras --format=json node1.json node2.json node3.json > cluster-analysis.json
 
 # 3. Launch interactive web dashboard
-python3 grambo-web.py cluster-analysis.json
+./graw cluster-analysis.json
 # Visit http://127.0.0.1:8050 in your browser
 ```
 
 ### 📋 Tool-Specific Usage
 
-#### 1. Single-Node Analysis (`gramboo.py`)
+#### 1. Single-Node Analysis (`gra`)
 
 The --mariadb-version and --mariadb-edition parameters are there to keep the tool open to multiple intepretations of the logs which we have seen changing format along the years.
 
 ##### Analyze a log file (recommended: specify MariaDB version and edition)
 ```bash
-python3 gramboo.py --mariadb-version 11.4 --mariadb-edition enterprise /var/log/mysql/error.log
+./gra --mariadb-version 11.4 --mariadb-edition enterprise /var/log/mysql/error.log
 ```
 
 ##### For MariaDB Community edition
 ```bash
-python3 gramboo.py --mariadb-version 10.6 --mariadb-edition community /var/log/mysql/error.log
+./gra --mariadb-version 10.6 --mariadb-edition community /var/log/mysql/error.log
 ```
 
 ##### You can also use stdin
 ```bash
-cat /var/log/mysql/error.log | python3 gramboo.py --mariadb-version 11.4 --mariadb-edition enterprise
+cat /var/log/mysql/error.log | ./gra --mariadb-version 11.4 --mariadb-edition enterprise
 ```
 
 ##### Without the above parameters it'll try to get them from the log, if available
 ```bash
 # Analyze a log file
-python3 gramboo.py /var/log/mysql/error.log
+./gra /var/log/mysql/error.log
 
 # Using stdin
-cat /var/log/mysql/error.log | python3 gramboo.py
+cat /var/log/mysql/error.log | ./gra
 
 # Make it executable and use directly
-./gramboo.py /var/log/mysql/error.log
+./gra /var/log/mysql/error.log
 ```
 
-#### 2. Multi-Node Cluster Analysis (`grambo-cluster.py`)
+#### 2. Multi-Node Cluster Analysis (`gras`)
 
 ```bash
-# Basic cluster analysis
-python3 grambo-cluster.py node1.json node2.json node3.json
+# Basic cluster analysis (enhanced auto-detection often eliminates need for --node parameters)
+./gras node1.json node2.json node3.json
 
 # JSON output for web visualization
-python3 grambo-cluster.py --format=json node1.json node2.json node3.json > cluster.json
+./gras --format=json node1.json node2.json node3.json > cluster.json
 
-# With custom node names
-python3 grambo-cluster.py --node-names db1,db2,db3 node1.json node2.json node3.json
+# Manual node mapping (only needed when auto-detection fails)
+./gras --node-names db1,db2,db3 node1.json node2.json node3.json
 
 # Alternative syntax with explicit mapping
-python3 grambo-cluster.py --node db1:node1.json --node db2:node2.json --node db3:node3.json
+./gras --node db1:node1.json --node db2:node2.json --node db3:node3.json
 ```
 
-#### 3. Interactive Web Visualization (`grambo-web.py`)
+**💡 Note**: With the enhanced node detection in `gra`, explicit node mapping is now rarely needed. The cluster analyzer will automatically extract node names from the JSON files' `local_node_name` fields.
+
+#### 3. Interactive Web Visualization (`graw`)
 
 ```bash
 # Launch web dashboard (default port 8050)
-python3 grambo-web.py cluster-analysis.json
+./graw cluster-analysis.json
 
 # Custom port
-python3 grambo-web.py cluster-analysis.json --port 8051
+./graw cluster-analysis.json --port 8051
 
 # The dashboard will be available at http://127.0.0.1:PORT
 ```
 
 ### Advanced Options
 
-#### gramboo.py Options
+#### gra Options
 ```bash
 # JSON output for integration with other tools
-python3 gramboo.py --format=json error.log
+./gra --format=json error.log
 
 # Filter specific event types
-python3 gramboo.py --filter=sst_event,state_transition error.log
+./gra --filter=sst_event,state_transition error.log
 
 # Filter multiple types (comma-separated)
-python3 gramboo.py --filter=error,warning error.log
+./gra --filter=error,warning error.log
 
 # Combine options
-python3 gramboo.py --format=json --filter=cluster_view error.log
+./gra --format=json --filter=cluster_view error.log
 
 # Provide MariaDB / Galera version info explicitly (recommended if version lines missing)
-python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition=community error.log
-python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition=enterprise error.log
-python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 error.log
+./gra --mariadb-version 11.4.7 --mariadb-edition=community error.log
+./gra --mariadb-version 11.4.7 --mariadb-edition=enterprise error.log
+./gra --mariadb-version 10.6.16 --galera-version 26.4.23 error.log
 ```
 
-#### grambo-cluster.py Options
+#### gras Options
 ```bash
 # Quiet mode (minimal output)
-python3 grambo-cluster.py --quiet node1.json node2.json node3.json
+./gras --quiet node1.json node2.json node3.json
 
 # Time range filtering
-python3 grambo-cluster.py --start-time "2025-09-19 10:00:00" --end-time "2025-09-19 12:00:00" *.json
+./gras --start-time "2025-09-19 10:00:00" --end-time "2025-09-19 12:00:00" *.json
 
 # Focus on specific event types
-python3 grambo-cluster.py --events sst,state_transition *.json
+./gras --events sst,state_transition *.json
 ```
 
-#### grambo-web.py Options
+#### graw Options
 ```bash
 # Custom port and host
-python3 grambo-web.py cluster.json --port 8080 --host 0.0.0.0
+./graw cluster.json --port 8080 --host 0.0.0.0
 
 # Debug mode
-python3 grambo-web.py cluster.json --debug
+./graw cluster.json --debug
 ```
 
 ## 🔍 Cluster Analysis Features
@@ -333,10 +386,10 @@ Examples:
 
 ```bash
 # Log snippet without early startup lines
-grep -v 'Server version' truncated.log | python3 gramboo.py --mariadb-version 11.4.7 --mariadb-edition community
+grep -v 'Server version' truncated.log | ./gra --mariadb-version 11.4.7 --mariadb-edition community
 
 # Force a specific Galera provider version (overrides inference)
-python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 db3.log
+./gra --mariadb-version 10.6.16 --galera-version 26.4.23 db3.log
 ```
 
 ### Available Event Types for Filtering
@@ -352,7 +405,7 @@ python3 gramboo.py --mariadb-version 10.6.16 --galera-version 26.4.23 db3.log
 
 ## Example Output
 
-### Single-Node Analysis (gramboo.py)
+### Single-Node Analysis (gra)
 
 The following is a sanitized example. Replace values with those from your environment.
 
@@ -410,7 +463,7 @@ Request 2025-09-15 13:50:43: node-01 ⇐ node-03
   Post-IST: async serve tcp://10.0.0.2:4568 1726→1810 at 2025-09-15 13:53:06
 ```
 
-### Multi-Node Cluster Analysis (grambo-cluster.py)
+### Multi-Node Cluster Analysis (gras)
 
 ```
 ================================================================================
@@ -446,7 +499,7 @@ Request 2025-09-15 13:50:43: node-01 ⇐ node-03
   2025-09-19 11:12:24 | NODE_50000 | JOINED → SYNCED (seqno: 5)
 ```
 
-### Interactive Web Dashboard (grambo-web.py)
+### Interactive Web Dashboard (graw)
 
 The web dashboard provides:
 
@@ -557,11 +610,11 @@ Track which nodes are members of the cluster at any given time, including:
 
 ## Requirements
 
-### Core Analysis Tools (gramboo.py, grambo-cluster.py)
+### Core Analysis Tools (gra, gras)
 - Python 3.7 or higher
 - No external dependencies required
 
-### Web Visualization (grambo-web.py)
+### Web Visualization (graw)
 - Python 3.7 or higher
 - `dash` - Web application framework
 - `plotly` - Interactive plotting library  
@@ -595,7 +648,7 @@ This happens when multiple log files incorrectly identify themselves as the same
 python3 check-node-mapping.py node1.json node2.json
 
 # Use explicit node mapping if conflicts detected
-python3 grambo-cluster.py \
+./gras \
   --node actual-node-01:node1.json \
   --node actual-node-02:node2.json \
   --format=json > cluster-analysis.json
@@ -620,15 +673,15 @@ python3 check-node-mapping.py *.json
 **Silent Operation:**
 ```bash
 # Suppress all warnings for automated scripts
-python3 grambo-cluster.py --format=json --quiet file1.json file2.json > output.json
+./gras --format=json --quiet file1.json file2.json > output.json
 ```
 
 ## Development
 
 The code is organized into clear classes and functions:
-- `GaleraLogParser`: Main parsing logic (gramboo.py)
-- `ClusterAnalyzer`: Multi-node correlation engine (grambo-cluster.py)  
-- `WebClusterVisualizer`: Interactive dashboard (grambo-web.py)
+- `GaleraLogParser`: Main parsing logic (gra)
+- `ClusterAnalyzer`: Multi-node correlation engine (gras)  
+- `WebClusterVisualizer`: Interactive dashboard (graw)
 - Event-specific parsers for each type of Galera event
 - Modular regex patterns for easy maintenance
 
