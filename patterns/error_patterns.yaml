@@ -1,0 +1,43 @@
+# Generic error patterns for MariaDB/MySQL Galera cluster logs
+# These patterns work across different versions and focus on common error patterns
+
+version: "generic"
+description: "Generic error patterns for Galera cluster logs"
+mariadb_versions: ["10.0", "10.1", "10.2", "10.3", "10.4", "10.5", "11.0", "11.1", "11.2", "11.3"]
+
+patterns:
+  ERROR:
+    - name: "generic_connection_timeout"
+      description: "Generic connection timeout pattern"
+      confidence: 0.85
+      regex: '\[Warning\].*Aborted connection.*Got timeout reading communication packets'
+
+    - name: "generic_wsrep_error"
+      description: "Generic WSREP error pattern"
+      confidence: 0.8
+      regex: '\[ERROR\].*WSREP:.*'
+
+    - name: "generic_sst_failure"
+      description: "Generic SST failure pattern"
+      confidence: 0.85
+      regex: 'WSREP:.*SST.*(?:failed|error|timeout)'
+
+    - name: "generic_state_transfer_error"
+      description: "Generic state transfer failure pattern"
+      confidence: 0.85
+      regex: 'WSREP:.*[Ss]tate transfer.*(?:failed|error)'
+
+    - name: "generic_certification_error"
+      description: "Generic certification failure pattern"
+      confidence: 0.9
+      regex: 'WSREP:.*certification.*(?:failed|error)'
+
+    - name: "generic_mysql_error"
+      description: "Generic MySQL error pattern (catch-all)"
+      confidence: 0.7
+      regex: '\[ERROR\].*'
+
+    - name: "generic_access_denied"
+      description: "Generic authentication failure pattern"
+      confidence: 0.9
+      regex: 'Access denied.*user.*host'

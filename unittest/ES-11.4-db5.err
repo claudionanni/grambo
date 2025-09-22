@@ -1,0 +1,328 @@
+2025-09-19 18:17:16 0 [Note] Starting MariaDB 11.4.7-4-MariaDB-enterprise-log source revision 9c28b3422bcf443064ab0e38949f6395daa44639 server_uid qj33LqqfWqxWtElLUQmjSV69Tqw= as process 1876291
+2025-09-19 18:17:16 0 [Note] WSREP: Initialization of the TLS service for WSREP was skipped because the server was not configured to use SSL
+2025-09-19 18:17:16 0 [Note] WSREP: Loading provider /usr/lib64/libgalera_smm.so initial position: 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:17:16 0 [Note] WSREP: wsrep_load(): loading provider library '/usr/lib64/libgalera_smm.so'
+2025-09-19 18:17:16 0 [Note] WSREP: wsrep_load(): Galera 26.4.22-1(rb31b549) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-19 18:17:16 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-19 18:17:16 0 [Note] WSREP: Initializing event service v1
+2025-09-19 18:17:16 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-19 18:17:16 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-19 18:17:16 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-19 18:17:16 0 [Note] WSREP: Found saved state: 00000000-0000-0000-0000-000000000000:-1, safe_to_bootstrap: 1
+2025-09-19 18:17:16 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: 91d17d56-9464-11f0-b8a8-5318904bf495
+Seqno: -1 - -1
+Offset: -1
+Synced: 0
+2025-09-19 18:17:16 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: 91d17d56-9464-11f0-b8a8-5318904bf495, offset: -1
+2025-09-19 18:17:16 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/5368709144 bytes) complete.
+2025-09-19 18:17:16 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (5368709144/5368709144 bytes) complete.
+2025-09-19 18:17:16 0 [Note] WSREP: Recovering GCache ring buffer: Recovery failed, need to do full reset.
+2025-09-19 18:17:16 0 [Note] WSREP: Passing config to GCS: base_dir = /store/infrastructure/mysql/; base_host = 10.220.26.6; base_port = 4567; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /store/infrastructure/mysql/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 5G; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_throttle = 0.25; gcs.recv_q_hard_limit = 9223372036854775807; gcs.recv_q_soft_limit = 0.25; gcs.sync_donor = 
+2025-09-19 18:17:16 0 [Note] WSREP: Start replication
+2025-09-19 18:17:16 0 [Note] WSREP: Connecting with bootstrap option: 0
+2025-09-19 18:17:16 0 [Note] WSREP: Setting GCS initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:17:16 0 [Note] WSREP: protonet asio version 0
+2025-09-19 18:17:16 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-19 18:17:16 0 [Note] WSREP: backend: asio
+2025-09-19 18:17:16 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-19 18:17:16 0 [Note] WSREP: restore pc from disk successfully
+2025-09-19 18:17:16 0 [Note] WSREP: GMCast version 0
+2025-09-19 18:17:16 0 [Note] WSREP: (4bff9935-9e34, 'tcp://0.0.0.0:4567') listening at tcp://0.0.0.0:4567
+2025-09-19 18:17:16 0 [Note] WSREP: (4bff9935-9e34, 'tcp://0.0.0.0:4567') multicast: , ttl: 1
+2025-09-19 18:17:16 0 [Note] WSREP: EVS version 1
+2025-09-19 18:17:16 0 [Note] WSREP: gcomm: connecting to group 'VASDEV_WI', peer '10.110.26.2:,10.110.26.3:,10.110.26.4:,10.110.26.5:,10.110.26.6:,10.110.26.7:,10.220.26.2:,10.220.26.3:,10.220.26.4:,10.220.26.5:,10.220.26.6:,10.220.26.7:'
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: (4bff9935-9e34, 'tcp://0.0.0.0:4567') Found matching local endpoint for a connection, blacklisting address tcp://10.220.26.6:4567
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:17:16 0 [Note] WSREP: (4bff9935-9e34, 'tcp://0.0.0.0:4567') connection established to 9dbff1f8-a3ef tcp://10.110.26.2:4567
+2025-09-19 18:17:16 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-19 18:17:16 0 [Note] WSREP: declaring 9dbff1f8-a3ef at tcp://10.110.26.2:4567 stable
+2025-09-19 18:17:16 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-19 18:17:16 0 [Note] WSREP: Node 9dbff1f8-a3ef state prim
+2025-09-19 18:17:16 0 [Note] WSREP: view(view_id(PRIM,4bff9935-9e34,42) memb {
+        4bff9935-9e34,4
+        9dbff1f8-a3ef,1
+} joined {
+} left {
+} partitioned {
+})
+2025-09-19 18:17:16 0 [Note] WSREP: save pc into disk
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.3:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.4:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.5:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.6:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.7:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.2:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.3:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.4:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.5:4567
+2025-09-19 18:17:16 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.7:4567
+2025-09-19 18:17:16 0 [Note] WSREP: clear restored view
+2025-09-19 18:17:17 0 [Note] WSREP: gcomm: connected
+2025-09-19 18:17:17 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-19 18:17:17 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-19 18:17:17 0 [Note] WSREP: Opened channel 'VASDEV_WI'
+2025-09-19 18:17:17 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-19 18:17:17 0 [Note] WSREP: Initializing config service v1
+2025-09-19 18:17:17 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-19 18:17:17 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: ba84adba-956b-11f0-996f-cebc26ab9f82
+2025-09-19 18:17:17 2 [Note] WSREP: Starting applier thread 2
+2025-09-19 18:17:17 0 [Note] WSREP: Deinitializing config service v1
+2025-09-19 18:17:17 0 [Note] WSREP: STATE EXCHANGE: sent state msg: ba84adba-956b-11f0-996f-cebc26ab9f82
+2025-09-19 18:17:17 0 [Note] WSREP: STATE EXCHANGE: got state msg: ba84adba-956b-11f0-996f-cebc26ab9f82 from 0 (vinfr-db-d-l05)
+2025-09-19 18:17:17 0 [Note] WSREP: STATE EXCHANGE: got state msg: ba84adba-956b-11f0-996f-cebc26ab9f82 from 1 (vinfr-db-d-d01)
+2025-09-19 18:17:17 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 1,
+        members    = 1/2 (joined/total),
+        act_id     = 24671052,
+        last_appl. = 24670937,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 91d17d56-9464-11f0-b8a8-5318904bf495
+2025-09-19 18:17:17 0 [Note] WSREP: Flow-control interval: [23, 23]
+2025-09-19 18:17:17 0 [Note] WSREP: Shifting OPEN -> PRIMARY (TO: 24671053)
+2025-09-19 18:17:17 2 [Note] WSREP: ####### processing CC 24671053, local, ordered
+2025-09-19 18:17:17 2 [Note] WSREP: Process first view: 91d17d56-9464-11f0-b8a8-5318904bf495 my uuid: 4bff9935-956b-11f0-9e34-beb439e24709
+2025-09-19 18:17:17 2 [Note] WSREP: Server vinfr-db-d-l05 connected to cluster at position 91d17d56-9464-11f0-b8a8-5318904bf495:24671053 with ID 4bff9935-956b-11f0-9e34-beb439e24709
+2025-09-19 18:17:17 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-19 18:17:17 2 [Note] WSREP: ####### My UUID: 4bff9935-956b-11f0-9e34-beb439e24709
+2025-09-19 18:17:17 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: yes
+2025-09-19 18:17:17 0 [Note] WSREP: Service thread queue flushed.
+2025-09-19 18:17:17 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-19 18:17:17 2 [Note] WSREP: State transfer required: 
+        Group state: 91d17d56-9464-11f0-b8a8-5318904bf495:24671053
+        Local state: 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:17:17 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-19 18:17:17 0 [Note] WSREP: Joiner monitor thread started to monitor
+2025-09-19 18:17:17 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'joiner' --address '10.220.26.6' --datadir '/store/infrastructure/mysql/' --parent 1876291 --progress 0 --binlog 'ON' --mysqld-args --wsrep_start_position=00000000-0000-0000-0000-000000000000:-1,0-0-0'
+WSREP_SST: [INFO] mariabackup SST started on joiner (20250919 18:17:17.260)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250919 18:17:17.350)
+WSREP_SST: [INFO] Streaming with mbstream (20250919 18:17:17.615)
+WSREP_SST: [INFO] Using socat as streamer (20250919 18:17:17.619)
+WSREP_SST: [INFO] 'ss' is selected as a socket information utility. (20250919 18:17:17.672)
+WSREP_SST: [INFO] Evaluating timeout -k 310 300 socat -u TCP-LISTEN:4444,reuseaddr stdio | '/usr//bin/mbstream' -x; RC=( ${PIPESTATUS[@]} ) (20250919 18:17:17.680)
+2025-09-19 18:17:17 2 [Note] WSREP: ####### IST uuid:00000000-0000-0000-0000-000000000000 f: 0, l: 24671053, STRv: 3
+2025-09-19 18:17:17 2 [Note] WSREP: IST receiver addr using tcp://10.220.26.6:4568
+2025-09-19 18:17:17 2 [Note] WSREP: Prepared IST receiver for 0-24671053, listening at: tcp://10.220.26.6:4568
+2025-09-19 18:17:17 0 [Note] WSREP: There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside. Will use that one.
+2025-09-19 18:17:17 0 [Note] WSREP: Member 0.4 (vinfr-db-d-l05) requested state transfer from '*any*'. Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor.
+2025-09-19 18:17:17 0 [Note] WSREP: Shifting PRIMARY -> JOINER (TO: 24671131)
+2025-09-19 18:17:17 2 [Note] WSREP: Requesting state transfer: success, donor: 1
+2025-09-19 18:17:17 2 [Note] WSREP: Resetting GCache seqno map due to different histories.
+2025-09-19 18:17:17 2 [Note] WSREP: GCache history reset: 91d17d56-9464-11f0-b8a8-5318904bf495:0 -> 91d17d56-9464-11f0-b8a8-5318904bf495:24671053
+WSREP_SST: [INFO] WARNING: Stale temporary SST directory: '/store/infrastructure/mysql/.sst' from previous state transfer, removing... (20250919 18:17:18.717)
+WSREP_SST: [INFO] Evaluating socat -u TCP-LISTEN:4444,reuseaddr stdio | '/usr//bin/mbstream' -x; RC=( ${PIPESTATUS[@]} ) (20250919 18:17:18.769)
+WSREP_SST: [INFO] Proceeding with SST (20250919 18:17:18.770)
+WSREP_SST: [INFO] Cleaning the old binary logs (20250919 18:17:18.802)
+WSREP_SST: [INFO] Cleaning the existing datadir and innodb-data/log directories (20250919 18:17:18.816)
+WSREP_SST: [INFO] Waiting for SST streaming to complete! (20250919 18:17:18.825)
+2025-09-19 18:17:19 0 [Note] WSREP: (4bff9935-9e34, 'tcp://0.0.0.0:4567') turning message relay requesting off
+2025-09-19 18:33:48 0 [Warning] WSREP: 1.1 (vinfr-db-d-d01): State transfer to 0.4 (vinfr-db-d-l05) failed: Invalid argument
+2025-09-19 18:33:48 0 [ERROR] WSREP: /home/jenkins/workspace/Galera/Build-Galera-Package/galera-src/gcs/src/gcs_group.cpp:gcs_group_handle_join_msg():1252: Will never receive state. Need to abort.
+2025-09-19 18:33:48 0 [Note] WSREP: gcomm: terminating thread
+2025-09-19 18:33:48 0 [Note] WSREP: gcomm: joining thread
+2025-09-19 18:33:48 0 [Note] WSREP: gcomm: closing backend
+2025-09-19 18:33:49 0 [Note] WSREP: view(view_id(NON_PRIM,4bff9935-9e34,42) memb {
+        4bff9935-9e34,4
+} joined {
+} left {
+} partitioned {
+        9dbff1f8-a3ef,1
+})
+2025-09-19 18:33:49 0 [Note] WSREP: PC protocol downgrade 1 -> 0
+2025-09-19 18:33:49 0 [Note] WSREP: view((empty))
+2025-09-19 18:33:49 0 [Note] WSREP: gcomm: closed
+2025-09-19 18:33:49 0 [Note] WSREP: /usr/sbin/mariadbd: Terminated.
+Terminated
+WSREP_SST: [ERROR] Cleanup after exit with status: 3 (20250919 18:33:49.611)
+WSREP_SST: [ERROR] Removing /store/infrastructure/mysql/.sst/mariadb_backup_galera_info file due to signal (20250919 18:33:49.616)
+WSREP_SST: [INFO] Removing the sst_in_progress file (20250919 18:33:49.635)
+WSREP_SST: [INFO] Cleaning up temporary directories (20250919 18:33:49.641)
+2025-09-19 18:33:59 0 [Note] Starting MariaDB 11.4.7-4-MariaDB-enterprise-log source revision 9c28b3422bcf443064ab0e38949f6395daa44639 server_uid qj33LqqfWqxWtElLUQmjSV69Tqw= as process 1900757
+2025-09-19 18:33:59 0 [Note] WSREP: Initialization of the TLS service for WSREP was skipped because the server was not configured to use SSL
+2025-09-19 18:33:59 0 [Note] WSREP: Loading provider /usr/lib64/libgalera_smm.so initial position: 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:33:59 0 [Note] WSREP: wsrep_load(): loading provider library '/usr/lib64/libgalera_smm.so'
+2025-09-19 18:33:59 0 [Note] WSREP: wsrep_load(): Galera 26.4.22-1(rb31b549) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-19 18:33:59 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-19 18:33:59 0 [Note] WSREP: Initializing event service v1
+2025-09-19 18:33:59 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-19 18:33:59 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-19 18:33:59 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-19 18:33:59 0 [Note] WSREP: Found saved state: 00000000-0000-0000-0000-000000000000:-1, safe_to_bootstrap: 1
+2025-09-19 18:33:59 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: 91d17d56-9464-11f0-b8a8-5318904bf495
+Seqno: -1 - -1
+Offset: -1
+Synced: 0
+2025-09-19 18:33:59 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: 91d17d56-9464-11f0-b8a8-5318904bf495, offset: -1
+2025-09-19 18:33:59 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/5368709144 bytes) complete.
+2025-09-19 18:34:02 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (5368709144/5368709144 bytes) complete.
+2025-09-19 18:34:02 0 [Note] WSREP: Recovering GCache ring buffer: Recovery failed, need to do full reset.
+2025-09-19 18:34:02 0 [Note] WSREP: Passing config to GCS: base_dir = /store/infrastructure/mysql/; base_host = 10.220.26.6; base_port = 4567; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /store/infrastructure/mysql/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 5G; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_throttle = 0.25; gcs.recv_q_hard_limit = 9223372036854775807; gcs.recv_q_soft_limit = 0.25; gcs.sync_donor = 
+2025-09-19 18:34:02 0 [Note] WSREP: Start replication
+2025-09-19 18:34:02 0 [Note] WSREP: Connecting with bootstrap option: 0
+2025-09-19 18:34:02 0 [Note] WSREP: Setting GCS initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:34:02 0 [Note] WSREP: protonet asio version 0
+2025-09-19 18:34:02 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-19 18:34:02 0 [Note] WSREP: backend: asio
+2025-09-19 18:34:02 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-19 18:34:02 0 [Note] WSREP: access file(/store/infrastructure/mysql//gvwstate.dat) failed(No such file or directory)
+2025-09-19 18:34:02 0 [Note] WSREP: restore pc from disk failed
+2025-09-19 18:34:02 0 [Note] WSREP: GMCast version 0
+2025-09-19 18:34:02 0 [Note] WSREP: (11fdc5da-976f, 'tcp://0.0.0.0:4567') listening at tcp://0.0.0.0:4567
+2025-09-19 18:34:02 0 [Note] WSREP: (11fdc5da-976f, 'tcp://0.0.0.0:4567') multicast: , ttl: 1
+2025-09-19 18:34:02 0 [Note] WSREP: EVS version 1
+2025-09-19 18:34:02 0 [Note] WSREP: gcomm: connecting to group 'VASDEV_WI', peer '10.110.26.2:,10.110.26.3:,10.110.26.4:,10.110.26.5:,10.110.26.6:,10.110.26.7:,10.220.26.2:,10.220.26.3:,10.220.26.4:,10.220.26.5:,10.220.26.6:,10.220.26.7:'
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: (11fdc5da-976f, 'tcp://0.0.0.0:4567') Found matching local endpoint for a connection, blacklisting address tcp://10.220.26.6:4567
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: Failed to establish connection: Connection refused
+2025-09-19 18:34:02 0 [Note] WSREP: (11fdc5da-976f, 'tcp://0.0.0.0:4567') connection established to 9dbff1f8-a3ef tcp://10.110.26.2:4567
+2025-09-19 18:34:03 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-19 18:34:03 0 [Note] WSREP: declaring 9dbff1f8-a3ef at tcp://10.110.26.2:4567 stable
+2025-09-19 18:34:03 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-19 18:34:03 0 [Note] WSREP: Node 9dbff1f8-a3ef state prim
+2025-09-19 18:34:03 0 [Note] WSREP: view(view_id(PRIM,11fdc5da-976f,44) memb {
+        11fdc5da-976f,4
+        9dbff1f8-a3ef,1
+} joined {
+} left {
+} partitioned {
+})
+2025-09-19 18:34:03 0 [Note] WSREP: save pc into disk
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.3:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.4:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.5:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.6:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.110.26.7:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.2:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.3:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.4:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.5:4567
+2025-09-19 18:34:03 0 [Note] WSREP: discarding pending addr without UUID: tcp://10.220.26.7:4567
+2025-09-19 18:34:03 0 [Note] WSREP: gcomm: connected
+2025-09-19 18:34:03 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-19 18:34:03 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-19 18:34:03 0 [Note] WSREP: Opened channel 'VASDEV_WI'
+2025-09-19 18:34:03 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-19 18:34:03 0 [Note] WSREP: Initializing config service v1
+2025-09-19 18:34:03 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-19 18:34:03 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 12974cd4-956e-11f0-b5a9-abf015ba1057
+2025-09-19 18:34:03 0 [Note] WSREP: Action message in non-primary configuration from member 1
+2025-09-19 18:34:03 2 [Note] WSREP: Starting applier thread 2
+2025-09-19 18:34:03 0 [Note] WSREP: Deinitializing config service v1
+2025-09-19 18:34:03 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 12974cd4-956e-11f0-b5a9-abf015ba1057
+2025-09-19 18:34:03 0 [Note] WSREP: STATE EXCHANGE: got state msg: 12974cd4-956e-11f0-b5a9-abf015ba1057 from 0 (vinfr-db-d-l05)
+2025-09-19 18:34:03 0 [Note] WSREP: STATE EXCHANGE: got state msg: 12974cd4-956e-11f0-b5a9-abf015ba1057 from 1 (vinfr-db-d-d01)
+2025-09-19 18:34:03 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 3,
+        members    = 1/2 (joined/total),
+        act_id     = 24785971,
+        last_appl. = 24785883,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 91d17d56-9464-11f0-b8a8-5318904bf495
+2025-09-19 18:34:03 0 [Note] WSREP: Flow-control interval: [23, 23]
+2025-09-19 18:34:03 0 [Note] WSREP: Shifting OPEN -> PRIMARY (TO: 24785972)
+2025-09-19 18:34:03 2 [Note] WSREP: ####### processing CC 24785972, local, ordered
+2025-09-19 18:34:03 2 [Note] WSREP: Process first view: 91d17d56-9464-11f0-b8a8-5318904bf495 my uuid: 11fdc5da-956e-11f0-976f-ab7219512c8f
+2025-09-19 18:34:03 2 [Note] WSREP: Server vinfr-db-d-l05 connected to cluster at position 91d17d56-9464-11f0-b8a8-5318904bf495:24785972 with ID 11fdc5da-956e-11f0-976f-ab7219512c8f
+2025-09-19 18:34:03 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-19 18:34:03 2 [Note] WSREP: ####### My UUID: 11fdc5da-956e-11f0-976f-ab7219512c8f
+2025-09-19 18:34:03 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: yes
+2025-09-19 18:34:03 0 [Note] WSREP: Service thread queue flushed.
+2025-09-19 18:34:03 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-19 18:34:03 2 [Note] WSREP: State transfer required: 
+        Group state: 91d17d56-9464-11f0-b8a8-5318904bf495:24785972
+        Local state: 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:34:03 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-19 18:34:03 0 [Note] WSREP: Joiner monitor thread started to monitor
+2025-09-19 18:34:03 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'joiner' --address '10.220.26.6' --datadir '/store/infrastructure/mysql/' --parent 1900757 --progress 0 --binlog 'ON' --mysqld-args --wsrep_start_position=00000000-0000-0000-0000-000000000000:-1,0-0-0'
+WSREP_SST: [INFO] mariabackup SST started on joiner (20250919 18:34:04.021)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250919 18:34:04.110)
+WSREP_SST: [INFO] Streaming with mbstream (20250919 18:34:04.352)
+WSREP_SST: [INFO] Using socat as streamer (20250919 18:34:04.354)
+WSREP_SST: [INFO] 'ss' is selected as a socket information utility. (20250919 18:34:04.410)
+WSREP_SST: [INFO] Evaluating timeout -k 310 300 socat -u TCP-LISTEN:4444,reuseaddr stdio | '/usr//bin/mbstream' -x; RC=( ${PIPESTATUS[@]} ) (20250919 18:34:04.422)
+2025-09-19 18:34:04 2 [Note] WSREP: ####### IST uuid:00000000-0000-0000-0000-000000000000 f: 0, l: 24785972, STRv: 3
+2025-09-19 18:34:04 2 [Note] WSREP: IST receiver addr using tcp://10.220.26.6:4568
+2025-09-19 18:34:04 2 [Note] WSREP: Prepared IST receiver for 0-24785972, listening at: tcp://10.220.26.6:4568
+2025-09-19 18:34:04 0 [Note] WSREP: There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside. Will use that one.
+2025-09-19 18:34:04 0 [Note] WSREP: Member 0.4 (vinfr-db-d-l05) requested state transfer from '*any*'. Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor.
+2025-09-19 18:34:04 0 [Note] WSREP: Shifting PRIMARY -> JOINER (TO: 24786048)
+2025-09-19 18:34:04 2 [Note] WSREP: Requesting state transfer: success, donor: 1
+2025-09-19 18:34:04 2 [Note] WSREP: Resetting GCache seqno map due to different histories.
+2025-09-19 18:34:04 2 [Note] WSREP: GCache history reset: 91d17d56-9464-11f0-b8a8-5318904bf495:0 -> 91d17d56-9464-11f0-b8a8-5318904bf495:24785972
+WSREP_SST: [INFO] WARNING: Stale temporary SST directory: '/store/infrastructure/mysql/.sst' from previous state transfer, removing... (20250919 18:34:05.472)
+WSREP_SST: [INFO] Proceeding with SST (20250919 18:34:05.536)
+WSREP_SST: [INFO] Evaluating socat -u TCP-LISTEN:4444,reuseaddr stdio | '/usr//bin/mbstream' -x; RC=( ${PIPESTATUS[@]} ) (20250919 18:34:05.536)
+WSREP_SST: [INFO] Cleaning the old binary logs (20250919 18:34:05.565)
+WSREP_SST: [INFO] Cleaning the existing datadir and innodb-data/log directories (20250919 18:34:05.576)
+WSREP_SST: [INFO] Waiting for SST streaming to complete! (20250919 18:34:05.585)
+2025-09-19 18:34:06 0 [Note] WSREP: (11fdc5da-976f, 'tcp://0.0.0.0:4567') turning message relay requesting off
+Terminated
+WSREP_SST: [ERROR] Cleanup after exit with status: 3 (20250919 18:44:33.488)
+WSREP_SST: [ERROR] Removing /store/infrastructure/mysql/.sst/mariadb_backup_galera_info file due to signal (20250919 18:44:33.491)
+WSREP_SST: [INFO] Removing the sst_in_progress file (20250919 18:44:33.509)
+WSREP_SST: [INFO] Cleaning up temporary directories (20250919 18:44:33.512)
+2025-09-19 18:44:33 0 [ERROR] WSREP: Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script.
+2025-09-19 18:44:33 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'joiner' --address '10.220.26.6' --datadir '/store/infrastructure/mysql/' --parent 1900757 --progress 0 --binlog 'ON' --mysqld-args --wsrep_start_position=00000000-0000-0000-0000-000000000000:-1,0-0-0: 3 (No such process)
+2025-09-19 18:44:33 0 [Note] WSREP: SST received
+2025-09-19 18:44:33 0 [Note] WSREP: SST received: 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:44:33 0 [Note] WSREP: SST succeeded for position 00000000-0000-0000-0000-000000000000:-1
+2025-09-19 18:44:33 0 [Note] WSREP: Joiner monitor thread ended with total time 630 sec
+2025-09-19 18:44:33 2 [ERROR] WSREP: Application received wrong state: 
+        Received: 00000000-0000-0000-0000-000000000000
+        Required: 91d17d56-9464-11f0-b8a8-5318904bf495
+2025-09-19 18:44:33 2 [ERROR] WSREP: Application state transfer failed. This is unrecoverable condition, restart required.
+2025-09-19 18:44:33 2 [Note] WSREP: ReplicatorSMM::abort()
+2025-09-19 18:44:33 2 [Note] WSREP: Closing send monitor...
+2025-09-19 18:44:33 2 [Note] WSREP: Closed send monitor.
+2025-09-19 18:44:33 2 [Note] WSREP: gcomm: terminating thread
+2025-09-19 18:44:33 2 [Note] WSREP: gcomm: joining thread
+2025-09-19 18:44:33 2 [Note] WSREP: gcomm: closing backend
+2025-09-19 18:44:34 2 [Note] WSREP: view(view_id(NON_PRIM,11fdc5da-976f,44) memb {
+        11fdc5da-976f,4
+} joined {
+} left {
+} partitioned {
+        9dbff1f8-a3ef,1
+})
+2025-09-19 18:44:34 2 [Note] WSREP: PC protocol downgrade 1 -> 0
+2025-09-19 18:44:34 2 [Note] WSREP: view((empty))
+2025-09-19 18:44:34 2 [Note] WSREP: gcomm: closed
+2025-09-19 18:44:34 0 [Note] WSREP: New COMPONENT: primary = no, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-19 18:44:34 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-19 18:44:34 0 [Note] WSREP: Received NON-PRIMARY.
+2025-09-19 18:44:34 0 [Note] WSREP: Shifting JOINER -> OPEN (TO: 24855573)
+2025-09-19 18:44:34 0 [Note] WSREP: New SELF-LEAVE.
+2025-09-19 18:44:34 0 [Note] WSREP: Flow-control interval: [0, 0]
+2025-09-19 18:44:34 0 [Note] WSREP: Received SELF-LEAVE. Closing connection.
+2025-09-19 18:44:34 0 [Note] WSREP: Shifting OPEN -> CLOSED (TO: 24855573)
+2025-09-19 18:44:34 0 [Note] WSREP: RECV thread exiting 0: Success
+2025-09-19 18:44:34 2 [Note] WSREP: recv_thread() joined.
+2025-09-19 18:44:34 2 [Note] WSREP: Closing send queue.
+2025-09-19 18:44:34 2 [Note] WSREP: Closing receive queue.
+2025-09-19 18:44:34 2 [Note] WSREP: /usr/sbin/mariadbd: Terminated.

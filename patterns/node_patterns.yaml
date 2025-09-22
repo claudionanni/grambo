@@ -86,3 +86,48 @@ patterns:
             timestamp: "2024-09-15 10:25:20"
             galera_version: "26.4.14"
             mariadb_version: "10.6.15"
+
+    - name: "state_exchange_node_name"
+      description: "Extract node names from STATE EXCHANGE messages"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+STATE EXCHANGE: got state msg: (?P<state_uuid>[a-f0-9-]+) from (?P<node_index>\d+) \((?P<node_name>[^)]+)\)'
+      field_mappings:
+        state_uuid: "state_uuid"
+        node_index: "local_index"
+      required_fields: ["node_name", "state_uuid"]
+      examples:
+        - "2025-09-19 18:17:17 0 [Note] WSREP: STATE EXCHANGE: got state msg: ba84adba-956b-11f0-996f-cebc26ab9f82 from 0 (vinfr-db-d-l05)"
+
+    - name: "long_uuid_mapping"
+      description: "Extract long UUID and map to short format"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*My UUID: (?P<long_uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+      field_mappings:
+        long_uuid: "long_uuid"
+      required_fields: ["long_uuid"]
+      examples:
+        - "2025-09-19 18:17:17 2 [Note] WSREP: ####### My UUID: 9dbff1f8-956b-11f0-a3ef-5eaf96bde0cd"
+
+    - name: "server_node_synced"
+      description: "Extract node name from server sync messages"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+synced\s+with\s+group'
+      required_fields: ["node_name"]
+      examples:
+        - "2025-08-21 14:10:16 2 [Note] WSREP: Server NODE_30622 synced with group"
+        - "2025-09-22 22:28:10 2 [Note] WSREP: Server NODE_11407 synced with group"
+        - "2025-09-15 13:45:00 2 [Note] WSREP: Server UAT-DB-01 synced with group"
+        - "2025-09-19 18:20:00 2 [Note] WSREP: Server vinfr-db-d-l05 synced with group"
+
+    - name: "server_node_connected"
+      description: "Extract node name from server connection messages"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+connected\s+to\s+cluster\s+at\s+position\s+(?P<cluster_position>[a-f0-9-]+:\d+)\s+with\s+ID\s+(?P<connection_id>[a-f0-9-]+)'
+      field_mappings:
+        cluster_position: "cluster_position"
+        connection_id: "connection_id"
+      required_fields: ["node_name", "cluster_position", "connection_id"]
+      examples:
+        - "2025-08-26 16:33:11 2 [Note] WSREP: Server NODE_30622 connected to cluster at position 97e97666-8289-11f0-a43c-e6369da97616:1 with ID cc53efd9-7e87-11f0-97a4-7281c0726d89"
+        - "2025-09-15 13:43:33 2 [Note] WSREP: Server UAT-DB-01 connected to cluster at position 378cdc73-9236-11f0-a8d4-426872f4d003:1603 with ID f85a74b7-9239-11f0-87a9-9e752862488a"
+        - "2025-09-19 18:17:17 2 [Note] WSREP: Server vinfr-db-d-l05 connected to cluster at position 91d17d56-9464-11f0-b8a8-5318904bf495:24671053 with ID 4bff9935-956b-11f0-9e34-beb439e24709"

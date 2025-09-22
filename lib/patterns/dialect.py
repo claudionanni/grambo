@@ -245,43 +245,52 @@ class DialectPatternManager:
                 'mariadb-11.0_patterns.yaml', 
                 'view_patterns_mariadb_10_6.yaml',
                 'mariadb-10.6_patterns.yaml',
+                'error_patterns_mariadb_10_6.yaml',
                 'view_patterns.yaml',
                 'node_patterns.yaml',
-                'sst_patterns.yaml'
+                'sst_patterns.yaml',
+                'error_patterns.yaml'
             ],
             DialectType.MARIADB_11_0: [
                 'mariadb-11.0_patterns.yaml',
                 'view_patterns_mariadb_10_6.yaml',
-                'mariadb-10.6_patterns.yaml', 
+                'mariadb-10.6_patterns.yaml',
+                'error_patterns_mariadb_10_6.yaml', 
                 'view_patterns.yaml',
                 'node_patterns.yaml',
-                'sst_patterns.yaml'
+                'sst_patterns.yaml',
+                'error_patterns.yaml'
             ],
             DialectType.MARIADB_10_6: [
                 'view_patterns_mariadb_10_6.yaml',  # Specific MariaDB 10.6 patterns first
                 'node_patterns_mariadb_10_6.yaml',  # MariaDB 10.6 node patterns
+                'error_patterns_mariadb_10_6.yaml',  # MariaDB 10.6 error patterns
                 'mariadb-10.6_patterns.yaml',
                 'view_patterns.yaml',
                 'node_patterns.yaml', 
-                'sst_patterns.yaml'
+                'sst_patterns.yaml',
+                'error_patterns.yaml'  # Generic error patterns as fallback
             ],
             DialectType.MYSQL_8_0: [
                 'mysql-8.0_patterns.yaml',
                 'view_patterns.yaml',
                 'node_patterns.yaml',
-                'sst_patterns.yaml'
+                'sst_patterns.yaml',
+                'error_patterns.yaml'
             ],
             DialectType.PXC_8_0: [
                 'pxc-8.0_patterns.yaml',
                 'mysql-8.0_patterns.yaml',
                 'view_patterns.yaml',
                 'node_patterns.yaml',
-                'sst_patterns.yaml'
+                'sst_patterns.yaml',
+                'error_patterns.yaml'
             ],
             DialectType.DEFAULT: [
                 'view_patterns.yaml',
                 'node_patterns.yaml',
-                'sst_patterns.yaml'
+                'sst_patterns.yaml',
+                'error_patterns.yaml'
             ]
         }
         

@@ -1,0 +1,1482 @@
+250922 20:41:31 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 20:41:31 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 20:41:33 mysqld_safe WSREP: Failed to recover position: '2025-09-22 20:41:31 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+2025-09-22 20:41:31 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 140512
+2025-09-22 20:41:31 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 20:41:31 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 20:41:31 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 20:41:31 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 20:41:31 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 20:41:31 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 20:41:31 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 20:41:31 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 20:41:31 0 [Note] InnoDB: End of log at LSN=46300
+2025-09-22 20:41:31 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 20:41:31 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 20:41:31 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 20:41:31 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 20:41:31 0 [Note] InnoDB: log sequence number 46300; transaction id 14
+2025-09-22 20:41:31 0 [Warning] InnoDB: Skipping buffer pool dump/restore during wsrep recovery.
+2025-09-22 20:41:31 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 20:41:32 0 [Note] Server socket created on IP: '0.0.0.0'.
+2025-09-22 20:41:32 0 [ERROR] Can't start server: Bind on TCP/IP port. Got error: 98: Address already in use
+2025-09-22 20:41:32 0 [ERROR] Do you already have another server running on port: 11407 ?
+2025-09-22 20:41:32 0 [ERROR] Aborting'
+250922 20:41:56 mysqld_safe mysqld from pid file /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box.pid ended
+250922 20:42:01 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 20:42:01 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 20:42:11 mysqld_safe WSREP: Recovered position 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 20:42:11 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 140757
+2025-09-22 20:42:11 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 20:42:11 0 [Note] WSREP: Loading provider /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so initial position: 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 20:42:11 0 [Note] WSREP: wsrep_load(): loading provider library '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so'
+2025-09-22 20:42:11 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+2025-09-22 20:42:11 0 [Note] WSREP: wsrep_load(): Galera 26.4.22(rae9921f) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-22 20:42:11 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-22 20:42:11 0 [Note] WSREP: Initializing event service v1
+2025-09-22 20:42:11 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-22 20:42:11 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-22 20:42:11 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-22 20:42:11 0 [Warning] WSREP: Could not open state file for reading: '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data//grastate.dat'
+2025-09-22 20:42:11 0 [Note] WSREP: Found saved state: 00000000-0000-0000-0000-000000000000:-1, safe_to_bootstrap: 1
+2025-09-22 20:42:11 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 0
+UUID: 00000000-0000-0000-0000-000000000000
+Seqno: -1 - -1
+Offset: -1
+Synced: 0
+2025-09-22 20:42:11 0 [Note] WSREP: Skipped GCache ring buffer recovery: could not determine history UUID.
+2025-09-22 20:42:11 0 [Note] WSREP: Passing config to GCS: base_dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; base_host = 127.0.0.1; base_port = 13407; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 128M; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_thrott
+2025-09-22 20:42:11 0 [Note] WSREP: Start replication
+2025-09-22 20:42:11 0 [Note] WSREP: Connecting with bootstrap option: 1
+2025-09-22 20:42:11 0 [Note] WSREP: Setting GCS initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 20:42:11 0 [Note] WSREP: protonet asio version 0
+2025-09-22 20:42:11 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-22 20:42:11 0 [Note] WSREP: backend: asio
+2025-09-22 20:42:11 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-22 20:42:11 0 [Note] WSREP: access file(/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data//gvwstate.dat) failed(No such file or directory)
+2025-09-22 20:42:11 0 [Note] WSREP: restore pc from disk failed
+2025-09-22 20:42:11 0 [Note] WSREP: GMCast version 0
+2025-09-22 20:42:11 0 [Note] WSREP: (d9c6d6f5-abb6, 'tcp://127.0.0.1:12407') listening at tcp://127.0.0.1:12407
+2025-09-22 20:42:11 0 [Note] WSREP: (d9c6d6f5-abb6, 'tcp://127.0.0.1:12407') multicast: , ttl: 1
+2025-09-22 20:42:11 0 [Note] WSREP: EVS version 1
+2025-09-22 20:42:11 0 [Note] WSREP: gcomm: bootstrapping new group 'myharem_cluster'
+2025-09-22 20:42:11 0 [Note] WSREP: start_prim is enabled, turn off pc_recovery
+2025-09-22 20:42:11 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-22 20:42:11 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-22 20:42:11 0 [Note] WSREP: Node d9c6d6f5-abb6 state prim
+2025-09-22 20:42:11 0 [Note] WSREP: view(view_id(PRIM,d9c6d6f5-abb6,1) memb {
+	d9c6d6f5-abb6,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 20:42:11 0 [Note] WSREP: save pc into disk
+2025-09-22 20:42:11 0 [Note] WSREP: gcomm: connected
+2025-09-22 20:42:11 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-22 20:42:11 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-22 20:42:11 0 [Note] WSREP: Opened channel 'myharem_cluster'
+2025-09-22 20:42:11 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 20:42:11 0 [Note] WSREP: Initializing config service v1
+2025-09-22 20:42:11 0 [Note] WSREP: Starting new group from scratch: d9c70dcb-97e3-11f0-b2ad-4f637476a656
+2025-09-22 20:42:11 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-22 20:42:11 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: d9c70e79-97e3-11f0-a815-d647abd414ce
+2025-09-22 20:42:11 0 [Note] WSREP: STATE EXCHANGE: sent state msg: d9c70e79-97e3-11f0-a815-d647abd414ce
+2025-09-22 20:42:11 0 [Note] WSREP: STATE EXCHANGE: got state msg: d9c70e79-97e3-11f0-a815-d647abd414ce from 0 (NODE_11407)
+2025-09-22 20:42:11 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 0,
+	members    = 1/1 (joined/total),
+	act_id     = 0,
+	last_appl. = 0,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = d9c70dcb-97e3-11f0-b2ad-4f637476a656
+2025-09-22 20:42:11 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 20:42:11 0 [Note] WSREP: Restored state OPEN -> JOINED (1)
+2025-09-22 20:42:11 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 20:42:11 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1)
+2025-09-22 20:42:11 2 [Note] WSREP: Starting applier thread 2
+2025-09-22 20:42:11 2 [Note] WSREP: ####### processing CC 1, local, ordered
+2025-09-22 20:42:11 2 [Note] WSREP: Process first view: d9c70dcb-97e3-11f0-b2ad-4f637476a656 my uuid: d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5
+2025-09-22 20:42:11 2 [Note] WSREP: Server NODE_11407 connected to cluster at position d9c70dcb-97e3-11f0-b2ad-4f637476a656:1 with ID d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5
+2025-09-22 20:42:11 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-22 20:42:11 2 [Note] WSREP: ####### My UUID: d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5
+2025-09-22 20:42:11 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: no
+2025-09-22 20:42:11 0 [Note] WSREP: Deinitializing config service v1
+2025-09-22 20:42:11 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 20:42:11 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-22 20:42:11 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 20:42:11 2 [Note] WSREP: ####### Adjusting cert position: -1 -> 1
+2025-09-22 20:42:11 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 20:42:11 2 [Note] WSREP: GCache history reset: 00000000-0000-0000-0000-000000000000:0 -> d9c70dcb-97e3-11f0-b2ad-4f637476a656:0
+2025-09-22 20:42:11 2 [Note] WSREP: ================================================
+View:
+  id: d9c70dcb-97e3-11f0-b2ad-4f637476a656:1
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5, NODE_11407
+=================================================
+2025-09-22 20:42:11 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-22 20:42:11 2 [Note] WSREP: Server status change joiner -> initializing
+2025-09-22 20:42:11 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 20:42:11 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 20:42:11 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 20:42:11 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 20:42:11 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 20:42:11 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 20:42:11 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 20:42:11 0 [Note] InnoDB: End of log at LSN=47875
+2025-09-22 20:42:11 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 20:42:11 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 20:42:11 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 20:42:11 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 20:42:11 0 [Note] InnoDB: log sequence number 47875; transaction id 16
+2025-09-22 20:42:11 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 20:42:11 0 [Note] InnoDB: Loading buffer pool(s) from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 20:42:11 0 [Note] InnoDB: Buffer pool(s) load completed at 250922 20:42:11
+2025-09-22 20:42:14 0 [Note] Server socket created on IP: '0.0.0.0'.
+2025-09-22 20:42:14 0 [Note] Server socket created on IP: '::'.
+2025-09-22 20:42:14 0 [Note] mariadbd: Event Scheduler: Loaded 0 events
+2025-09-22 20:42:14 0 [Note] WSREP: wsrep_init_schema_and_SR (nil)
+2025-09-22 20:42:14 0 [Note] WSREP: Server initialized
+2025-09-22 20:42:14 0 [Note] WSREP: Server status change initializing -> initialized
+2025-09-22 20:42:14 2 [Note] WSREP: Bootstrapping a new cluster, setting initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 20:42:14 6 [Note] WSREP: Cluster table is empty, not recovering transactions
+2025-09-22 20:42:14 2 [Note] WSREP: Server status change initialized -> joined
+2025-09-22 20:42:14 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 20:42:14 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: ready for connections.
+Version: '11.4.7-MariaDB-log'  socket: '11407.sock'  port: 11407  MariaDB Server
+2025-09-22 20:42:14 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1
+2025-09-22 20:42:14 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 20:42:14 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 20:42:14 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 20:42:14 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 20:42:14 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 20:45:50 11 [Warning] Aborted connection 11 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:45:54 12 [Warning] Aborted connection 12 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:45:58 13 [Warning] Aborted connection 13 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:46:03 14 [Warning] Aborted connection 14 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:46:07 15 [Warning] Aborted connection 15 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:46:11 16 [Warning] Aborted connection 16 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:46:15 17 [Warning] Aborted connection 17 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:46:19 18 [Warning] Aborted connection 18 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:46:30 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd (initiated by: root[root] @ localhost []): Normal shutdown
+2025-09-22 20:46:30 0 [Note] WSREP: Shutdown replication
+2025-09-22 20:46:30 0 [Note] WSREP: Server status change synced -> disconnecting
+2025-09-22 20:46:30 0 [Note] WSREP: Closing send monitor...
+2025-09-22 20:46:30 0 [Note] WSREP: Closed send monitor.
+2025-09-22 20:46:30 0 [Note] WSREP: gcomm: terminating thread
+2025-09-22 20:46:30 0 [Note] WSREP: gcomm: joining thread
+2025-09-22 20:46:30 0 [Note] WSREP: gcomm: closing backend
+2025-09-22 20:46:30 0 [Note] WSREP: PC protocol downgrade 1 -> 0
+2025-09-22 20:46:30 0 [Note] WSREP: view((empty))
+2025-09-22 20:46:30 0 [Note] WSREP: gcomm: closed
+2025-09-22 20:46:30 0 [Note] WSREP: New SELF-LEAVE.
+2025-09-22 20:46:30 0 [Note] WSREP: Flow-control interval: [0, 0]
+2025-09-22 20:46:30 0 [Note] WSREP: Received SELF-LEAVE. Closing connection.
+2025-09-22 20:46:30 0 [Note] WSREP: Shifting SYNCED -> CLOSED (TO: 2)
+2025-09-22 20:46:30 0 [Note] WSREP: RECV thread exiting 0: Success
+2025-09-22 20:46:30 0 [Note] WSREP: recv_thread() joined.
+2025-09-22 20:46:30 0 [Note] WSREP: Closing send queue.
+2025-09-22 20:46:30 0 [Note] WSREP: Closing receive queue.
+2025-09-22 20:46:30 2 [Note] WSREP: ================================================
+View:
+  id: d9c70dcb-97e3-11f0-b2ad-4f637476a656:2
+  status: non-primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: yes
+  own_index: -1
+  members(0):
+=================================================
+2025-09-22 20:46:30 2 [Note] WSREP: Non-primary view
+2025-09-22 20:46:30 2 [Note] WSREP: Server status change disconnecting -> disconnected
+2025-09-22 20:46:30 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 20:46:30 2 [Note] WSREP: Applier thread exiting ret: 0 thd: 2
+2025-09-22 20:46:30 2 [Warning] Aborted connection 2 to db: 'unconnected' user: 'unauthenticated' host: '' (This connection closed normally without authentication)
+2025-09-22 20:46:31 1 [Note] WSREP: rollbacker thread exiting 1
+2025-09-22 20:46:31 1 [Warning] Aborted connection 1 to db: 'unconnected' user: 'unauthenticated' host: '' (This connection closed normally without authentication)
+2025-09-22 20:46:31 0 [Note] WSREP: dtor state: CLOSED
+2025-09-22 20:46:31 0 [Note] WSREP: MemPool(TrxHandleSlave): hit ratio: 0, misses: 1, in use: 1, in pool: 0
+2025-09-22 20:46:31 0 [Note] WSREP: mon: entered 1 oooe fraction 0 oool fraction 0
+2025-09-22 20:46:31 0 [Note] WSREP: mon: entered 1 oooe fraction 0 oool fraction 0
+2025-09-22 20:46:31 0 [Note] WSREP: mon: entered 4 oooe fraction 0 oool fraction 0
+2025-09-22 20:46:31 0 [Note] WSREP: cert index usage at exit 2
+2025-09-22 20:46:31 0 [Note] WSREP: cert trx map usage at exit 1
+2025-09-22 20:46:31 0 [Note] WSREP: deps set usage at exit 0
+2025-09-22 20:46:31 0 [Note] WSREP: avg deps dist 1
+2025-09-22 20:46:31 0 [Note] WSREP: avg cert interval 0
+2025-09-22 20:46:31 0 [Note] WSREP: cert index size 2
+2025-09-22 20:46:31 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 20:46:31 0 [Note] WSREP: wsdb trx map usage 0 conn query map usage 0
+2025-09-22 20:46:31 0 [Note] WSREP: MemPool(LocalTrxHandle): hit ratio: 0, misses: 1, in use: 0, in pool: 1
+2025-09-22 20:46:31 0 [Note] WSREP: Flushing memory map to disk...
+2025-09-22 20:46:31 0 [Note] WSREP: Deinitializing event service v1
+2025-09-22 20:46:31 0 [Note] WSREP: Deinitializing allowlist service v1
+2025-09-22 20:46:31 0 [Note] InnoDB: FTS optimize thread exiting.
+2025-09-22 20:46:31 0 [Note] InnoDB: Starting shutdown...
+2025-09-22 20:46:31 0 [Note] InnoDB: Dumping buffer pool(s) to /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 20:46:31 0 [Note] InnoDB: Buffer pool(s) dump completed at 250922 20:46:31
+2025-09-22 20:46:32 0 [Note] InnoDB: Removed temporary tablespace data file: "./ibtmp1"
+2025-09-22 20:46:32 0 [Note] InnoDB: Shutdown completed; log sequence number 57086; transaction id 31
+2025-09-22 20:46:32 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: Shutdown complete
+250922 20:46:32 mysqld_safe mysqld from pid file /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box.pid ended
+250922 20:46:35 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 20:46:35 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 20:46:40 mysqld_safe WSREP: Recovered position d9c70dcb-97e3-11f0-b2ad-4f637476a656:2
+2025-09-22 20:46:40 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 141750
+2025-09-22 20:46:40 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 20:46:40 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+2025-09-22 20:46:40 0 [Note] WSREP: Loading provider /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so initial position: d9c70dcb-97e3-11f0-b2ad-4f637476a656:2
+2025-09-22 20:46:40 0 [Note] WSREP: wsrep_load(): loading provider library '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so'
+2025-09-22 20:46:40 0 [Note] WSREP: wsrep_load(): Galera 26.4.22(rae9921f) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-22 20:46:40 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-22 20:46:40 0 [Note] WSREP: Initializing event service v1
+2025-09-22 20:46:40 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-22 20:46:40 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-22 20:46:40 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-22 20:46:40 0 [Note] WSREP: Found saved state: d9c70dcb-97e3-11f0-b2ad-4f637476a656:2, safe_to_bootstrap: 1
+2025-09-22 20:46:40 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: d9c70dcb-97e3-11f0-b2ad-4f637476a656
+Seqno: 1 - 2
+Offset: 1280
+Synced: 1
+2025-09-22 20:46:40 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: d9c70dcb-97e3-11f0-b2ad-4f637476a656, offset: 1280
+2025-09-22 20:46:40 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/134217752 bytes) complete.
+2025-09-22 20:46:40 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (134217752/134217752 bytes) complete.
+2025-09-22 20:46:40 0 [Note] WSREP: Recovering GCache ring buffer: found gapless sequence 1-2
+2025-09-22 20:46:40 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 0.0% (0/720 bytes) complete.
+2025-09-22 20:46:40 0 [Note] WSREP: Recovering GCache ring buffer: found 0/2 locked buffers
+2025-09-22 20:46:40 0 [Note] WSREP: Recovering GCache ring buffer: free space: 134217008/134217728
+2025-09-22 20:46:40 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 100.0% (720/720 bytes) complete.
+2025-09-22 20:46:40 0 [Note] WSREP: Passing config to GCS: base_dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; base_host = 127.0.0.1; base_port = 13407; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 128M; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_thrott
+2025-09-22 20:46:40 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 20:46:40 0 [Note] WSREP: ####### Assign initial position for certification: d9c70dcb-97e3-11f0-b2ad-4f637476a656:2, protocol version: -1
+2025-09-22 20:46:40 0 [Note] WSREP: Start replication
+2025-09-22 20:46:40 0 [Note] WSREP: Connecting with bootstrap option: 1
+2025-09-22 20:46:40 0 [Note] WSREP: Setting GCS initial position to d9c70dcb-97e3-11f0-b2ad-4f637476a656:2
+2025-09-22 20:46:40 0 [Note] WSREP: protonet asio version 0
+2025-09-22 20:46:40 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-22 20:46:40 0 [Note] WSREP: backend: asio
+2025-09-22 20:46:40 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-22 20:46:40 0 [Note] WSREP: access file(/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data//gvwstate.dat) failed(No such file or directory)
+2025-09-22 20:46:40 0 [Note] WSREP: restore pc from disk failed
+2025-09-22 20:46:40 0 [Note] WSREP: GMCast version 0
+2025-09-22 20:46:40 0 [Note] WSREP: (7a30da88-aef8, 'tcp://127.0.0.1:12407') listening at tcp://127.0.0.1:12407
+2025-09-22 20:46:40 0 [Note] WSREP: (7a30da88-aef8, 'tcp://127.0.0.1:12407') multicast: , ttl: 1
+2025-09-22 20:46:40 0 [Note] WSREP: EVS version 1
+2025-09-22 20:46:40 0 [Note] WSREP: gcomm: bootstrapping new group 'myharem_cluster'
+2025-09-22 20:46:40 0 [Note] WSREP: start_prim is enabled, turn off pc_recovery
+2025-09-22 20:46:40 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-22 20:46:40 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-22 20:46:40 0 [Note] WSREP: Node 7a30da88-aef8 state prim
+2025-09-22 20:46:40 0 [Note] WSREP: view(view_id(PRIM,7a30da88-aef8,1) memb {
+	7a30da88-aef8,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 20:46:40 0 [Note] WSREP: save pc into disk
+2025-09-22 20:46:40 0 [Note] WSREP: gcomm: connected
+2025-09-22 20:46:40 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-22 20:46:40 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-22 20:46:40 0 [Note] WSREP: Opened channel 'myharem_cluster'
+2025-09-22 20:46:40 0 [Note] WSREP: Initializing config service v1
+2025-09-22 20:46:40 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 20:46:40 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 7a310bcd-97e4-11f0-ae1f-fe1767743f6e
+2025-09-22 20:46:40 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 7a310bcd-97e4-11f0-ae1f-fe1767743f6e
+2025-09-22 20:46:40 0 [Note] WSREP: STATE EXCHANGE: got state msg: 7a310bcd-97e4-11f0-ae1f-fe1767743f6e from 0 (NODE_11407)
+2025-09-22 20:46:40 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 0,
+	members    = 1/1 (joined/total),
+	act_id     = 2,
+	last_appl. = 2,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = d9c70dcb-97e3-11f0-b2ad-4f637476a656
+2025-09-22 20:46:40 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-22 20:46:40 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 20:46:40 0 [Note] WSREP: Restored state OPEN -> JOINED (3)
+2025-09-22 20:46:40 2 [Note] WSREP: Starting applier thread 2
+2025-09-22 20:46:40 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 20:46:40 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 3)
+2025-09-22 20:46:40 2 [Note] WSREP: ####### processing CC 3, local, ordered
+2025-09-22 20:46:40 2 [Note] WSREP: Process first view: d9c70dcb-97e3-11f0-b2ad-4f637476a656 my uuid: 7a30da88-97e4-11f0-aef8-7e66bbcd8637
+2025-09-22 20:46:40 2 [Note] WSREP: Server NODE_11407 connected to cluster at position d9c70dcb-97e3-11f0-b2ad-4f637476a656:3 with ID 7a30da88-97e4-11f0-aef8-7e66bbcd8637
+2025-09-22 20:46:40 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-22 20:46:40 2 [Note] WSREP: ####### My UUID: 7a30da88-97e4-11f0-aef8-7e66bbcd8637
+2025-09-22 20:46:40 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: no
+2025-09-22 20:46:40 0 [Note] WSREP: Deinitializing config service v1
+2025-09-22 20:46:40 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 20:46:40 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-22 20:46:40 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 20:46:40 2 [Note] WSREP: ####### Adjusting cert position: -1 -> 3
+2025-09-22 20:46:40 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 20:46:40 2 [Note] WSREP: ================================================
+View:
+  id: d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 7a30da88-97e4-11f0-aef8-7e66bbcd8637, NODE_11407
+=================================================
+2025-09-22 20:46:40 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-22 20:46:40 2 [Note] WSREP: Server status change joiner -> initializing
+2025-09-22 20:46:40 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 20:46:40 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 20:46:40 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 20:46:40 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 20:46:40 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 20:46:40 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 20:46:40 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 20:46:40 0 [Note] InnoDB: End of log at LSN=57086
+2025-09-22 20:46:40 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 20:46:40 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 20:46:40 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 20:46:40 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 20:46:40 0 [Note] InnoDB: log sequence number 57086; transaction id 32
+2025-09-22 20:46:40 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 20:46:40 0 [Note] InnoDB: Loading buffer pool(s) from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 20:46:40 0 [Note] InnoDB: Buffer pool(s) load completed at 250922 20:46:40
+2025-09-22 20:46:49 0 [Note] Server socket created on IP: '0.0.0.0'.
+2025-09-22 20:46:49 0 [Note] Server socket created on IP: '::'.
+2025-09-22 20:46:49 0 [Note] mariadbd: Event Scheduler: Loaded 0 events
+2025-09-22 20:46:49 0 [Note] WSREP: wsrep_init_schema_and_SR (nil)
+2025-09-22 20:46:49 0 [Note] WSREP: Server initialized
+2025-09-22 20:46:49 0 [Note] WSREP: Server status change initializing -> initialized
+2025-09-22 20:46:49 2 [Note] WSREP: Bootstrapping a new cluster, setting initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 20:46:49 6 [Note] WSREP: Recovered cluster id d9c70dcb-97e3-11f0-b2ad-4f637476a656
+2025-09-22 20:46:49 2 [Note] WSREP: Server status change initialized -> joined
+2025-09-22 20:46:49 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 20:46:49 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: ready for connections.
+Version: '11.4.7-MariaDB-log'  socket: '11407.sock'  port: 11407  MariaDB Server
+2025-09-22 20:46:49 2 [Note] WSREP: Lowest cert index boundary for CC from group: 3
+2025-09-22 20:46:49 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 20:46:49 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 20:46:49 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 20:46:49 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 20:46:49 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 20:47:42 9 [Warning] Aborted connection 9 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:47:46 10 [Warning] Aborted connection 10 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:47:50 11 [Warning] Aborted connection 11 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:47:54 12 [Warning] Aborted connection 12 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:47:58 13 [Warning] Aborted connection 13 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:48:02 14 [Warning] Aborted connection 14 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:48:07 15 [Warning] Aborted connection 15 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:48:11 16 [Warning] Aborted connection 16 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 20:48:12 17 [Warning] Aborted connection 17 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:15:00 0 [Warning] WSREP: last inactive check more than PT1.5S ago (PT4.60207S), skipping check
+250922 22:27:00 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 22:27:00 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 22:27:03 mysqld_safe WSREP: Recovered position d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:27:03 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server2025-09-22 22:27:03 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 4577
+2025-09-22 22:27:03 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 22:27:03 0 [Note] WSREP: Loading provider /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so initial position: d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:27:03 0 [Note] WSREP: wsrep_load(): loading provider library '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so'
+2025-09-22 22:27:03 0 [Note] WSREP: wsrep_load(): Galera 26.4.22(rae9921f) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-22 22:27:03 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-22 22:27:03 0 [Note] WSREP: Initializing event service v1
+2025-09-22 22:27:03 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-22 22:27:03 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-22 22:27:03 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-22 22:27:03 0 [Note] WSREP: Found saved state: d9c70dcb-97e3-11f0-b2ad-4f637476a656:-1, safe_to_bootstrap: 1
+2025-09-22 22:27:03 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: d9c70dcb-97e3-11f0-b2ad-4f637476a656
+Seqno: -1 - -1
+Offset: -1
+Synced: 0
+2025-09-22 22:27:03 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: d9c70dcb-97e3-11f0-b2ad-4f637476a656, offset: -1
+2025-09-22 22:27:03 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/134217752 bytes) complete.
+2025-09-22 22:27:03 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (134217752/134217752 bytes) complete.
+2025-09-22 22:27:03 0 [Note] WSREP: Recovering GCache ring buffer: found gapless sequence 1-3
+2025-09-22 22:27:03 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 0.0% (0/888 bytes) complete.
+2025-09-22 22:27:03 0 [Note] WSREP: Recovering GCache ring buffer: found 0/3 locked buffers
+2025-09-22 22:27:03 0 [Note] WSREP: Recovering GCache ring buffer: free space: 134216840/134217728
+2025-09-22 22:27:03 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 100.0% (888/888 bytes) complete.
+2025-09-22 22:27:03 0 [Note] WSREP: Passing config to GCS: base_dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; base_host = 192.168.178.77; base_port = 4567; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 128M; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_th
+2025-09-22 22:27:03 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:27:03 0 [Note] WSREP: ####### Assign initial position for certification: d9c70dcb-97e3-11f0-b2ad-4f637476a656:3, protocol version: -1
+2025-09-22 22:27:03 0 [Note] WSREP: Start replication
+2025-09-22 22:27:03 0 [Note] WSREP: Connecting with bootstrap option: 1
+2025-09-22 22:27:03 0 [Note] WSREP: Setting GCS initial position to d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:27:03 0 [Note] WSREP: protonet asio version 0
+2025-09-22 22:27:03 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-22 22:27:03 0 [Note] WSREP: backend: asio
+2025-09-22 22:27:03 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-22 22:27:03 0 [Note] WSREP: restore pc from disk successfully
+2025-09-22 22:27:03 0 [Note] WSREP: GMCast version 0
+2025-09-22 22:27:03 0 [Note] WSREP: (7a30da88-aef9, 'tcp://127.0.0.1:12407') listening at tcp://127.0.0.1:12407
+2025-09-22 22:27:03 0 [Note] WSREP: (7a30da88-aef9, 'tcp://127.0.0.1:12407') multicast: , ttl: 1
+2025-09-22 22:27:03 0 [Note] WSREP: EVS version 1
+2025-09-22 22:27:03 0 [Note] WSREP: gcomm: bootstrapping new group 'myharem_cluster'
+2025-09-22 22:27:03 0 [Note] WSREP: start_prim is enabled, turn off pc_recovery
+2025-09-22 22:27:03 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-22 22:27:03 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-22 22:27:03 0 [Note] WSREP: Node 7a30da88-aef9 state prim
+2025-09-22 22:27:03 0 [Note] WSREP: view(view_id(PRIM,7a30da88-aef9,3) memb {
+	7a30da88-aef9,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:27:03 0 [Note] WSREP: save pc into disk
+2025-09-22 22:27:03 0 [Note] WSREP: clear restored view
+2025-09-22 22:27:03 0 [Note] WSREP: gcomm: connected
+2025-09-22 22:27:03 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-22 22:27:03 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-22 22:27:03 0 [Note] WSREP: Opened channel 'myharem_cluster'
+2025-09-22 22:27:03 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 22:27:03 0 [Note] WSREP: Initializing config service v1
+2025-09-22 22:27:03 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 802a1652-97f2-11f0-8eaf-2fcdbc73ac3b
+2025-09-22 22:27:03 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 802a1652-97f2-11f0-8eaf-2fcdbc73ac3b
+2025-09-22 22:27:03 0 [Note] WSREP: STATE EXCHANGE: got state msg: 802a1652-97f2-11f0-8eaf-2fcdbc73ac3b from 0 (NODE_11407)
+2025-09-22 22:27:03 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 0,
+	members    = 1/1 (joined/total),
+	act_id     = 3,
+	last_appl. = 3,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = d9c70dcb-97e3-11f0-b2ad-4f637476a656
+2025-09-22 22:27:03 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 22:27:03 0 [Note] WSREP: Restored state OPEN -> JOINED (4)
+2025-09-22 22:27:03 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-22 22:27:03 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:27:03 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 4)
+2025-09-22 22:27:03 2 [Note] WSREP: Starting applier thread 2
+2025-09-22 22:27:03 2 [Note] WSREP: ####### processing CC 4, local, ordered
+2025-09-22 22:27:03 2 [Note] WSREP: Process first view: d9c70dcb-97e3-11f0-b2ad-4f637476a656 my uuid: 7a30da88-97e4-11f0-aef9-7e66bbcd8637
+2025-09-22 22:27:03 2 [Note] WSREP: Server NODE_11407 connected to cluster at position d9c70dcb-97e3-11f0-b2ad-4f637476a656:4 with ID 7a30da88-97e4-11f0-aef9-7e66bbcd8637
+2025-09-22 22:27:03 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-22 22:27:03 2 [Note] WSREP: ####### My UUID: 7a30da88-97e4-11f0-aef9-7e66bbcd8637
+2025-09-22 22:27:03 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: no
+2025-09-22 22:27:03 0 [Note] WSREP: Deinitializing config service v1
+2025-09-22 22:27:03 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:27:03 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-22 22:27:03 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:27:03 2 [Note] WSREP: ####### Adjusting cert position: -1 -> 4
+2025-09-22 22:27:03 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:27:03 2 [Note] WSREP: ================================================
+View:
+  id: d9c70dcb-97e3-11f0-b2ad-4f637476a656:4
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 7a30da88-97e4-11f0-aef9-7e66bbcd8637, NODE_11407
+=================================================
+2025-09-22 22:27:03 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-22 22:27:03 2 [Note] WSREP: Server status change joiner -> initializing
+2025-09-22 22:27:03 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 22:27:03 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 22:27:03 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 22:27:03 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 22:27:03 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 22:27:03 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 22:27:03 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 22:27:03 0 [Note] InnoDB: End of log at LSN=59363
+2025-09-22 22:27:03 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 22:27:03 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 22:27:03 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 22:27:03 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 22:27:03 0 [Note] InnoDB: log sequence number 59363; transaction id 41
+2025-09-22 22:27:03 0 [Note] InnoDB: Loading buffer pool(s) from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 22:27:03 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 22:27:03 0 [ERROR] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: unknown variable 'wsrep_sst_address=127.0.0.1:13407'
+2025-09-22 22:27:03 0 [ERROR] Aborting
+2025-09-22 22:27:03 2 [ERROR] WSREP: Exception: State wait was interrupted
+2025-09-22 22:27:03 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)
+	 at /home/buildbot/buildbot/build/galera/src/replicator_smm.cpp:submit_view_info():2477
+250922 22:27:03 mysqld_safe mysqld from pid file /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box.pid ended
+250922 22:27:12 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 22:27:12 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 22:27:19 mysqld_safe WSREP: Recovered position d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:27:19 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server2025-09-22 22:27:19 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 4786
+2025-09-22 22:27:19 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 22:27:19 0 [Note] WSREP: Loading provider /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so initial position: d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:27:19 0 [Note] WSREP: wsrep_load(): loading provider library '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so'
+2025-09-22 22:27:19 0 [Note] WSREP: wsrep_load(): Galera 26.4.22(rae9921f) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-22 22:27:19 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-22 22:27:19 0 [Note] WSREP: Initializing event service v1
+2025-09-22 22:27:19 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-22 22:27:19 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-22 22:27:19 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-22 22:27:19 0 [Warning] WSREP: Could not open state file for reading: '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data//grastate.dat'
+2025-09-22 22:27:19 0 [Note] WSREP: Found saved state: 00000000-0000-0000-0000-000000000000:-1, safe_to_bootstrap: 1
+2025-09-22 22:27:19 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: d9c70dcb-97e3-11f0-b2ad-4f637476a656
+Seqno: -1 - -1
+Offset: -1
+Synced: 0
+2025-09-22 22:27:19 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: d9c70dcb-97e3-11f0-b2ad-4f637476a656, offset: -1
+2025-09-22 22:27:19 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/134217752 bytes) complete.
+2025-09-22 22:27:19 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (134217752/134217752 bytes) complete.
+2025-09-22 22:27:19 0 [Note] WSREP: Recovering GCache ring buffer: found gapless sequence 1-4
+2025-09-22 22:27:19 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 0.0% (0/1056 bytes) complete.
+2025-09-22 22:27:19 0 [Note] WSREP: Recovering GCache ring buffer: found 0/4 locked buffers
+2025-09-22 22:27:19 0 [Note] WSREP: Recovering GCache ring buffer: free space: 134216672/134217728
+2025-09-22 22:27:19 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 100.0% (1056/1056 bytes) complete.
+2025-09-22 22:27:19 0 [Note] WSREP: Passing config to GCS: base_dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; base_host = 192.168.178.77; base_port = 4567; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 128M; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_th
+2025-09-22 22:27:19 0 [Note] WSREP: Start replication
+2025-09-22 22:27:19 0 [Note] WSREP: Connecting with bootstrap option: 1
+2025-09-22 22:27:19 0 [Note] WSREP: Setting GCS initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 22:27:19 0 [Note] WSREP: protonet asio version 0
+2025-09-22 22:27:19 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-22 22:27:19 0 [Note] WSREP: backend: asio
+2025-09-22 22:27:19 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-22 22:27:19 0 [Note] WSREP: access file(/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data//gvwstate.dat) failed(No such file or directory)
+2025-09-22 22:27:19 0 [Note] WSREP: restore pc from disk failed
+2025-09-22 22:27:19 0 [Note] WSREP: GMCast version 0
+2025-09-22 22:27:19 0 [Note] WSREP: (89c65b64-87c2, 'tcp://127.0.0.1:12407') listening at tcp://127.0.0.1:12407
+2025-09-22 22:27:19 0 [Note] WSREP: (89c65b64-87c2, 'tcp://127.0.0.1:12407') multicast: , ttl: 1
+2025-09-22 22:27:19 0 [Note] WSREP: EVS version 1
+2025-09-22 22:27:19 0 [Note] WSREP: gcomm: bootstrapping new group 'myharem_cluster'
+2025-09-22 22:27:19 0 [Note] WSREP: start_prim is enabled, turn off pc_recovery
+2025-09-22 22:27:19 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-22 22:27:19 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-22 22:27:19 0 [Note] WSREP: Node 89c65b64-87c2 state prim
+2025-09-22 22:27:19 0 [Note] WSREP: view(view_id(PRIM,89c65b64-87c2,1) memb {
+	89c65b64-87c2,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:27:19 0 [Note] WSREP: save pc into disk
+2025-09-22 22:27:19 0 [Note] WSREP: gcomm: connected
+2025-09-22 22:27:19 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-22 22:27:19 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-22 22:27:19 0 [Note] WSREP: Opened channel 'myharem_cluster'
+2025-09-22 22:27:19 0 [Note] WSREP: Initializing config service v1
+2025-09-22 22:27:19 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 22:27:19 0 [Note] WSREP: Starting new group from scratch: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f
+2025-09-22 22:27:19 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-22 22:27:19 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 89c6904d-97f2-11f0-b092-ae8442a7141a
+2025-09-22 22:27:19 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 89c6904d-97f2-11f0-b092-ae8442a7141a
+2025-09-22 22:27:19 0 [Note] WSREP: STATE EXCHANGE: got state msg: 89c6904d-97f2-11f0-b092-ae8442a7141a from 0 (NODE_11407)
+2025-09-22 22:27:19 2 [Note] WSREP: Starting applier thread 2
+2025-09-22 22:27:19 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 0,
+	members    = 1/1 (joined/total),
+	act_id     = 0,
+	last_appl. = 0,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f
+2025-09-22 22:27:19 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 22:27:19 0 [Note] WSREP: Restored state OPEN -> JOINED (1)
+2025-09-22 22:27:19 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:27:19 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1)
+2025-09-22 22:27:19 0 [Note] WSREP: Deinitializing config service v1
+2025-09-22 22:27:19 2 [Note] WSREP: ####### processing CC 1, local, ordered
+2025-09-22 22:27:19 2 [Note] WSREP: Process first view: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f my uuid: 89c65b64-97f2-11f0-87c2-22481ca21bac
+2025-09-22 22:27:19 2 [Note] WSREP: Server NODE_11407 connected to cluster at position 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f:1 with ID 89c65b64-97f2-11f0-87c2-22481ca21bac
+2025-09-22 22:27:19 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-22 22:27:19 2 [Note] WSREP: ####### My UUID: 89c65b64-97f2-11f0-87c2-22481ca21bac
+2025-09-22 22:27:19 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: no
+2025-09-22 22:27:19 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:27:19 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-22 22:27:19 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:27:19 2 [Note] WSREP: ####### Adjusting cert position: -1 -> 1
+2025-09-22 22:27:19 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:27:19 2 [Note] WSREP: GCache history reset: d9c70dcb-97e3-11f0-b2ad-4f637476a656:4 -> 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f:0
+2025-09-22 22:27:19 2 [Note] WSREP: GCache DEBUG: RingBuffer::seqno_reset(): discarded 1056 bytes
+2025-09-22 22:27:19 2 [Note] WSREP: GCache DEBUG: RingBuffer::seqno_reset(): found 0/1 locked buffers
+2025-09-22 22:27:19 2 [Note] WSREP: ================================================
+View:
+  id: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f:1
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 89c65b64-97f2-11f0-87c2-22481ca21bac, NODE_11407
+=================================================
+2025-09-22 22:27:19 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-22 22:27:19 2 [Note] WSREP: Server status change joiner -> initializing
+2025-09-22 22:27:19 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 22:27:19 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 22:27:19 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 22:27:19 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 22:27:19 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 22:27:19 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 22:27:19 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 22:27:19 0 [Note] InnoDB: End of log at LSN=59363
+2025-09-22 22:27:19 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 22:27:19 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 22:27:19 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 22:27:19 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 22:27:19 0 [Note] InnoDB: log sequence number 59363; transaction id 41
+2025-09-22 22:27:19 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 22:27:19 0 [Note] InnoDB: Loading buffer pool(s) from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 22:27:19 0 [ERROR] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: unknown variable 'wsrep_sst_address=127.0.0.1:13407'
+2025-09-22 22:27:19 0 [ERROR] Aborting
+2025-09-22 22:27:19 2 [ERROR] WSREP: Exception: State wait was interrupted
+2025-09-22 22:27:19 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)
+	 at /home/buildbot/buildbot/build/galera/src/replicator_smm.cpp:submit_view_info():2477
+250922 22:27:19 mysqld_safe mysqld from pid file /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box.pid ended
+250922 22:28:00 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 22:28:00 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 22:28:06 mysqld_safe WSREP: Recovered position d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:28:06 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 4998
+2025-09-22 22:28:06 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 22:28:06 0 [Warning] WSREP: wsrep_sst_receive_address is set to '127.0.0.1:13407' which makes it impossible for another host to reach this one. Please set it to the address which this node can be connected at by other cluster members.
+2025-09-22 22:28:06 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+2025-09-22 22:28:06 0 [Note] WSREP: Loading provider /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so initial position: d9c70dcb-97e3-11f0-b2ad-4f637476a656:3
+2025-09-22 22:28:06 0 [Note] WSREP: wsrep_load(): loading provider library '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so'
+2025-09-22 22:28:06 0 [Note] WSREP: wsrep_load(): Galera 26.4.22(rae9921f) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-22 22:28:06 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-22 22:28:06 0 [Note] WSREP: Initializing event service v1
+2025-09-22 22:28:06 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-22 22:28:06 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-22 22:28:06 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-22 22:28:06 0 [Note] WSREP: Found saved state: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f:-1, safe_to_bootstrap: 1
+2025-09-22 22:28:06 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f
+Seqno: -1 - -1
+Offset: -1
+Synced: 0
+2025-09-22 22:28:06 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f, offset: -1
+2025-09-22 22:28:06 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/134217752 bytes) complete.
+2025-09-22 22:28:06 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (134217752/134217752 bytes) complete.
+2025-09-22 22:28:06 0 [Note] WSREP: Recovering GCache ring buffer: found gapless sequence 1-1
+2025-09-22 22:28:06 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 0.0% (0/1056 bytes) complete.
+2025-09-22 22:28:06 0 [Note] WSREP: Recovering GCache ring buffer: found 3/4 locked buffers
+2025-09-22 22:28:06 0 [Note] WSREP: Recovering GCache ring buffer: free space: 134217560/134217728
+2025-09-22 22:28:06 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 100.0% (1056/1056 bytes) complete.
+2025-09-22 22:28:06 0 [Note] WSREP: Passing config to GCS: base_dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; base_host = 192.168.178.77; base_port = 4567; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 128M; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_th
+2025-09-22 22:28:06 0 [Note] WSREP: Start replication
+2025-09-22 22:28:06 0 [Note] WSREP: Connecting with bootstrap option: 1
+2025-09-22 22:28:06 0 [Note] WSREP: Setting GCS initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 22:28:06 0 [Note] WSREP: protonet asio version 0
+2025-09-22 22:28:06 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-22 22:28:06 0 [Note] WSREP: backend: asio
+2025-09-22 22:28:06 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-22 22:28:06 0 [Note] WSREP: restore pc from disk successfully
+2025-09-22 22:28:06 0 [Note] WSREP: GMCast version 0
+2025-09-22 22:28:06 0 [Note] WSREP: (89c65b64-87c3, 'tcp://127.0.0.1:12407') listening at tcp://127.0.0.1:12407
+2025-09-22 22:28:06 0 [Note] WSREP: (89c65b64-87c3, 'tcp://127.0.0.1:12407') multicast: , ttl: 1
+2025-09-22 22:28:06 0 [Note] WSREP: EVS version 1
+2025-09-22 22:28:06 0 [Note] WSREP: gcomm: bootstrapping new group 'myharem_cluster'
+2025-09-22 22:28:06 0 [Note] WSREP: start_prim is enabled, turn off pc_recovery
+2025-09-22 22:28:06 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-22 22:28:06 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-22 22:28:06 0 [Note] WSREP: Node 89c65b64-87c3 state prim
+2025-09-22 22:28:06 0 [Note] WSREP: view(view_id(PRIM,89c65b64-87c3,3) memb {
+	89c65b64-87c3,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:28:06 0 [Note] WSREP: save pc into disk
+2025-09-22 22:28:06 0 [Note] WSREP: clear restored view
+2025-09-22 22:28:06 0 [Note] WSREP: gcomm: connected
+2025-09-22 22:28:06 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-22 22:28:06 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-22 22:28:06 0 [Note] WSREP: Opened channel 'myharem_cluster'
+2025-09-22 22:28:06 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 22:28:06 0 [Note] WSREP: Initializing config service v1
+2025-09-22 22:28:06 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-22 22:28:06 0 [Note] WSREP: Starting new group from scratch: a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:28:06 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: a572a78b-97f2-11f0-b896-aa3a4d0ad1f8
+2025-09-22 22:28:06 0 [Note] WSREP: STATE EXCHANGE: sent state msg: a572a78b-97f2-11f0-b896-aa3a4d0ad1f8
+2025-09-22 22:28:06 0 [Note] WSREP: STATE EXCHANGE: got state msg: a572a78b-97f2-11f0-b896-aa3a4d0ad1f8 from 0 (NODE_11407)
+2025-09-22 22:28:06 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 0,
+	members    = 1/1 (joined/total),
+	act_id     = 0,
+	last_appl. = 0,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:28:06 2 [Note] WSREP: Starting applier thread 2
+2025-09-22 22:28:06 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 22:28:06 0 [Note] WSREP: Restored state OPEN -> JOINED (1)
+2025-09-22 22:28:06 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:28:06 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1)
+2025-09-22 22:28:06 2 [Note] WSREP: ####### processing CC 1, local, ordered
+2025-09-22 22:28:06 2 [Note] WSREP: Process first view: a572a681-97f2-11f0-9f63-c7c3a72b2527 my uuid: 89c65b64-97f2-11f0-87c3-22481ca21bac
+2025-09-22 22:28:06 2 [Note] WSREP: Server NODE_11407 connected to cluster at position a572a681-97f2-11f0-9f63-c7c3a72b2527:1 with ID 89c65b64-97f2-11f0-87c3-22481ca21bac
+2025-09-22 22:28:06 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-22 22:28:06 0 [Note] WSREP: Deinitializing config service v1
+2025-09-22 22:28:06 2 [Note] WSREP: ####### My UUID: 89c65b64-97f2-11f0-87c3-22481ca21bac
+2025-09-22 22:28:06 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: no
+2025-09-22 22:28:06 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:28:06 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-22 22:28:06 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:28:06 2 [Note] WSREP: ####### Adjusting cert position: -1 -> 1
+2025-09-22 22:28:06 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:28:06 2 [Note] WSREP: GCache history reset: 89c68fa5-97f2-11f0-a9b5-ea9f686adb7f:1 -> a572a681-97f2-11f0-9f63-c7c3a72b2527:0
+2025-09-22 22:28:06 2 [Note] WSREP: GCache DEBUG: RingBuffer::seqno_reset(): discarded 168 bytes
+2025-09-22 22:28:06 2 [Note] WSREP: GCache DEBUG: RingBuffer::seqno_reset(): found 0/1 locked buffers
+2025-09-22 22:28:06 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:1
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 89c65b64-97f2-11f0-87c3-22481ca21bac, NODE_11407
+=================================================
+2025-09-22 22:28:06 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-22 22:28:06 2 [Note] WSREP: Server status change joiner -> initializing
+2025-09-22 22:28:06 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 22:28:06 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 22:28:06 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 22:28:06 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 22:28:06 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 22:28:06 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 22:28:06 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 22:28:06 0 [Note] InnoDB: End of log at LSN=59363
+2025-09-22 22:28:06 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 22:28:06 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 22:28:06 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 22:28:06 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 22:28:06 0 [Note] InnoDB: log sequence number 59363; transaction id 41
+2025-09-22 22:28:06 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 22:28:06 0 [Note] InnoDB: Loading buffer pool(s) from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 22:28:06 0 [Note] InnoDB: Buffer pool(s) load completed at 250922 22:28:06
+2025-09-22 22:28:10 0 [Note] Server socket created on IP: '0.0.0.0'.
+2025-09-22 22:28:10 0 [Note] Server socket created on IP: '::'.
+2025-09-22 22:28:10 0 [Note] mariadbd: Event Scheduler: Loaded 0 events
+2025-09-22 22:28:10 0 [Note] WSREP: wsrep_init_schema_and_SR (nil)
+2025-09-22 22:28:10 0 [Note] WSREP: Server initialized
+2025-09-22 22:28:10 0 [Note] WSREP: Server status change initializing -> initialized
+2025-09-22 22:28:10 2 [Note] WSREP: Bootstrapping a new cluster, setting initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 22:28:10 6 [Note] WSREP: Recovered cluster id d9c70dcb-97e3-11f0-b2ad-4f637476a656
+2025-09-22 22:28:10 2 [Note] WSREP: Server status change initialized -> joined
+2025-09-22 22:28:10 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:28:10 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: ready for connections.
+Version: '11.4.7-MariaDB-log'  socket: '11407.sock'  port: 11407  MariaDB Server
+2025-09-22 22:28:10 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1
+2025-09-22 22:28:10 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:28:10 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 22:28:10 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 22:28:10 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 22:28:10 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:29:18 10 [Warning] Aborted connection 10 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:23 11 [Warning] Aborted connection 11 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:27 12 [Warning] Aborted connection 12 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:31 13 [Warning] Aborted connection 13 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:36 14 [Warning] Aborted connection 14 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:40 15 [Warning] Aborted connection 15 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:44 16 [Warning] Aborted connection 16 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:29:48 17 [Warning] Aborted connection 17 to db: 'unconnected' user: 'unauthenticated' host: 'localhost' (This connection closed normally without authentication)
+2025-09-22 22:30:39 0 [Note] WSREP: (89c65b64-87c3, 'tcp://127.0.0.1:12407') connection established to 01072cd7-b1d4 tcp://127.0.0.1:22407
+2025-09-22 22:30:40 0 [Note] WSREP: declaring 01072cd7-b1d4 at tcp://127.0.0.1:22407 stable
+2025-09-22 22:30:40 0 [Note] WSREP: Node 89c65b64-87c3 state prim
+2025-09-22 22:30:40 0 [Note] WSREP: view(view_id(PRIM,01072cd7-b1d4,4) memb {
+	01072cd7-b1d4,0
+	89c65b64-87c3,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:30:40 0 [Note] WSREP: save pc into disk
+2025-09-22 22:30:40 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 1, memb_num = 2
+2025-09-22 22:30:40 0 [Note] WSREP: STATE EXCHANGE: Waiting for state UUID.
+2025-09-22 22:30:40 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 01a00c94-97f3-11f0-a987-4333afca49bf
+2025-09-22 22:30:40 0 [Note] WSREP: STATE EXCHANGE: got state msg: 01a00c94-97f3-11f0-a987-4333afca49bf from 0 (NODE_21407)
+2025-09-22 22:30:40 0 [Note] WSREP: STATE EXCHANGE: got state msg: 01a00c94-97f3-11f0-a987-4333afca49bf from 1 (NODE_11407)
+2025-09-22 22:30:40 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 1,
+	members    = 1/2 (joined/total),
+	act_id     = 1,
+	last_appl. = 0,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:30:40 0 [Note] WSREP: Flow-control interval: [23, 23]
+2025-09-22 22:30:40 2 [Note] WSREP: ####### processing CC 2, local, ordered
+2025-09-22 22:30:40 2 [Note] WSREP: ####### My UUID: 89c65b64-97f2-11f0-87c3-22481ca21bac
+2025-09-22 22:30:40 2 [Note] WSREP: Skipping cert index reset
+2025-09-22 22:30:40 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:30:40 2 [Note] WSREP: ####### Adjusting cert position: 1 -> 2
+2025-09-22 22:30:40 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:30:40 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:2
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 1
+  members(2):
+	0: 01072cd7-97f3-11f0-b1d4-b2e5c7499804, NODE_21407
+	1: 89c65b64-97f2-11f0-87c3-22481ca21bac, NODE_11407
+=================================================
+2025-09-22 22:30:40 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:30:40 2 [Note] WSREP: Lowest cert index boundary for CC from group: 2
+2025-09-22 22:30:40 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:30:41 0 [Note] WSREP: Member 0.0 (NODE_21407) requested state transfer from '*any*'. Selected 1.0 (NODE_11407)(SYNCED) as donor.
+2025-09-22 22:30:41 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 2)
+2025-09-22 22:30:41 2 [Note] WSREP: Detected STR version: 1, req_len: 129, req: STRv1
+2025-09-22 22:30:41 2 [Note] WSREP: Cert index preload: 2 -> 2
+2025-09-22 22:30:41 2 [Note] WSREP: Server status change synced -> donor
+2025-09-22 22:30:41 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:30:41 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-22 22:30:41 0 [Note] WSREP: async IST sender starting to serve tcp://192.168.178.77:22408 sending 2-2, preload starts from 2
+2025-09-22 22:30:41 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariadb-11.4.7-li
+2025-09-22 22:30:41 0 [Note] WSREP: IST sender 2 -> 2
+2025-09-22 22:30:41 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250922 22:30:41.343)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250922 22:30:41.367)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin:/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/lib/snapd/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250922 22:30:41.461)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250922 22:30:41.463)
+WSREP_SST: [INFO] Streaming with mbstream (20250922 22:30:41.498)
+WSREP_SST: [INFO] Using socat as streamer (20250922 22:30:41.499)
+WSREP_SST: [INFO] Using '/tmp/tmp.dSxgsfCyhV' as mariadb-backup temporary directory (20250922 22:30:41.511)
+WSREP_SST: [INFO] Using '/tmp/tmp.d3em2yDSut' as mariadb-backup working directory (20250922 22:30:41.512)
+WSREP_SST: [INFO] Estimating total transfer size (20250922 22:30:41.513)
+WSREP_SST: [INFO] SST footprint estimate: data: 44613632, undo: 0 (20250922 22:30:41.517)
+WSREP_SST: [INFO] To transfer: 44613632 (20250922 22:30:41.518)
+WSREP_SST: [INFO] Streaming GTID file before SST (20250922 22:30:41.519)
+WSREP_SST: [INFO] Evaluating '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mbstream' -c 'mariadb_backup_galera_info' 'donor_galera_info' | socat -u stdio TCP:127.0.0.1:23407; RC=( ${PIPESTATUS[@]} ) (20250922 22:30:41.520)
+WSREP_SST: [INFO] Sleeping before data transfer for SST (20250922 22:30:41.525)
+2025-09-22 22:30:43 0 [Note] WSREP: (89c65b64-87c3, 'tcp://127.0.0.1:12407') turning message relay requesting off
+WSREP_SST: [INFO] Streaming the backup to joiner at 127.0.0.1:23407 (20250922 22:30:51.528)
+WSREP_SST: [INFO] Evaluating /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mariadb-backup --defaults-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --backup --no-version-check --databases-exclude='lost+found' --tmpdir='/tmp/tmp.dSxgsfCyhV' --innodb-data-home-dir='.' --log-bin='fedora-bin' --user='sstuser' --socket='11407.sock' --galera-info --stream=mbstream --target-dir='/tmp/tmp.d3em2yDSut' --datadir='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data' --mysqld-args '--basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407' '--plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin' '--wsrep_on=ON' '--wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so' '--log-error=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/error.11407.log' '--pid-file=fedora.fritz.box.pid' '--wsrep_start_position=d9c70dcb-97e3-11f0-b2ad-4f637476a656:3' 2> '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' | socat -u stdio TCP:127.0.0.1:23407; RC=( ${PIPESTATUS[@]} ) (20250922 22:30:51.530)
+2025-09-22 22:30:51 18 [Warning] Access denied for user 'sstuser'@'localhost' (using password: YES)
+WSREP_SST: [ERROR] mariadb-backup finished with error: 1. Check syslog or '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' for details (20250922 22:30:51.617)
+WSREP_SST: [ERROR] Cleanup after exit with status: 22 (20250922 22:30:51.618)
+WSREP_SST: [ERROR] Removing /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariadb_backup_galera_info file due to signal (20250922 22:30:51.619)
+WSREP_SST: [INFO] Cleaning up temporary directories (20250922 22:30:51.621)
+2025-09-22 22:30:51 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad
+2025-09-22 22:30:51 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc
+2025-09-22 22:30:51 0 [Note] WSREP: SST sending failed: -22
+2025-09-22 22:30:51 0 [Note] WSREP: Server status change donor -> joined
+2025-09-22 22:30:51 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad
+2025-09-22 22:30:51 0 [Note] WSREP: Donor monitor thread ended with total time 10 sec
+2025-09-22 22:30:51 0 [Warning] WSREP: 1.0 (NODE_11407): State transfer to 0.0 (NODE_21407) failed: Invalid argument
+2025-09-22 22:30:51 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 2)
+2025-09-22 22:30:51 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-22 22:30:52 0 [Note] WSREP: forgetting 01072cd7-b1d4 (tcp://127.0.0.1:22407)
+2025-09-22 22:30:52 0 [Note] WSREP: Member 1.0 (NODE_11407) synced with group.
+2025-09-22 22:30:52 0 [Note] WSREP: Node 89c65b64-87c3 state prim
+2025-09-22 22:30:52 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-22 22:30:52 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 2)
+2025-09-22 22:30:52 0 [Note] WSREP: view(view_id(PRIM,89c65b64-87c3,5) memb {
+	89c65b64-87c3,0
+} joined {
+} left {
+} partitioned {
+	01072cd7-b1d4,0
+})
+2025-09-22 22:30:52 0 [Note] WSREP: save pc into disk
+2025-09-22 22:30:52 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 22:30:52 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 22:30:52 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 22:30:52 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:30:52 0 [Note] WSREP: forgetting 01072cd7-b1d4 (tcp://127.0.0.1:22407)
+2025-09-22 22:30:52 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 22:30:52 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 08a49305-97f3-11f0-96d4-c30bc59df839
+2025-09-22 22:30:52 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 08a49305-97f3-11f0-96d4-c30bc59df839
+2025-09-22 22:30:52 0 [Note] WSREP: STATE EXCHANGE: got state msg: 08a49305-97f3-11f0-96d4-c30bc59df839 from 0 (NODE_11407)
+2025-09-22 22:30:52 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 2,
+	members    = 1/1 (joined/total),
+	act_id     = 2,
+	last_appl. = 0,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:30:52 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 22:30:52 2 [Note] WSREP: ####### processing CC 3, local, ordered
+2025-09-22 22:30:52 2 [Note] WSREP: ####### My UUID: 89c65b64-97f2-11f0-87c3-22481ca21bac
+2025-09-22 22:30:52 2 [Note] WSREP: Skipping cert index reset
+2025-09-22 22:30:52 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:30:52 2 [Note] WSREP: ####### Adjusting cert position: 2 -> 3
+2025-09-22 22:30:52 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:30:52 0 [Note] WSREP: async IST sender served
+2025-09-22 22:30:52 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:3
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 89c65b64-97f2-11f0-87c3-22481ca21bac, NODE_11407
+=================================================
+2025-09-22 22:30:52 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:30:52 2 [Note] WSREP: Lowest cert index boundary for CC from group: 3
+2025-09-22 22:30:52 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:30:57 0 [Note] WSREP:  cleaning up 01072cd7-b1d4 (tcp://127.0.0.1:22407)
+2025-09-22 22:31:58 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd (initiated by: root[root] @ localhost []): Normal shutdown
+2025-09-22 22:31:58 0 [Note] WSREP: Shutdown replication
+2025-09-22 22:31:58 0 [Note] WSREP: Server status change synced -> disconnecting
+2025-09-22 22:31:58 0 [Note] WSREP: Closing send monitor...
+2025-09-22 22:31:58 0 [Note] WSREP: Closed send monitor.
+2025-09-22 22:31:58 0 [Note] WSREP: gcomm: terminating thread
+2025-09-22 22:31:58 0 [Note] WSREP: gcomm: joining thread
+2025-09-22 22:31:58 0 [Note] WSREP: gcomm: closing backend
+2025-09-22 22:31:58 0 [Note] WSREP: PC protocol downgrade 1 -> 0
+2025-09-22 22:31:58 0 [Note] WSREP: view((empty))
+2025-09-22 22:31:58 0 [Note] WSREP: gcomm: closed
+2025-09-22 22:31:58 0 [Note] WSREP: New SELF-LEAVE.
+2025-09-22 22:31:58 0 [Note] WSREP: Flow-control interval: [0, 0]
+2025-09-22 22:31:58 0 [Note] WSREP: Received SELF-LEAVE. Closing connection.
+2025-09-22 22:31:58 0 [Note] WSREP: Shifting SYNCED -> CLOSED (TO: 3)
+2025-09-22 22:31:58 0 [Note] WSREP: RECV thread exiting 0: Success
+2025-09-22 22:31:58 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:3
+  status: non-primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: yes
+  own_index: -1
+  members(0):
+=================================================
+2025-09-22 22:31:58 2 [Note] WSREP: Non-primary view
+2025-09-22 22:31:58 2 [Note] WSREP: Server status change disconnecting -> disconnected
+2025-09-22 22:31:58 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:31:58 0 [Note] WSREP: recv_thread() joined.
+2025-09-22 22:31:58 0 [Note] WSREP: Closing send queue.
+2025-09-22 22:31:58 0 [Note] WSREP: Closing receive queue.
+2025-09-22 22:31:58 2 [Note] WSREP: Applier thread exiting ret: 0 thd: 2
+2025-09-22 22:31:58 2 [Warning] Aborted connection 2 to db: 'unconnected' user: 'unauthenticated' host: '' (This connection closed normally without authentication)
+2025-09-22 22:31:59 1 [Note] WSREP: rollbacker thread exiting 1
+2025-09-22 22:31:59 1 [Warning] Aborted connection 1 to db: 'unconnected' user: 'unauthenticated' host: '' (This connection closed normally without authentication)
+2025-09-22 22:31:59 0 [Note] WSREP: dtor state: CLOSED
+2025-09-22 22:31:59 0 [Note] WSREP: MemPool(TrxHandleSlave): hit ratio: 0, misses: 0, in use: 0, in pool: 0
+2025-09-22 22:31:59 0 [Note] WSREP: apply mon: entered 0
+2025-09-22 22:31:59 0 [Note] WSREP: apply mon: entered 0
+2025-09-22 22:31:59 0 [Note] WSREP: mon: entered 8 oooe fraction 0 oool fraction 0
+2025-09-22 22:31:59 0 [Note] WSREP: cert index usage at exit 0
+2025-09-22 22:31:59 0 [Note] WSREP: cert trx map usage at exit 0
+2025-09-22 22:31:59 0 [Note] WSREP: deps set usage at exit 0
+2025-09-22 22:31:59 0 [Note] WSREP: avg deps dist 0
+2025-09-22 22:31:59 0 [Note] WSREP: avg cert interval 0
+2025-09-22 22:31:59 0 [Note] WSREP: cert index size 0
+2025-09-22 22:31:59 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:31:59 0 [Note] WSREP: wsdb trx map usage 0 conn query map usage 0
+2025-09-22 22:31:59 0 [Note] WSREP: MemPool(LocalTrxHandle): hit ratio: 0, misses: 0, in use: 0, in pool: 0
+2025-09-22 22:31:59 0 [Note] WSREP: Flushing memory map to disk...
+2025-09-22 22:31:59 0 [Note] WSREP: Deinitializing event service v1
+2025-09-22 22:31:59 0 [Note] WSREP: Deinitializing allowlist service v1
+2025-09-22 22:32:00 0 [Note] InnoDB: FTS optimize thread exiting.
+2025-09-22 22:32:00 0 [Note] InnoDB: Starting shutdown...
+2025-09-22 22:32:00 0 [Note] InnoDB: Dumping buffer pool(s) to /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 22:32:00 0 [Note] InnoDB: Buffer pool(s) dump completed at 250922 22:32:00
+2025-09-22 22:32:00 0 [Note] InnoDB: Removed temporary tablespace data file: "./ibtmp1"
+2025-09-22 22:32:00 0 [Note] InnoDB: Shutdown completed; log sequence number 67804; transaction id 53
+2025-09-22 22:32:00 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: Shutdown complete
+250922 22:32:00 mysqld_safe mysqld from pid file /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box.pid ended
+250922 22:32:04 mysqld_safe Starting mariadbd daemon with databases from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data
+250922 22:32:04 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/fedora.fritz.box-recover.pid'
+250922 22:32:15 mysqld_safe WSREP: Recovered position a572a681-97f2-11f0-9f63-c7c3a72b2527:3
+2025-09-22 22:32:15 0 [Note] Starting MariaDB 11.4.7-MariaDB-log source revision 118cfcf82107188f2295631193658b2ef94f4f3f server_uid /IElf07JYHrKhDBxBBjXMbQpRNA= as process 6440
+2025-09-22 22:32:15 0 [Note] slave_connections_needed_for_purge changed to 0 because of Galera. Change it to 1 or higher if this Galera node is also Master in a normal replication setup
+2025-09-22 22:32:15 0 [Warning] No argument was provided to --log-bin and neither --log-basename or --log-bin-index where used;  This may cause repliction to break when this server acts as a master and has its hostname changed! Please use '--log-basename=fedora.fritz.box' or '--log-bin=fedora-bin' to avoid this problem.
+2025-09-22 22:32:15 0 [Note] WSREP: Loading provider /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so initial position: a572a681-97f2-11f0-9f63-c7c3a72b2527:3
+2025-09-22 22:32:15 0 [Note] WSREP: wsrep_load(): loading provider library '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so'
+2025-09-22 22:32:15 0 [Note] WSREP: wsrep_load(): Galera 26.4.22(rae9921f) by Codership Oy <info@codership.com> loaded successfully.
+2025-09-22 22:32:15 0 [Note] WSREP: Initializing allowlist service v1
+2025-09-22 22:32:15 0 [Note] WSREP: Initializing event service v1
+2025-09-22 22:32:15 0 [Note] WSREP: Resolved symbol 'wsrep_node_isolation_mode_set_v1'
+2025-09-22 22:32:15 0 [Note] WSREP: Resolved symbol 'wsrep_certify_v1'
+2025-09-22 22:32:15 0 [Note] WSREP: CRC-32C: using 64-bit x86 acceleration.
+2025-09-22 22:32:15 0 [Note] WSREP: Found saved state: a572a681-97f2-11f0-9f63-c7c3a72b2527:3, safe_to_bootstrap: 1
+2025-09-22 22:32:15 0 [Note] WSREP: GCache DEBUG: opened preamble:
+Version: 2
+UUID: a572a681-97f2-11f0-9f63-c7c3a72b2527
+Seqno: 1 - 3
+Offset: 2504
+Synced: 1
+2025-09-22 22:32:15 0 [Note] WSREP: Recovering GCache ring buffer: version: 2, UUID: a572a681-97f2-11f0-9f63-c7c3a72b2527, offset: 2504
+2025-09-22 22:32:15 0 [Note] WSREP: GCache::RingBuffer initial scan... 0.0% (0/134217752 bytes) complete.
+2025-09-22 22:32:15 0 [Note] WSREP: GCache::RingBuffer initial scan... 100.0% (134217752/134217752 bytes) complete.
+2025-09-22 22:32:15 0 [Note] WSREP: Recovering GCache ring buffer: found gapless sequence 1-3
+2025-09-22 22:32:15 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 0.0% (0/768 bytes) complete.
+2025-09-22 22:32:15 0 [Note] WSREP: Recovering GCache ring buffer: found 1/4 locked buffers
+2025-09-22 22:32:15 0 [Note] WSREP: Recovering GCache ring buffer: free space: 134217144/134217728
+2025-09-22 22:32:15 0 [Note] WSREP: GCache::RingBuffer unused buffers scan... 100.0% (768/768 bytes) complete.
+2025-09-22 22:32:15 0 [Note] WSREP: Passing config to GCS: base_dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; base_host = 192.168.178.77; base_port = 4567; cert.log_conflicts = no; cert.optimistic_pa = yes; debug = no; evs.auto_evict = 0; evs.delay_margin = PT1S; evs.delayed_keep_period = PT30S; evs.inactive_check_period = PT0.5S; evs.inactive_timeout = PT15S; evs.join_retrans_period = PT1S; evs.max_install_timeouts = 3; evs.send_window = 4; evs.stats_report_period = PT1M; evs.suspect_timeout = PT5S; evs.user_send_window = 2; evs.view_forget_timeout = PT24H; gcache.dir = /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/; gcache.keep_pages_size = 0; gcache.keep_plaintext_size = 128M; gcache.mem_size = 0; gcache.name = galera.cache; gcache.page_size = 128M; gcache.recover = yes; gcache.size = 128M; gcomm.thread_prio = ; gcs.fc_debug = 0; gcs.fc_factor = 1.0; gcs.fc_limit = 16; gcs.fc_master_slave = no; gcs.fc_single_primary = no; gcs.max_packet_size = 64500; gcs.max_th
+2025-09-22 22:32:15 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:32:15 0 [Note] WSREP: ####### Assign initial position for certification: a572a681-97f2-11f0-9f63-c7c3a72b2527:3, protocol version: -1
+2025-09-22 22:32:15 0 [Note] WSREP: Start replication
+2025-09-22 22:32:15 0 [Note] WSREP: Connecting with bootstrap option: 1
+2025-09-22 22:32:15 0 [Note] WSREP: Setting GCS initial position to a572a681-97f2-11f0-9f63-c7c3a72b2527:3
+2025-09-22 22:32:15 0 [Note] WSREP: protonet asio version 0
+2025-09-22 22:32:15 0 [Note] WSREP: Using CRC-32C for message checksums.
+2025-09-22 22:32:15 0 [Note] WSREP: backend: asio
+2025-09-22 22:32:15 0 [Note] WSREP: gcomm thread scheduling priority set to other:0 
+2025-09-22 22:32:15 0 [Note] WSREP: access file(/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data//gvwstate.dat) failed(No such file or directory)
+2025-09-22 22:32:15 0 [Note] WSREP: restore pc from disk failed
+2025-09-22 22:32:15 0 [Note] WSREP: GMCast version 0
+2025-09-22 22:32:15 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') listening at tcp://192.168.178.77:12407
+2025-09-22 22:32:15 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') multicast: , ttl: 1
+2025-09-22 22:32:15 0 [Note] WSREP: EVS version 1
+2025-09-22 22:32:15 0 [Note] WSREP: gcomm: bootstrapping new group 'myharem_cluster'
+2025-09-22 22:32:15 0 [Note] WSREP: start_prim is enabled, turn off pc_recovery
+2025-09-22 22:32:15 0 [Note] WSREP: EVS version upgrade 0 -> 1
+2025-09-22 22:32:15 0 [Note] WSREP: PC protocol upgrade 0 -> 1
+2025-09-22 22:32:15 0 [Note] WSREP: Node 3a42f33d-ae74 state prim
+2025-09-22 22:32:15 0 [Note] WSREP: view(view_id(PRIM,3a42f33d-ae74,1) memb {
+	3a42f33d-ae74,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:32:15 0 [Note] WSREP: save pc into disk
+2025-09-22 22:32:15 0 [Note] WSREP: gcomm: connected
+2025-09-22 22:32:15 0 [Note] WSREP: Changing maximum packet size to 64500, resulting msg size: 32636
+2025-09-22 22:32:15 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-09-22 22:32:15 0 [Note] WSREP: Opened channel 'myharem_cluster'
+2025-09-22 22:32:15 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 22:32:15 0 [Note] WSREP: Initializing config service v1
+2025-09-22 22:32:15 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 3a432dc7-97f3-11f0-ae9a-52e3d94f7bd3
+2025-09-22 22:32:15 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 3a432dc7-97f3-11f0-ae9a-52e3d94f7bd3
+2025-09-22 22:32:15 0 [Note] WSREP: STATE EXCHANGE: got state msg: 3a432dc7-97f3-11f0-ae9a-52e3d94f7bd3 from 0 (NODE_11407)
+2025-09-22 22:32:15 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 0,
+	members    = 1/1 (joined/total),
+	act_id     = 3,
+	last_appl. = 3,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:32:15 1 [Note] WSREP: Starting rollbacker thread 1
+2025-09-22 22:32:15 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 22:32:15 0 [Note] WSREP: Restored state OPEN -> JOINED (4)
+2025-09-22 22:32:15 2 [Note] WSREP: Starting applier thread 2
+2025-09-22 22:32:15 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:32:15 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 4)
+2025-09-22 22:32:15 2 [Note] WSREP: ####### processing CC 4, local, ordered
+2025-09-22 22:32:15 2 [Note] WSREP: Process first view: a572a681-97f2-11f0-9f63-c7c3a72b2527 my uuid: 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:32:15 2 [Note] WSREP: Server NODE_11407 connected to cluster at position a572a681-97f2-11f0-9f63-c7c3a72b2527:4 with ID 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:32:15 2 [Note] WSREP: Server status change disconnected -> connected
+2025-09-22 22:32:15 2 [Note] WSREP: ####### My UUID: 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:32:15 2 [Note] WSREP: Cert index reset to 00000000-0000-0000-0000-000000000000:-1 (proto: 11), state transfer needed: no
+2025-09-22 22:32:15 0 [Note] WSREP: Deinitializing config service v1
+2025-09-22 22:32:15 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:32:15 2 [Note] WSREP: ####### Assign initial position for certification: 00000000-0000-0000-0000-000000000000:-1, protocol version: -1
+2025-09-22 22:32:15 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:32:15 2 [Note] WSREP: ####### Adjusting cert position: -1 -> 4
+2025-09-22 22:32:15 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:32:15 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:4
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 3a42f33d-97f3-11f0-ae74-8ea804e8387d, NODE_11407
+=================================================
+2025-09-22 22:32:15 2 [Note] WSREP: Server status change connected -> joiner
+2025-09-22 22:32:15 2 [Note] WSREP: Server status change joiner -> initializing
+2025-09-22 22:32:15 0 [Note] InnoDB: Compressed tables use zlib 1.3.1
+2025-09-22 22:32:15 0 [Note] InnoDB: Number of transaction pools: 1
+2025-09-22 22:32:15 0 [Note] InnoDB: Using crc32 + pclmulqdq instructions
+2025-09-22 22:32:15 0 [Note] InnoDB: Using Linux native AIO
+2025-09-22 22:32:15 0 [Note] InnoDB: innodb_buffer_pool_size_max=128m, innodb_buffer_pool_size=128m
+2025-09-22 22:32:15 0 [Note] InnoDB: Completed initialization of buffer pool
+2025-09-22 22:32:15 0 [Note] InnoDB: File system buffers for log disabled (block size=512 bytes)
+2025-09-22 22:32:15 0 [Note] InnoDB: End of log at LSN=67804
+2025-09-22 22:32:15 0 [Note] InnoDB: Opened 3 undo tablespaces
+2025-09-22 22:32:15 0 [Note] InnoDB: 128 rollback segments in 3 undo tablespaces are active.
+2025-09-22 22:32:15 0 [Note] InnoDB: Setting file './ibtmp1' size to 12.000MiB. Physically writing the file full; Please wait ...
+2025-09-22 22:32:15 0 [Note] InnoDB: File './ibtmp1' size is now 12.000MiB.
+2025-09-22 22:32:15 0 [Note] InnoDB: log sequence number 67804; transaction id 54
+2025-09-22 22:32:15 0 [Note] Plugin 'FEEDBACK' is disabled.
+2025-09-22 22:32:15 0 [Note] InnoDB: Loading buffer pool(s) from /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/ib_buffer_pool
+2025-09-22 22:32:15 0 [Note] InnoDB: Buffer pool(s) load completed at 250922 22:32:15
+2025-09-22 22:32:26 0 [Note] Server socket created on IP: '0.0.0.0'.
+2025-09-22 22:32:26 0 [Note] Server socket created on IP: '::'.
+2025-09-22 22:32:26 0 [Note] mariadbd: Event Scheduler: Loaded 0 events
+2025-09-22 22:32:26 0 [Note] WSREP: wsrep_init_schema_and_SR (nil)
+2025-09-22 22:32:26 0 [Note] WSREP: Server initialized
+2025-09-22 22:32:26 0 [Note] WSREP: Server status change initializing -> initialized
+2025-09-22 22:32:26 2 [Note] WSREP: Bootstrapping a new cluster, setting initial position to 00000000-0000-0000-0000-000000000000:-1
+2025-09-22 22:32:26 6 [Note] WSREP: Recovered cluster id a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:32:26 2 [Note] WSREP: Server status change initialized -> joined
+2025-09-22 22:32:26 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:32:26 0 [Note] /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/bin/mariadbd: ready for connections.
+Version: '11.4.7-MariaDB-log'  socket: '11407.sock'  port: 11407  MariaDB Server
+2025-09-22 22:32:26 2 [Note] WSREP: Lowest cert index boundary for CC from group: 4
+2025-09-22 22:32:26 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:32:26 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 22:32:26 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 22:32:26 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 22:32:26 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:33:27 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') connection established to 64eaad05-8a2a tcp://192.168.178.77:22407
+2025-09-22 22:33:27 0 [Note] WSREP: declaring 64eaad05-8a2a at tcp://192.168.178.77:22407 stable
+2025-09-22 22:33:27 0 [Note] WSREP: Node 3a42f33d-ae74 state prim
+2025-09-22 22:33:27 0 [Note] WSREP: view(view_id(PRIM,3a42f33d-ae74,2) memb {
+	3a42f33d-ae74,0
+	64eaad05-8a2a,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:33:27 0 [Note] WSREP: save pc into disk
+2025-09-22 22:33:27 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-22 22:33:27 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 6537e26d-97f3-11f0-a1ab-2f314666d90e
+2025-09-22 22:33:27 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 6537e26d-97f3-11f0-a1ab-2f314666d90e
+2025-09-22 22:33:27 0 [Note] WSREP: STATE EXCHANGE: got state msg: 6537e26d-97f3-11f0-a1ab-2f314666d90e from 0 (NODE_11407)
+2025-09-22 22:33:28 0 [Note] WSREP: STATE EXCHANGE: got state msg: 6537e26d-97f3-11f0-a1ab-2f314666d90e from 1 (NODE_21407)
+2025-09-22 22:33:28 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 1,
+	members    = 1/2 (joined/total),
+	act_id     = 4,
+	last_appl. = 3,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:33:28 0 [Note] WSREP: Flow-control interval: [23, 23]
+2025-09-22 22:33:28 2 [Note] WSREP: ####### processing CC 5, local, ordered
+2025-09-22 22:33:28 2 [Note] WSREP: ####### My UUID: 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:33:28 2 [Note] WSREP: Skipping cert index reset
+2025-09-22 22:33:28 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:33:28 2 [Note] WSREP: ####### Adjusting cert position: 4 -> 5
+2025-09-22 22:33:28 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:33:28 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:5
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(2):
+	0: 3a42f33d-97f3-11f0-ae74-8ea804e8387d, NODE_11407
+	1: 64eaad05-97f3-11f0-8a2a-069ebc969303, NODE_21407
+=================================================
+2025-09-22 22:33:28 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:33:28 2 [Note] WSREP: Lowest cert index boundary for CC from group: 5
+2025-09-22 22:33:28 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:33:28 0 [Note] WSREP: Member 1.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as donor.
+2025-09-22 22:33:28 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 5)
+2025-09-22 22:33:28 2 [Note] WSREP: Detected STR version: 1, req_len: 134, req: STRv1
+2025-09-22 22:33:28 2 [Note] WSREP: Cert index preload: 5 -> 5
+2025-09-22 22:33:28 2 [Note] WSREP: Server status change synced -> donor
+2025-09-22 22:33:28 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:33:28 0 [Note] WSREP: async IST sender starting to serve tcp://192.168.178.77:22408 sending 5-5, preload starts from 5
+2025-09-22 22:33:28 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-22 22:33:28 0 [Note] WSREP: IST sender 5 -> 5
+2025-09-22 22:33:28 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariadb-11.4
+2025-09-22 22:33:28 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250922 22:33:28.821)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250922 22:33:28.845)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin:/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/lib/snapd/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250922 22:33:28.920)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250922 22:33:28.921)
+WSREP_SST: [INFO] Streaming with mbstream (20250922 22:33:28.926)
+WSREP_SST: [INFO] Using socat as streamer (20250922 22:33:28.927)
+WSREP_SST: [INFO] Moving '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' to '/tmp/sst_log_archive/mariabackup.backup.log.2025.09.22-22.33.28.928786171' (20250922 22:33:28.930)
+WSREP_SST: [INFO] Using '/tmp/tmp.ZUX09u2H0F' as mariadb-backup temporary directory (20250922 22:33:28.947)
+WSREP_SST: [INFO] Using '/tmp/tmp.LzYCAr3fte' as mariadb-backup working directory (20250922 22:33:28.948)
+WSREP_SST: [INFO] Estimating total transfer size (20250922 22:33:28.949)
+WSREP_SST: [INFO] SST footprint estimate: data: 44613632, undo: 0 (20250922 22:33:28.953)
+WSREP_SST: [INFO] To transfer: 44613632 (20250922 22:33:28.955)
+WSREP_SST: [INFO] Streaming GTID file before SST (20250922 22:33:28.956)
+WSREP_SST: [INFO] Evaluating '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mbstream' -c 'mariadb_backup_galera_info' 'donor_galera_info' | socat -u stdio TCP:192.168.178.77:23407; RC=( ${PIPESTATUS[@]} ) (20250922 22:33:28.958)
+WSREP_SST: [INFO] Sleeping before data transfer for SST (20250922 22:33:28.963)
+2025-09-22 22:33:30 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') turning message relay requesting off
+WSREP_SST: [INFO] Streaming the backup to joiner at 192.168.178.77:23407 (20250922 22:33:38.967)
+WSREP_SST: [INFO] Evaluating /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mariadb-backup --defaults-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --backup --no-version-check --databases-exclude='lost+found' --tmpdir='/tmp/tmp.ZUX09u2H0F' --innodb-data-home-dir='.' --log-bin='fedora-bin' --user='sstuser' --socket='11407.sock' --galera-info --stream=mbstream --target-dir='/tmp/tmp.LzYCAr3fte' --datadir='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data' --mysqld-args '--basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407' '--plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin' '--wsrep_on=ON' '--wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so' '--log-error=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/error.11407.log' '--pid-file=fedora.fritz.box.pid' '--wsrep_start_position=a572a681-97f2-11f0-9f63-c7c3a72b2527:3' 2> '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' | socat -u stdio TCP:192.168.178.77:23407; RC=( ${PIPESTATUS[@]} ) (20250922 22:33:38.971)
+2025-09-22 22:33:39 10 [Warning] Access denied for user 'sstuser'@'localhost' (using password: YES)
+WSREP_SST: [ERROR] mariadb-backup finished with error: 1. Check syslog or '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' for details (20250922 22:33:39.049)
+WSREP_SST: [ERROR] Cleanup after exit with status: 22 (20250922 22:33:39.050)
+WSREP_SST: [ERROR] Removing /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariadb_backup_galera_info file due to signal (20250922 22:33:39.051)
+WSREP_SST: [INFO] Cleaning up temporary directories (20250922 22:33:39.053)
+2025-09-22 22:33:39 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m
+2025-09-22 22:33:39 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in
+2025-09-22 22:33:39 0 [Note] WSREP: SST sending failed: -22
+2025-09-22 22:33:39 0 [Note] WSREP: Server status change donor -> joined
+2025-09-22 22:33:39 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m
+2025-09-22 22:33:39 0 [Note] WSREP: Donor monitor thread ended with total time 11 sec
+2025-09-22 22:33:39 0 [Warning] WSREP: 0.0 (NODE_11407): State transfer to 1.0 (NODE_21407) failed: Invalid argument
+2025-09-22 22:33:39 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 5)
+2025-09-22 22:33:39 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-22 22:33:39 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:33:39 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-22 22:33:39 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 5)
+2025-09-22 22:33:39 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 22:33:39 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 22:33:39 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 22:33:39 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:33:40 0 [Note] WSREP: forgetting 64eaad05-8a2a (tcp://192.168.178.77:22407)
+2025-09-22 22:33:40 0 [Note] WSREP: Node 3a42f33d-ae74 state prim
+2025-09-22 22:33:40 0 [Note] WSREP: view(view_id(PRIM,3a42f33d-ae74,3) memb {
+	3a42f33d-ae74,0
+} joined {
+} left {
+} partitioned {
+	64eaad05-8a2a,0
+})
+2025-09-22 22:33:40 0 [Note] WSREP: save pc into disk
+2025-09-22 22:33:40 0 [Note] WSREP: forgetting 64eaad05-8a2a (tcp://192.168.178.77:22407)
+2025-09-22 22:33:40 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-22 22:33:40 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 6c70acce-97f3-11f0-9922-d691b99a41bc
+2025-09-22 22:33:40 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 6c70acce-97f3-11f0-9922-d691b99a41bc
+2025-09-22 22:33:40 0 [Note] WSREP: STATE EXCHANGE: got state msg: 6c70acce-97f3-11f0-9922-d691b99a41bc from 0 (NODE_11407)
+2025-09-22 22:33:40 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 2,
+	members    = 1/1 (joined/total),
+	act_id     = 5,
+	last_appl. = 3,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:33:40 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-09-22 22:33:40 2 [Note] WSREP: ####### processing CC 6, local, ordered
+2025-09-22 22:33:40 2 [Note] WSREP: ####### My UUID: 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:33:40 2 [Note] WSREP: Skipping cert index reset
+2025-09-22 22:33:40 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:33:40 2 [Note] WSREP: ####### Adjusting cert position: 5 -> 6
+2025-09-22 22:33:40 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:33:40 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:6
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+	0: 3a42f33d-97f3-11f0-ae74-8ea804e8387d, NODE_11407
+=================================================
+2025-09-22 22:33:40 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:33:40 0 [Note] WSREP: async IST sender served
+2025-09-22 22:33:40 2 [Note] WSREP: Lowest cert index boundary for CC from group: 6
+2025-09-22 22:33:40 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:33:45 0 [Note] WSREP:  cleaning up 64eaad05-8a2a (tcp://192.168.178.77:22407)
+2025-09-22 22:40:00 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') connection established to 4f28049d-8901 tcp://192.168.178.77:22407
+2025-09-22 22:40:00 0 [Note] WSREP: declaring 4f28049d-8901 at tcp://192.168.178.77:22407 stable
+2025-09-22 22:40:00 0 [Note] WSREP: Node 3a42f33d-ae74 state prim
+2025-09-22 22:40:00 0 [Note] WSREP: view(view_id(PRIM,3a42f33d-ae74,4) memb {
+	3a42f33d-ae74,0
+	4f28049d-8901,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:40:00 0 [Note] WSREP: save pc into disk
+2025-09-22 22:40:00 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-22 22:40:00 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 4f750e06-97f4-11f0-add5-c7b9b30d0b90
+2025-09-22 22:40:00 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 4f750e06-97f4-11f0-add5-c7b9b30d0b90
+2025-09-22 22:40:00 0 [Note] WSREP: STATE EXCHANGE: got state msg: 4f750e06-97f4-11f0-add5-c7b9b30d0b90 from 0 (NODE_11407)
+2025-09-22 22:40:01 0 [Note] WSREP: STATE EXCHANGE: got state msg: 4f750e06-97f4-11f0-add5-c7b9b30d0b90 from 1 (NODE_21407)
+2025-09-22 22:40:01 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 3,
+	members    = 1/2 (joined/total),
+	act_id     = 8,
+	last_appl. = 3,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:40:01 0 [Note] WSREP: Flow-control interval: [23, 23]
+2025-09-22 22:40:01 2 [Note] WSREP: ####### processing CC 9, local, ordered
+2025-09-22 22:40:01 2 [Note] WSREP: ####### My UUID: 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:40:01 2 [Note] WSREP: Skipping cert index reset
+2025-09-22 22:40:01 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:40:01 2 [Note] WSREP: ####### Adjusting cert position: 8 -> 9
+2025-09-22 22:40:01 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:40:01 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:9
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(2):
+	0: 3a42f33d-97f3-11f0-ae74-8ea804e8387d, NODE_11407
+	1: 4f28049d-97f4-11f0-8901-3e7557106ab8, NODE_21407
+=================================================
+2025-09-22 22:40:01 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:40:01 2 [Note] WSREP: Lowest cert index boundary for CC from group: 7
+2025-09-22 22:40:01 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:40:01 0 [Note] WSREP: Member 1.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as donor.
+2025-09-22 22:40:01 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 9)
+2025-09-22 22:40:01 2 [Note] WSREP: Detected STR version: 1, req_len: 134, req: STRv1
+2025-09-22 22:40:01 2 [Note] WSREP: Cert index preload: 7 -> 9
+2025-09-22 22:40:01 2 [Note] WSREP: Server status change synced -> donor
+2025-09-22 22:40:01 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:40:01 0 [Note] WSREP: async IST sender starting to serve tcp://192.168.178.77:22408 sending 7-9, preload starts from 7
+2025-09-22 22:40:01 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-22 22:40:01 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:9' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariadb-11.4
+2025-09-22 22:40:01 0 [Note] WSREP: IST sender 7 -> 9
+2025-09-22 22:40:01 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250922 22:40:01.808)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250922 22:40:01.832)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin:/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/lib/snapd/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250922 22:40:01.906)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250922 22:40:01.907)
+WSREP_SST: [INFO] Streaming with mbstream (20250922 22:40:01.912)
+WSREP_SST: [INFO] Using socat as streamer (20250922 22:40:01.913)
+WSREP_SST: [INFO] Moving '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' to '/tmp/sst_log_archive/mariabackup.backup.log.2025.09.22-22.40.01.914526443' (20250922 22:40:01.915)
+WSREP_SST: [INFO] Using '/tmp/tmp.ppR2sIGxK2' as mariadb-backup temporary directory (20250922 22:40:01.927)
+WSREP_SST: [INFO] Using '/tmp/tmp.3OpssXmDgd' as mariadb-backup working directory (20250922 22:40:01.928)
+WSREP_SST: [INFO] Estimating total transfer size (20250922 22:40:01.928)
+WSREP_SST: [INFO] SST footprint estimate: data: 44613632, undo: 0 (20250922 22:40:01.931)
+WSREP_SST: [INFO] To transfer: 44613632 (20250922 22:40:01.932)
+WSREP_SST: [INFO] Streaming GTID file before SST (20250922 22:40:01.933)
+WSREP_SST: [INFO] Evaluating '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mbstream' -c 'mariadb_backup_galera_info' 'donor_galera_info' | socat -u stdio TCP:192.168.178.77:23407; RC=( ${PIPESTATUS[@]} ) (20250922 22:40:01.934)
+WSREP_SST: [INFO] Sleeping before data transfer for SST (20250922 22:40:01.936)
+2025-09-22 22:40:03 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') turning message relay requesting off
+WSREP_SST: [INFO] Streaming the backup to joiner at 192.168.178.77:23407 (20250922 22:40:11.938)
+WSREP_SST: [INFO] Evaluating /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mariadb-backup --defaults-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --backup --no-version-check --databases-exclude='lost+found' --tmpdir='/tmp/tmp.ppR2sIGxK2' --innodb-data-home-dir='.' --log-bin='fedora-bin' --user='sstuser' --socket='11407.sock' --galera-info --stream=mbstream --target-dir='/tmp/tmp.3OpssXmDgd' --datadir='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data' --mysqld-args '--basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407' '--plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin' '--wsrep_on=ON' '--wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so' '--log-error=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/error.11407.log' '--pid-file=fedora.fritz.box.pid' '--wsrep_start_position=a572a681-97f2-11f0-9f63-c7c3a72b2527:3' 2> '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' | socat -u stdio TCP:192.168.178.77:23407; RC=( ${PIPESTATUS[@]} ) (20250922 22:40:11.939)
+2025-09-22 22:40:12 13 [Note] WSREP: Server not desynched from group at BLOCK_DDL because mariabackup is used.
+2025-09-22 22:40:17 0 [Note] WSREP: SST sent: a572a681-97f2-11f0-9f63-c7c3a72b2527:9
+2025-09-22 22:40:17 0 [Note] WSREP: Server status change donor -> joined
+2025-09-22 22:40:17 0 [Note] WSREP: 0.0 (NODE_11407): State transfer to 1.0 (NODE_21407) complete.
+2025-09-22 22:40:17 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 9)
+2025-09-22 22:40:17 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-22 22:40:17 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:40:17 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-22 22:40:17 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 9)
+2025-09-22 22:40:17 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 22:40:17 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 22:40:17 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 22:40:17 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+WSREP_SST: [INFO] Total time on donor: 0 seconds (20250922 22:40:17.348)
+WSREP_SST: [INFO] mariabackup SST completed on donor (20250922 22:40:17.350)
+WSREP_SST: [INFO] Cleaning up temporary directories (20250922 22:40:17.353)
+2025-09-22 22:40:17 0 [Note] WSREP: Donor monitor thread ended with total time 16 sec
+2025-09-22 22:40:21 0 [Note] WSREP: async IST sender served
+2025-09-22 22:40:21 0 [Note] WSREP: 1.0 (NODE_21407): State transfer from 0.0 (NODE_11407) complete.
+2025-09-22 22:40:21 0 [Note] WSREP: Member 1.0 (NODE_21407) synced with group.
+2025-09-22 22:41:34 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') connection established to 87155f75-b390 tcp://192.168.178.77:32407
+2025-09-22 22:41:34 0 [Note] WSREP: declaring 4f28049d-8901 at tcp://192.168.178.77:22407 stable
+2025-09-22 22:41:34 0 [Note] WSREP: declaring 87155f75-b390 at tcp://192.168.178.77:32407 stable
+2025-09-22 22:41:34 0 [Note] WSREP: Node 3a42f33d-ae74 state prim
+2025-09-22 22:41:34 0 [Note] WSREP: view(view_id(PRIM,3a42f33d-ae74,5) memb {
+	3a42f33d-ae74,0
+	4f28049d-8901,0
+	87155f75-b390,0
+} joined {
+} left {
+} partitioned {
+})
+2025-09-22 22:41:34 0 [Note] WSREP: save pc into disk
+2025-09-22 22:41:34 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 3
+2025-09-22 22:41:34 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 876292d7-97f4-11f0-ac67-47d4df9a53d2
+2025-09-22 22:41:34 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 876292d7-97f4-11f0-ac67-47d4df9a53d2
+2025-09-22 22:41:34 0 [Note] WSREP: STATE EXCHANGE: got state msg: 876292d7-97f4-11f0-ac67-47d4df9a53d2 from 0 (NODE_11407)
+2025-09-22 22:41:34 0 [Note] WSREP: STATE EXCHANGE: got state msg: 876292d7-97f4-11f0-ac67-47d4df9a53d2 from 1 (NODE_21407)
+2025-09-22 22:41:35 0 [Note] WSREP: STATE EXCHANGE: got state msg: 876292d7-97f4-11f0-ac67-47d4df9a53d2 from 2 (NODE_31407)
+2025-09-22 22:41:35 0 [Note] WSREP: Quorum results:
+	version    = 6,
+	component  = PRIMARY,
+	conf_id    = 4,
+	members    = 2/3 (joined/total),
+	act_id     = 9,
+	last_appl. = 3,
+	protocols  = 5/11/4 (gcs/repl/appl),
+	vote policy= 0,
+	group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+2025-09-22 22:41:35 0 [Note] WSREP: Flow-control interval: [28, 28]
+2025-09-22 22:41:35 2 [Note] WSREP: ####### processing CC 10, local, ordered
+2025-09-22 22:41:35 2 [Note] WSREP: ####### My UUID: 3a42f33d-97f3-11f0-ae74-8ea804e8387d
+2025-09-22 22:41:35 2 [Note] WSREP: Skipping cert index reset
+2025-09-22 22:41:35 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-22 22:41:35 2 [Note] WSREP: ####### Adjusting cert position: 9 -> 10
+2025-09-22 22:41:35 0 [Note] WSREP: Service thread queue flushed.
+2025-09-22 22:41:35 2 [Note] WSREP: ================================================
+View:
+  id: a572a681-97f2-11f0-9f63-c7c3a72b2527:10
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(3):
+	0: 3a42f33d-97f3-11f0-ae74-8ea804e8387d, NODE_11407
+	1: 4f28049d-97f4-11f0-8901-3e7557106ab8, NODE_21407
+	2: 87155f75-97f4-11f0-b390-d257498a9318, NODE_31407
+=================================================
+2025-09-22 22:41:35 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:41:35 2 [Note] WSREP: Lowest cert index boundary for CC from group: 7
+2025-09-22 22:41:35 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-22 22:41:35 0 [Note] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as donor.
+2025-09-22 22:41:35 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 10)
+2025-09-22 22:41:35 2 [Note] WSREP: Detected STR version: 1, req_len: 135, req: STRv1
+2025-09-22 22:41:35 2 [Note] WSREP: Cert index preload: 7 -> 10
+2025-09-22 22:41:35 2 [Note] WSREP: Server status change synced -> donor
+2025-09-22 22:41:35 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-22 22:41:35 0 [Note] WSREP: async IST sender starting to serve tcp://192.168.178.77:32408 sending 7-10, preload starts from 7
+2025-09-22 22:41:35 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-22 22:41:35 0 [Note] WSREP: IST sender 7 -> 10
+2025-09-22 22:41:35 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:10' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariadb-11.
+2025-09-22 22:41:35 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250922 22:41:35.790)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250922 22:41:35.812)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin:/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/lib/snapd/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250922 22:41:35.892)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250922 22:41:35.893)
+WSREP_SST: [INFO] Streaming with mbstream (20250922 22:41:35.898)
+WSREP_SST: [INFO] Using socat as streamer (20250922 22:41:35.898)
+WSREP_SST: [INFO] Moving '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' to '/tmp/sst_log_archive/mariabackup.backup.log.2025.09.22-22.41.35.900479131' (20250922 22:41:35.901)
+WSREP_SST: [INFO] Using '/tmp/tmp.fimxxKBjJp' as mariadb-backup temporary directory (20250922 22:41:35.914)
+WSREP_SST: [INFO] Using '/tmp/tmp.tMHlqnfKon' as mariadb-backup working directory (20250922 22:41:35.914)
+WSREP_SST: [INFO] Estimating total transfer size (20250922 22:41:35.915)
+WSREP_SST: [INFO] SST footprint estimate: data: 44613632, undo: 0 (20250922 22:41:35.918)
+WSREP_SST: [INFO] To transfer: 44613632 (20250922 22:41:35.919)
+WSREP_SST: [INFO] Streaming GTID file before SST (20250922 22:41:35.920)
+WSREP_SST: [INFO] Evaluating '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mbstream' -c 'mariadb_backup_galera_info' 'donor_galera_info' | socat -u stdio TCP:192.168.178.77:33407; RC=( ${PIPESTATUS[@]} ) (20250922 22:41:35.921)
+WSREP_SST: [INFO] Sleeping before data transfer for SST (20250922 22:41:35.924)
+2025-09-22 22:41:37 0 [Note] WSREP: (3a42f33d-ae74, 'tcp://192.168.178.77:12407') turning message relay requesting off
+WSREP_SST: [INFO] Streaming the backup to joiner at 192.168.178.77:33407 (20250922 22:41:45.926)
+WSREP_SST: [INFO] Evaluating /var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407//bin/mariadb-backup --defaults-file='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --backup --no-version-check --databases-exclude='lost+found' --tmpdir='/tmp/tmp.fimxxKBjJp' --innodb-data-home-dir='.' --log-bin='fedora-bin' --user='sstuser' --socket='11407.sock' --galera-info --stream=mbstream --target-dir='/tmp/tmp.tMHlqnfKon' --datadir='/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data' --mysqld-args '--basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407' '--plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin' '--wsrep_on=ON' '--wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so' '--log-error=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/error.11407.log' '--pid-file=fedora.fritz.box.pid' '--wsrep_start_position=a572a681-97f2-11f0-9f63-c7c3a72b2527:3' 2> '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' | socat -u stdio TCP:192.168.178.77:33407; RC=( ${PIPESTATUS[@]} ) (20250922 22:41:45.927)
+2025-09-22 22:41:46 16 [Note] WSREP: Server not desynched from group at BLOCK_DDL because mariabackup is used.
+2025-09-22 22:41:51 0 [Note] WSREP: SST sent: a572a681-97f2-11f0-9f63-c7c3a72b2527:10
+2025-09-22 22:41:51 0 [Note] WSREP: Server status change donor -> joined
+2025-09-22 22:41:51 0 [Note] WSREP: 0.0 (NODE_11407): State transfer to 2.0 (NODE_31407) complete.
+2025-09-22 22:41:51 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 10)
+2025-09-22 22:41:51 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-22 22:41:51 0 [Note] WSREP: Member 0.0 (NODE_11407) synced with group.
+2025-09-22 22:41:51 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-22 22:41:51 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 10)
+2025-09-22 22:41:51 2 [Note] WSREP: Server NODE_11407 synced with group
+2025-09-22 22:41:51 2 [Note] WSREP: Server status change joined -> synced
+2025-09-22 22:41:51 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-22 22:41:51 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+WSREP_SST: [INFO] Total time on donor: 0 seconds (20250922 22:41:51.332)
+WSREP_SST: [INFO] mariabackup SST completed on donor (20250922 22:41:51.333)
+WSREP_SST: [INFO] Cleaning up temporary directories (20250922 22:41:51.335)
+2025-09-22 22:41:51 0 [Note] WSREP: Donor monitor thread ended with total time 16 sec
+2025-09-22 22:41:56 0 [Note] WSREP: async IST sender served
+2025-09-22 22:41:56 0 [Note] WSREP: 2.0 (NODE_31407): State transfer from 0.0 (NODE_11407) complete.
+2025-09-22 22:41:56 0 [Note] WSREP: Member 2.0 (NODE_31407) synced with group.

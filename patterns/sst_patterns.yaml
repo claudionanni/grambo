@@ -117,3 +117,32 @@ patterns:
       examples:
         - "2024-09-15 10:32:30 12349 [Note] mariabackup: Progress 67.8% completed"
         - "2024-09-15 10:32:35 12350 [Note] mariabackup: Streaming 256.5 MB at 45.2 MB/s"
+
+    # NODE NAME EXTRACTION PATTERNS
+    - name: "sst_member_selection_with_names"
+      description: "SST member selection with donor and joiner node names"
+      confidence: 0.95
+      lifecycle_phase: "START"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Member (?P<joiner_index>\d+)\.(?P<joiner_id>\d+) \((?P<joiner_name>[^)]+)\) requested state transfer from.*Selected (?P<donor_index>\d+)\.(?P<donor_id>\d+) \((?P<donor_name>[^)]+)\)'
+      field_mappings:
+        joiner_name: "joiner_node"
+        donor_name: "donor_node"
+        transfer_status: "donor_selected"
+        transfer_type: "SST"
+      required_fields: ["joiner_node", "donor_node"]
+      examples:
+        - "2025-09-19 18:17:17 0 [Note] WSREP: Member 0.4 (vinfr-db-d-l05) requested state transfer from *any*. Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor."
+
+    - name: "sst_transfer_failure_with_names"
+      description: "SST transfer failure with donor and joiner node names"
+      confidence: 0.9
+      lifecycle_phase: "ERROR"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<donor_index>\d+)\.(?P<donor_id>\d+) \((?P<donor_name>[^)]+)\): State transfer to (?P<joiner_index>\d+)\.(?P<joiner_id>\d+) \((?P<joiner_name>[^)]+)\) failed'
+      field_mappings:
+        donor_name: "donor_node"
+        joiner_name: "joiner_node"
+        transfer_status: "failed"
+        transfer_type: "SST"
+      required_fields: ["donor_node", "joiner_node"]
+      examples:
+        - "2025-09-19 18:33:48 0 [Warning] WSREP: 1.1 (vinfr-db-d-d01): State transfer to 0.4 (vinfr-db-d-l05) failed: Invalid argument"

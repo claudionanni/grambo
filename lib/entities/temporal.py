@@ -44,9 +44,36 @@ class TemporalProperty:
         if timestamp is None:
             timestamp = datetime.now()
             
+        # Ensure timestamp is a datetime object for consistency
+        if isinstance(timestamp, str):
+            try:
+                # Parse string timestamp to datetime
+                timestamp = self._parse_timestamp_str(timestamp)
+            except ValueError:
+                timestamp = datetime.now()
+            
         self.timeline.append((timestamp, value))
-        # Keep timeline sorted by timestamp
-        self.timeline.sort(key=lambda x: x[0])
+        # Keep timeline sorted by timestamp with safe comparison
+        self.timeline.sort(key=lambda x: self._safe_timestamp_key(x[0]))
+    
+    def _safe_timestamp_key(self, ts) -> datetime:
+        """Convert timestamp to datetime for safe comparison."""
+        if isinstance(ts, datetime):
+            return ts
+        elif isinstance(ts, str):
+            try:
+                return self._parse_timestamp_str(ts)
+            except ValueError:
+                return datetime.now()
+        else:
+            return datetime.now()
+    
+    def _parse_timestamp_str(self, ts_str: str) -> datetime:
+        """Parse timestamp string to datetime object."""
+        # Handle ISO format with Z timezone
+        if ts_str.endswith('Z'):
+            ts_str = ts_str[:-1] + '+00:00'
+        return datetime.fromisoformat(ts_str)
     
     @property
     def current_value(self) -> Any:

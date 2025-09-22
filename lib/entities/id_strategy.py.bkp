@@ -1,0 +1,435 @@
+"""
+Entity ID Strategy Module
+
+This module implements the semantic entity ID generation strategy that creates
+meaningful, structured IDs that reflect the logical relationships between entities.
+
+ID patterns follow the format:
+- CLUSTER: cluster_{name}
+- NODE: node_{name}  (where name can be address or identifier)
+- STATE_TRANSFER: sst_{timestamp}_{donor}_{joiner}
+- VIEW: view_{view_id}
+- CONFLICT: conflict_{timestamp}_{seqno}
+- FLOW_CONTROL: fc_{timestamp}_{node}_{type}
+- ERROR: error_{timestamp}_{node}_{type}
+"""
+
+import re
+
+from datetime import datetime
+from typing import Dict, Any, Optional
+from enum import Enum
+
+
+class EntityType(Enum):
+    """Entity types for ID generation"""
+    CLUSTER = "cluster"
+    NODE = "node" 
+    STATE_TRANSFER = "state_transfer"
+    VIEW = "view"
+    CONFLICT = "conflict"
+    FLOW_CONTROL = "flow_control"
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
+    SUCCESS = "success"
+    FAILURE = "failure"
+    IST = "ist"
+    SST = "sst"
+
+
+class EntityIDGenerator:
+    """
+    Generates semantic entity IDs based on entity type and attributes
+    """
+    
+    @staticmethod
+    def _sanitize_component(component: str) -> str:
+        """
+        Sanitize a component for use in entity ID
+        
+        Args:
+            component: Raw component string
+            
+        Returns:
+            str: Sanitized component safe for use in IDs
+        """
+        if not component:
+            return "unknown"
+            
+        # Convert to string and strip whitespace
+        sanitized = str(component).strip()
+        
+        # Replace problematic characters with underscores
+        sanitized = re.sub(r'[^\w\-\.]', '_', sanitized)
+        
+        # Remove consecutive underscores
+        sanitized = re.sub(r'_+', '_', sanitized)
+        
+        # Remove leading/trailing underscores
+        sanitized = sanitized.strip('_')
+        
+        return sanitized if sanitized else "unknown"
+    
+    @staticmethod
+    def _format_timestamp(timestamp: Optional[datetime]) -> str:
+        """
+        Format timestamp for use in entity IDs
+        
+        Args:
+            timestamp: Datetime object or None
+            
+        Returns:
+            str: Formatted timestamp string
+        """
+        if not timestamp:
+            return "unknown_time"
+            
+        if hasattr(timestamp, 'strftime'):
+            return timestamp.strftime("%Y%m%d_%H%M%S")
+        else:
+            # Fallback for string timestamps
+            return EntityIDGenerator._sanitize_component(str(timestamp))
+    
+    @classmethod
+    def generate_cluster_id(cls, cluster_name: str) -> str:
+        """
+        Generate cluster entity ID
+        
+        Args:
+            cluster_name: Name of the cluster
+            
+        Returns:
+            str: Cluster entity ID in format cluster_{name}
+        """
+        name = cls._sanitize_component(cluster_name)
+        return f"cluster_{name}"
+    
+    @classmethod
+    def generate_node_id(cls, node_name: str, node_address: Optional[str] = None) -> str:
+        """
+        Generate node entity ID
+        
+        Args:
+            node_name: Name or identifier of the node
+            node_address: Optional node address for fallback
+            
+        Returns:
+            str: Node entity ID in format node_{name}
+        """
+        # Prefer node_name, fallback to node_address
+        identifier = node_name or node_address or "unknown"
+        name = cls._sanitize_component(identifier)
+        return f"node_{name}"
+    
+    @classmethod
+    def generate_sst_id(cls, timestamp: Optional[datetime], donor: str, joiner: str) -> str:
+        """
+        Generate SST (State Snapshot Transfer) entity ID
+        
+        Args:
+            timestamp: Timestamp when SST started
+            donor: Donor node identifier
+            joiner: Joiner node identifier
+            
+        Returns:
+            str: SST entity ID in format sst_{timestamp}_{donor}_{joiner}
+        """
+        ts = cls._format_timestamp(timestamp)
+        donor_clean = cls._sanitize_component(donor)
+        joiner_clean = cls._sanitize_component(joiner)
+        return f"sst_{ts}_{donor_clean}_{joiner_clean}"
+    
+    @classmethod
+    def generate_view_id(cls, view_id: str) -> str:
+        """
+        Generate view entity ID
+        
+        Args:
+            view_id: View identifier from Galera
+            
+        Returns:
+            str: View entity ID in format view_{view_id}
+        """
+        view_clean = cls._sanitize_component(view_id)
+        return f"view_{view_clean}"
+    
+    @classmethod
+    def generate_conflict_id(cls, timestamp: Optional[datetime], seqno: str) -> str:
+        """
+        Generate conflict entity ID
+        
+        Args:
+            timestamp: Timestamp of the conflict
+            seqno: Sequence number of the conflict
+            
+        Returns:
+            str: Conflict entity ID in format conflict_{timestamp}_{seqno}
+        """
+        ts = cls._format_timestamp(timestamp)
+        seqno_clean = cls._sanitize_component(seqno)
+        return f"conflict_{ts}_{seqno_clean}"
+    
+    @classmethod
+    def generate_flow_control_id(cls, timestamp: Optional[datetime], node: str, fc_type: str) -> str:
+        """
+        Generate flow control entity ID
+        
+        Args:
+            timestamp: Timestamp of the flow control event
+            node: Node identifier
+            fc_type: Type of flow control event
+            
+        Returns:
+            str: Flow control entity ID in format fc_{timestamp}_{node}_{type}
+        """
+        ts = cls._format_timestamp(timestamp)
+        node_clean = cls._sanitize_component(node)
+        type_clean = cls._sanitize_component(fc_type)
+        return f"fc_{ts}_{node_clean}_{type_clean}"
+    
+    @classmethod
+    def generate_error_id(cls, timestamp: Optional[datetime], node: str, error_type: str) -> str:
+        """
+        Generate error entity ID
+        
+        Args:
+            timestamp: Timestamp of the error
+            node: Node identifier where error occurred
+            error_type: Type/category of error
+            
+        Returns:
+            str: Error entity ID in format error_{timestamp}_{node}_{type}
+        """
+        ts = cls._format_timestamp(timestamp)
+        node_clean = cls._sanitize_component(node)
+        type_clean = cls._sanitize_component(error_type)
+        return f"error_{ts}_{node_clean}_{type_clean}"
+    
+    @classmethod
+    def generate_communication_id(cls, timestamp: Optional[datetime], source: str, 
+                                target: str, comm_type: str) -> str:
+        """
+        Generate communication entity ID
+        
+        Args:
+            timestamp: Timestamp of the communication
+            source: Source node
+            target: Target node
+            comm_type: Type of communication
+            
+        Returns:
+            str: Communication entity ID in format comm_{timestamp}_{source}_{target}_{type}
+        """
+        ts = cls._format_timestamp(timestamp)
+        source_clean = cls._sanitize_component(source)
+        target_clean = cls._sanitize_component(target)
+        type_clean = cls._sanitize_component(comm_type)
+        return f"comm_{ts}_{source_clean}_{target_clean}_{type_clean}"
+    
+    @classmethod
+    def generate_warning_id(cls, timestamp: Optional[datetime], warning_type: str, 
+                          severity: str) -> str:
+        """
+        Generate warning entity ID
+        
+        Args:
+            timestamp: Timestamp of the warning
+            warning_type: Type of warning
+            severity: Severity level
+            
+        Returns:
+            str: Warning entity ID in format warn_{timestamp}_{type}_{severity}
+        """
+        ts = cls._format_timestamp(timestamp)
+        type_clean = cls._sanitize_component(warning_type)
+        severity_clean = cls._sanitize_component(severity)
+        return f"warn_{ts}_{type_clean}_{severity_clean}"
+    
+    @classmethod
+    def generate_performance_id(cls, timestamp: Optional[datetime], metric: str, 
+                              operation: str) -> str:
+        """
+        Generate performance entity ID
+        
+        Args:
+            timestamp: Timestamp of the performance event
+            metric: Performance metric name
+            operation: Operation being measured
+            
+        Returns:
+            str: Performance entity ID in format perf_{timestamp}_{metric}_{operation}
+        """
+        ts = cls._format_timestamp(timestamp)
+        metric_clean = cls._sanitize_component(metric)
+        operation_clean = cls._sanitize_component(operation)
+        return f"perf_{ts}_{metric_clean}_{operation_clean}"
+    
+    @classmethod
+    def generate_transaction_id(cls, timestamp: Optional[datetime], trans_id: str, 
+                              trans_type: str) -> str:
+        """
+        Generate transaction entity ID
+        
+        Args:
+            timestamp: Timestamp of the transaction
+            trans_id: Transaction identifier
+            trans_type: Transaction type
+            
+        Returns:
+            str: Transaction entity ID in format tx_{timestamp}_{id}_{type}
+        """
+        ts = cls._format_timestamp(timestamp)
+        id_clean = cls._sanitize_component(trans_id)
+        type_clean = cls._sanitize_component(trans_type)
+        return f"tx_{ts}_{id_clean}_{type_clean}"
+    
+    @classmethod
+    def generate_generic_id(cls, entity_type: str, timestamp: Optional[datetime], 
+                          node: Optional[str] = None, identifier: Optional[str] = None) -> str:
+        """
+        Generate generic entity ID for types not covered by specific methods
+        
+        Args:
+            entity_type: Type of entity (warning, info, success, etc.)
+            timestamp: Timestamp of the event
+            node: Optional node identifier
+            identifier: Optional additional identifier
+            
+        Returns:
+            str: Generic entity ID in format {type}_{timestamp}_{node}_{identifier}
+        """
+        type_clean = cls._sanitize_component(entity_type)
+        ts = cls._format_timestamp(timestamp)
+        
+        parts = [type_clean, ts]
+        
+        if node:
+            parts.append(cls._sanitize_component(node))
+        
+        if identifier:
+            parts.append(cls._sanitize_component(identifier))
+            
+        return "_".join(parts)
+    
+    @classmethod
+    def generate_entity_id(cls, entity_type: str, **kwargs) -> str:
+        """
+        Main entry point for generating entity IDs based on type and attributes
+        
+        Args:
+            entity_type: Type of entity to generate ID for
+            **kwargs: Entity-specific attributes for ID generation
+            
+        Returns:
+            str: Generated entity ID
+        """
+        entity_type_lower = entity_type.lower()
+        
+        # Route to specific ID generators based on entity type
+        if entity_type_lower in ['cluster']:
+            return cls.generate_cluster_id(
+                kwargs.get('cluster_name', kwargs.get('name', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['node']:
+            return cls.generate_node_id(
+                kwargs.get('node_name', kwargs.get('name', '')),
+                kwargs.get('node_address', kwargs.get('address', ''))
+            )
+        
+        elif entity_type_lower in ['state_transfer', 'sst']:
+            return cls.generate_sst_id(
+                kwargs.get('timestamp'),
+                kwargs.get('donor_node', kwargs.get('donor', 'unknown')),
+                kwargs.get('joiner_node', kwargs.get('joiner', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['view']:
+            return cls.generate_view_id(
+                kwargs.get('view_id', kwargs.get('id', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['conflict']:
+            return cls.generate_conflict_id(
+                kwargs.get('timestamp'),
+                kwargs.get('seqno', kwargs.get('sequence_number', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['flow_control', 'fc']:
+            return cls.generate_flow_control_id(
+                kwargs.get('timestamp'),
+                kwargs.get('node', kwargs.get('node_name', 'unknown')),
+                kwargs.get('fc_type', kwargs.get('type', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['communication']:
+            return cls.generate_communication_id(
+                kwargs.get('timestamp'),
+                kwargs.get('source', kwargs.get('source_node', 'unknown')),
+                kwargs.get('target', kwargs.get('target_node', 'unknown')),
+                kwargs.get('type', kwargs.get('communication_type', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['warning']:
+            return cls.generate_warning_id(
+                kwargs.get('timestamp'),
+                kwargs.get('type', kwargs.get('warning_type', 'unknown')),
+                kwargs.get('severity', 'warning')
+            )
+        
+        elif entity_type_lower in ['performance']:
+            return cls.generate_performance_id(
+                kwargs.get('timestamp'),
+                kwargs.get('metric', kwargs.get('metric_name', 'unknown')),
+                kwargs.get('operation', kwargs.get('operation_name', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['transaction']:
+            return cls.generate_transaction_id(
+                kwargs.get('timestamp'),
+                kwargs.get('id', kwargs.get('transaction_id', 'unknown')),
+                kwargs.get('type', kwargs.get('transaction_type', 'unknown'))
+            )
+        
+        elif entity_type_lower in ['error']:
+            return cls.generate_error_id(
+                kwargs.get('timestamp'),
+                kwargs.get('node', kwargs.get('node_name', 'unknown')),
+                kwargs.get('error_type', kwargs.get('type', 'unknown'))
+            )
+        
+        else:
+            # Generic fallback for other entity types
+            return cls.generate_generic_id(
+                entity_type,
+                kwargs.get('timestamp'),
+                kwargs.get('node', kwargs.get('node_name')),
+                kwargs.get('identifier', kwargs.get('id'))
+            )
+
+
+# Convenience functions for direct use
+def generate_entity_id(entity_type: str, **kwargs) -> str:
+    """Convenience function for generating entity IDs"""
+    return EntityIDGenerator.generate_entity_id(entity_type, **kwargs)
+
+
+def generate_cluster_id(cluster_name: str) -> str:
+    """Convenience function for generating cluster IDs"""
+    return EntityIDGenerator.generate_cluster_id(cluster_name)
+
+
+def generate_node_id(node_name: str, node_address: Optional[str] = None) -> str:
+    """Convenience function for generating node IDs"""
+    return EntityIDGenerator.generate_node_id(node_name, node_address)
+
+
+def generate_sst_id(timestamp: Optional[datetime], donor: str, joiner: str) -> str:
+    """Convenience function for generating SST IDs"""
+    return EntityIDGenerator.generate_sst_id(timestamp, donor, joiner)
+
+
+def generate_view_id(view_id: str) -> str:
+    """Convenience function for generating view IDs"""
+    return EntityIDGenerator.generate_view_id(view_id)

@@ -16,6 +16,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 
+# Import the new ID generation strategy
+from .id_strategy import EntityIDGenerator
+
 
 class EntityType(Enum):
     """Enumeration of supported entity types"""
@@ -47,7 +50,7 @@ class Entity(ABC):
     """
     
     # Core identification
-    entity_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    entity_id: str = field(default="")  # Will be generated in __post_init__
     entity_type: EntityType = field(init=False)
     
     # Temporal information
@@ -66,11 +69,51 @@ class Entity(ABC):
     # Validation status
     validated: bool = False
     validation_notes: str = ""
-    
+
     def __post_init__(self):
-        """Validate entity after initialization"""
+        """Initialize entity ID and validate entity after initialization"""
+        # Generate semantic ID if not already set
+        if not self.entity_id:
+            self.entity_id = self.generate_entity_id()
         self.validate()
+    
+    def generate_entity_id(self) -> str:
+        """
+        Generate semantic entity ID based on entity type and attributes
         
+        Returns:
+            str: Generated semantic entity ID
+        """
+        # Get entity type as string
+        entity_type_str = self.entity_type.value if hasattr(self.entity_type, 'value') else str(self.entity_type)
+        
+        # Collect attributes for ID generation
+        id_attrs = self.get_id_attributes()
+        
+        # Use EntityIDGenerator to create semantic ID
+        return EntityIDGenerator.generate_entity_id(entity_type_str, **id_attrs)
+    
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """
+        Get attributes relevant for ID generation
+        
+        Subclasses should override this to provide entity-specific attributes
+        
+        Returns:
+            Dict[str, Any]: Dictionary of attributes for ID generation
+        """
+        base_attrs = {
+            'timestamp': self.timestamp,
+        }
+        
+        # Add any attributes that exist on this entity
+        for attr_name in ['node_name', 'node_address', 'cluster_name', 'view_id', 
+                         'donor_node', 'joiner_node', 'error_type', 'seqno']:
+            if hasattr(self, attr_name):
+                base_attrs[attr_name] = getattr(self, attr_name)
+        
+        return base_attrs
+    
     @abstractmethod
     def validate(self) -> bool:
         """
@@ -100,9 +143,15 @@ class Entity(ABC):
             else:
                 timestamp_str = str(self.timestamp)
         
+        # Handle entity_type safely - could be enum or string
+        if hasattr(self.entity_type, 'value'):
+            entity_type_str = self.entity_type.value
+        else:
+            entity_type_str = str(self.entity_type)
+        
         base_dict = {
             'entity_id': self.entity_id,
-            'entity_type': self.entity_type.value,
+            'entity_type': entity_type_str,
             'timestamp': timestamp_str,
             'line_number': self.line_number,
             'raw_line': self.raw_line,
@@ -192,7 +241,12 @@ class Event(Entity):
         # Event name is optional for some entity types
         if not self.event_name and hasattr(self, 'entity_type'):
             # Auto-generate event name from entity type
-            self.event_name = f"{self.entity_type.value.lower()}_event"
+            # Handle entity_type safely - could be enum or string
+            if hasattr(self.entity_type, 'value'):
+                entity_type_str = self.entity_type.value.lower()
+            else:
+                entity_type_str = str(self.entity_type).lower()
+            self.event_name = f"{entity_type_str}_event"
             
         if self.duration_ms is not None and self.duration_ms < 0:
             raise ValueError("Duration cannot be negative")
@@ -360,9 +414,15 @@ class Pattern:
         
     def to_dict(self) -> Dict[str, Any]:
         """Convert pattern to dictionary representation"""
+        # Handle entity_type safely - could be enum or string
+        if hasattr(self.entity_type, 'value'):
+            entity_type_str = self.entity_type.value
+        else:
+            entity_type_str = str(self.entity_type)
+            
         return {
             'name': self.name,
-            'entity_type': self.entity_type.value,
+            'entity_type': entity_type_str,
             'version': self.version,
             'regex': self.regex,
             'field_mappings': self.field_mappings,

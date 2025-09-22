@@ -137,7 +137,11 @@ class LogParser:
                     # Update statistics
                     for entity in line_entities:
                         self.stats['extracted_entities'] += 1
-                        entity_type = entity.entity_type.value
+                        # Handle entity_type safely - could be enum or string
+                        if hasattr(entity.entity_type, 'value'):
+                            entity_type = entity.entity_type.value
+                        else:
+                            entity_type = str(entity.entity_type)
                         self.stats['entities_by_type'][entity_type] = (
                             self.stats['entities_by_type'].get(entity_type, 0) + 1
                         )
@@ -315,7 +319,12 @@ class LogParser:
         print(f"Extracted {len(entities)} entities:")
         
         for i, entity in enumerate(entities):
-            print(f"\n{i+1}. {entity.entity_type.value} (confidence: {entity.confidence:.2f})")
+            # Handle entity_type safely - could be enum or string
+            if hasattr(entity.entity_type, 'value'):
+                entity_type_str = entity.entity_type.value
+            else:
+                entity_type_str = str(entity.entity_type)
+            print(f"\n{i+1}. {entity_type_str} (confidence: {entity.confidence:.2f})")
             print(f"   Pattern: {entity.pattern_name}")
             
             # Show key entity data

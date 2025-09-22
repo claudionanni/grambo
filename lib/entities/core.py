@@ -60,9 +60,11 @@ class NodeEntity(Entity):
     level: str = "Note"
     
     # Node identification
-    node_id: str = ""  # Galera node UUID
+    node_id: str = ""  # Galera node UUID (short format)
+    long_uuid: str = ""  # Full UUID format (when available)
     node_name: str = ""  # Human-readable node name
     node_address: str = ""  # IP:port combination
+    state_uuid: str = ""  # State exchange UUID (when available)
     
     # Node state
     current_state: NodeState = NodeState.UNKNOWN
@@ -91,9 +93,26 @@ class NodeEntity(Entity):
             valid_transitions = self._get_valid_transitions()
             if (self.previous_state, self.current_state) not in valid_transitions:
                 # Log warning but don't fail validation (state might be incomplete)
-                self.validation_notes += f"Unusual state transition: {self.previous_state.value} -> {self.current_state.value}"
+                prev_state_str = self.previous_state.value if hasattr(self.previous_state, 'value') else str(self.previous_state)
+                current_state_str = self.current_state.value if hasattr(self.current_state, 'value') else str(self.current_state)
+                self.validation_notes += f"Unusual state transition: {prev_state_str} -> {current_state_str}"
                 
         return True
+    
+    def convert_long_uuid_to_short(self) -> None:
+        """Convert long UUID format to short format if available"""
+        if self.long_uuid and not self.node_id:
+            # Long UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            # Short UUID format: xxxxxxxx-xxxx (1st part + 4th part)
+            parts = self.long_uuid.split('-')
+            if len(parts) == 5:
+                self.node_id = f"{parts[0]}-{parts[3]}"
+    
+    def __post_init__(self):
+        """Post-initialization processing"""
+        super().__post_init__()
+        # Convert long UUID to short format if needed
+        self.convert_long_uuid_to_short()
         
     def _get_valid_transitions(self) -> List[tuple]:
         """Get list of valid Galera state transitions"""
@@ -146,11 +165,31 @@ class NodeEntity(Entity):
             
         # Update validation notes
         if self.previous_state and self.previous_state != new_state:
-            transition = f"{self.previous_state.value} -> {new_state.value}"
+            prev_state_str = self.previous_state.value if hasattr(self.previous_state, 'value') else str(self.previous_state)
+            new_state_str = new_state.value if hasattr(new_state, 'value') else str(new_state)
+            transition = f"{prev_state_str} -> {new_state_str}"
             if self.validation_notes:
                 self.validation_notes += f"; State transition: {transition}"
             else:
                 self.validation_notes = f"State transition: {transition}"
+    
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for node entity ID generation"""
+        # For nodes, use node_name or fallback to node_address
+        if self.node_name:
+            node_identifier = self.node_name
+        elif self.node_address:
+            node_identifier = self.node_address
+        elif self.local_index is not None and self.local_index >= 0:
+            node_identifier = f"node_{self.local_index}"
+        else:
+            node_identifier = "unknown"
+        
+        return {
+            'node_name': node_identifier,
+            'node_address': self.node_address,
+            'timestamp': self.timestamp,
+        }
                 
     def to_dict(self) -> Dict[str, Any]:
         """Convert node entity to dictionary"""
@@ -158,10 +197,12 @@ class NodeEntity(Entity):
         base_dict.update({
             'level': self.level,
             'node_id': self.node_id,
+            'long_uuid': self.long_uuid,
             'node_name': self.node_name,
             'node_address': self.node_address,
-            'current_state': self.current_state.value,
-            'previous_state': self.previous_state.value if self.previous_state else None,
+            'state_uuid': self.state_uuid,
+            'current_state': self.current_state.value if hasattr(self.current_state, 'value') else str(self.current_state),
+            'previous_state': self.previous_state.value if self.previous_state and hasattr(self.previous_state, 'value') else str(self.previous_state) if self.previous_state else None,
             'cluster_name': self.cluster_name,
             'cluster_uuid': self.cluster_uuid,
             'wsrep_version': self.wsrep_version,
@@ -201,8 +242,10 @@ class NodeEntity(Entity):
             validation_notes=data.get('validation_notes', ''),
             level=data.get('level', 'Note'),
             node_id=data.get('node_id', ''),
+            long_uuid=data.get('long_uuid', ''),
             node_name=data.get('node_name', ''),
             node_address=data.get('node_address', ''),
+            state_uuid=data.get('state_uuid', ''),
             current_state=current_state,
             previous_state=previous_state,
             cluster_name=data.get('cluster_name', ''),
@@ -293,13 +336,21 @@ class StateTransferEntity(Event):
         """Check if the state transfer was successful"""
         return (self.transfer_status.lower() in ['completed', 'success', 'done'] and 
                 self.error_code is None)
+    
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for SST entity ID generation"""
+        return {
+            'timestamp': self.timestamp,
+            'donor': self.donor_node or self.donor_address or "unknown",
+            'joiner': self.joiner_node or self.joiner_address or "unknown",
+        }
                 
     def to_dict(self) -> Dict[str, Any]:
         """Convert state transfer entity to dictionary"""
         base_dict = super().to_dict()
         base_dict.update({
-            'transfer_type': self.transfer_type.value,
-            'transfer_method': self.transfer_method.value if self.transfer_method else None,
+            'transfer_type': self.transfer_type.value if hasattr(self.transfer_type, 'value') else str(self.transfer_type),
+            'transfer_method': self.transfer_method.value if self.transfer_method and hasattr(self.transfer_method, 'value') else str(self.transfer_method) if self.transfer_method else None,
             'donor_node': self.donor_node,
             'joiner_node': self.joiner_node,
             'donor_address': self.donor_address,
@@ -445,6 +496,14 @@ class ViewEntity(Event):
             'joined': self.joined_nodes.copy(),
             'left': self.left_nodes.copy()
         }
+    
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for view entity ID generation"""
+        view_identifier = self.view_id if self.view_id else (f"seq_{self.view_seq}" if self.view_seq is not None else "unknown")
+        return {
+            'id': view_identifier,
+            'timestamp': self.timestamp,
+        }
         
     def to_dict(self) -> Dict[str, Any]:
         """Convert view entity to dictionary"""
@@ -555,6 +614,15 @@ class CommunicationEntity(Entity):
             'status': self.status
         })
         return base_dict
+
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for communication entity ID generation"""
+        return {
+            'source': self.source_node or 'unknown',
+            'target': self.target_node or 'unknown', 
+            'type': self.communication_type or 'unknown',
+            'timestamp': self.timestamp,
+        }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CommunicationEntity':
@@ -656,6 +724,14 @@ class WarningEntity(Entity):
             'subsystem': self.subsystem
         })
         return base_dict
+
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for warning entity ID generation"""
+        return {
+            'type': self.warning_type or 'unknown',
+            'severity': self.severity or 'warning',
+            'timestamp': self.timestamp,
+        }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'WarningEntity':
@@ -695,6 +771,375 @@ class WarningEntity(Entity):
         )
 
 
+@dataclass
+class ErrorEntity(Entity):
+    """
+    Represents error events from the cluster
+    """
+    
+    # Entity classification
+    entity_type: EntityType = field(default=EntityType.ERROR, init=False)
+    
+    # Log level (Note, Warning, Error, etc.)
+    level: str = "Error"
+    
+    # Error details
+    error_type: str = ""
+    error_message: str = ""
+    error_code: str = ""
+    severity: str = "error"
+    
+    # Error context
+    component: str = ""
+    subsystem: str = ""
+    operation: str = ""
+    
+    # Recovery information
+    recovery_action: str = ""
+    recovery_success: bool = False
+    
+    def validate(self) -> bool:
+        """Validate error entity"""
+        if not self.error_message:
+            self.error_message = self.raw_line
+        
+        if not self.error_type:
+            # Infer from pattern or content
+            if "timeout" in self.error_message.lower():
+                self.error_type = "timeout"
+            elif "connection" in self.error_message.lower():
+                self.error_type = "connection"
+            elif "authentication" in self.error_message.lower():
+                self.error_type = "authentication"
+            elif "permission" in self.error_message.lower():
+                self.error_type = "permission"
+            else:
+                self.error_type = "general"
+        
+        return True
+    
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for error entity ID generation"""
+        # Try to extract node info from error message or use generic
+        node_info = getattr(self, 'node_name', None) or getattr(self, 'node_address', None) or "unknown"
+        
+        return {
+            'timestamp': self.timestamp,
+            'node': node_info,
+            'error_type': self.error_type or 'general',
+        }
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        base_dict = super().to_dict()
+        base_dict.update({
+            'level': self.level,
+            'error_type': self.error_type,
+            'error_message': self.error_message,
+            'error_code': self.error_code,
+            'severity': self.severity,
+            'component': self.component,
+            'subsystem': self.subsystem,
+            'operation': self.operation,
+            'recovery_action': self.recovery_action,
+            'recovery_success': self.recovery_success
+        })
+        return base_dict
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ErrorEntity':
+        """Create from dictionary"""
+        # Handle timestamp conversion
+        timestamp = data.get('timestamp')
+        if timestamp and isinstance(timestamp, str):
+            try:
+                timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            except ValueError:
+                timestamp = None
+        
+        return cls(
+            entity_id=data.get('entity_id', ''),
+            timestamp=timestamp,
+            line_number=data.get('line_number'),
+            raw_line=data.get('raw_line', ''),
+            log_source=data.get('log_source', ''),
+            confidence=data.get('confidence', 1.0),
+            pattern_name=data.get('pattern_name', ''),
+            extraction_method=data.get('extraction_method', 'manual'),
+            validated=data.get('validated', False),
+            validation_notes=data.get('validation_notes', ''),
+            level=data.get('level', 'Error'),
+            error_type=data.get('error_type', ''),
+            error_message=data.get('error_message', ''),
+            error_code=data.get('error_code', ''),
+            severity=data.get('severity', 'error'),
+            component=data.get('component', ''),
+            subsystem=data.get('subsystem', ''),
+            operation=data.get('operation', ''),
+            recovery_action=data.get('recovery_action', ''),
+            recovery_success=data.get('recovery_success', False)
+        )
+
+
+@dataclass
+class PerformanceEntity(Entity):
+    """
+    Represents performance metrics and monitoring events
+    """
+    
+    # Entity classification
+    entity_type: EntityType = field(default=EntityType.PERFORMANCE, init=False)
+    
+    # Log level
+    level: str = "Note"
+    
+    # Performance metrics
+    metric_name: str = ""
+    metric_value: Optional[float] = None
+    metric_unit: str = ""
+    
+    # Timing information
+    operation_duration: Optional[float] = None  # milliseconds
+    operation_name: str = ""
+    
+    # Resource utilization
+    cpu_usage: Optional[float] = None
+    memory_usage: Optional[float] = None
+    disk_io: Optional[float] = None
+    network_io: Optional[float] = None
+    
+    # Galera-specific performance
+    apply_lag: Optional[float] = None
+    commit_lag: Optional[float] = None
+    local_queue_size: Optional[int] = None
+    recv_queue_size: Optional[int] = None
+    
+    # Thresholds and alerts
+    threshold_exceeded: bool = False
+    alert_level: str = "normal"  # normal, warning, critical
+    
+    def validate(self) -> bool:
+        """Validate performance entity"""
+        if not self.metric_name and not self.operation_name:
+            # Try to infer from raw line
+            if "apply" in self.raw_line.lower():
+                self.operation_name = "apply"
+            elif "commit" in self.raw_line.lower():
+                self.operation_name = "commit"
+            elif "queue" in self.raw_line.lower():
+                self.metric_name = "queue_size"
+        
+        return True
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        base_dict = super().to_dict()
+        base_dict.update({
+            'level': self.level,
+            'metric_name': self.metric_name,
+            'metric_value': self.metric_value,
+            'metric_unit': self.metric_unit,
+            'operation_duration': self.operation_duration,
+            'operation_name': self.operation_name,
+            'cpu_usage': self.cpu_usage,
+            'memory_usage': self.memory_usage,
+            'disk_io': self.disk_io,
+            'network_io': self.network_io,
+            'apply_lag': self.apply_lag,
+            'commit_lag': self.commit_lag,
+            'local_queue_size': self.local_queue_size,
+            'recv_queue_size': self.recv_queue_size,
+            'threshold_exceeded': self.threshold_exceeded,
+            'alert_level': self.alert_level
+        })
+        return base_dict
+
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for performance entity ID generation"""
+        return {
+            'metric': self.metric_name or 'unknown',
+            'operation': self.operation_name or 'unknown',
+            'timestamp': self.timestamp,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PerformanceEntity':
+        """Create from dictionary"""
+        # Handle timestamp conversion
+        timestamp = data.get('timestamp')
+        if timestamp and isinstance(timestamp, str):
+            try:
+                timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            except ValueError:
+                timestamp = None
+        
+        return cls(
+            entity_id=data.get('entity_id', ''),
+            timestamp=timestamp,
+            line_number=data.get('line_number'),
+            raw_line=data.get('raw_line', ''),
+            log_source=data.get('log_source', ''),
+            confidence=data.get('confidence', 1.0),
+            pattern_name=data.get('pattern_name', ''),
+            extraction_method=data.get('extraction_method', 'manual'),
+            validated=data.get('validated', False),
+            validation_notes=data.get('validation_notes', ''),
+            level=data.get('level', 'Note'),
+            metric_name=data.get('metric_name', ''),
+            metric_value=data.get('metric_value'),
+            metric_unit=data.get('metric_unit', ''),
+            operation_duration=data.get('operation_duration'),
+            operation_name=data.get('operation_name', ''),
+            cpu_usage=data.get('cpu_usage'),
+            memory_usage=data.get('memory_usage'),
+            disk_io=data.get('disk_io'),
+            network_io=data.get('network_io'),
+            apply_lag=data.get('apply_lag'),
+            commit_lag=data.get('commit_lag'),
+            local_queue_size=data.get('local_queue_size'),
+            recv_queue_size=data.get('recv_queue_size'),
+            threshold_exceeded=data.get('threshold_exceeded', False),
+            alert_level=data.get('alert_level', 'normal')
+        )
+
+
+@dataclass
+class TransactionEntity(Event):
+    """
+    Represents transaction-related events and operations
+    """
+    
+    # Entity classification
+    entity_type: EntityType = field(default=EntityType.TRANSACTION, init=False)
+    
+    # Log level
+    level: str = "Note"
+    
+    # Transaction identification
+    transaction_id: str = ""
+    global_transaction_id: str = ""
+    thread_id: str = ""
+    
+    # Transaction details
+    transaction_type: str = ""  # commit, rollback, start, deadlock
+    transaction_state: str = ""  # active, committed, aborted
+    isolation_level: str = ""
+    
+    # Galera-specific transaction info
+    seqno: Optional[int] = None
+    depends_seqno: Optional[int] = None
+    certification_outcome: str = ""  # pass, fail
+    
+    # Performance metrics
+    transaction_duration: Optional[float] = None  # milliseconds
+    rows_affected: Optional[int] = None
+    lock_wait_time: Optional[float] = None
+    
+    # Conflict detection
+    has_conflict: bool = False
+    conflict_type: str = ""  # certification, deadlock, timeout
+    conflicting_transaction: str = ""
+    
+    def validate(self) -> bool:
+        """Validate transaction entity"""
+        # Call parent validation
+        super().validate()
+        
+        if not self.transaction_type:
+            # Infer from raw line content
+            raw_lower = self.raw_line.lower()
+            if "commit" in raw_lower:
+                self.transaction_type = "commit"
+            elif "rollback" in raw_lower:
+                self.transaction_type = "rollback"
+            elif "deadlock" in raw_lower:
+                self.transaction_type = "deadlock"
+                self.has_conflict = True
+                self.conflict_type = "deadlock"
+            elif "certification" in raw_lower:
+                self.transaction_type = "certification"
+        
+        return True
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        base_dict = super().to_dict()
+        base_dict.update({
+            'level': self.level,
+            'transaction_id': self.transaction_id,
+            'global_transaction_id': self.global_transaction_id,
+            'thread_id': self.thread_id,
+            'transaction_type': self.transaction_type,
+            'transaction_state': self.transaction_state,
+            'isolation_level': self.isolation_level,
+            'seqno': self.seqno,
+            'depends_seqno': self.depends_seqno,
+            'certification_outcome': self.certification_outcome,
+            'transaction_duration': self.transaction_duration,
+            'rows_affected': self.rows_affected,
+            'lock_wait_time': self.lock_wait_time,
+            'has_conflict': self.has_conflict,
+            'conflict_type': self.conflict_type,
+            'conflicting_transaction': self.conflicting_transaction
+        })
+        return base_dict
+
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for transaction entity ID generation"""
+        transaction_id = self.transaction_id or self.global_transaction_id or str(self.seqno) if self.seqno else 'unknown'
+        return {
+            'id': transaction_id,
+            'type': self.transaction_type or 'unknown',
+            'timestamp': self.timestamp,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TransactionEntity':
+        """Create from dictionary"""
+        # Handle timestamp conversion
+        timestamp = data.get('timestamp')
+        if timestamp and isinstance(timestamp, str):
+            try:
+                timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            except ValueError:
+                timestamp = None
+        
+        return cls(
+            entity_id=data.get('entity_id', ''),
+            timestamp=timestamp,
+            line_number=data.get('line_number'),
+            raw_line=data.get('raw_line', ''),
+            log_source=data.get('log_source', ''),
+            confidence=data.get('confidence', 1.0),
+            pattern_name=data.get('pattern_name', ''),
+            extraction_method=data.get('extraction_method', 'manual'),
+            validated=data.get('validated', False),
+            validation_notes=data.get('validation_notes', ''),
+            event_name=data.get('event_name', ''),
+            event_category=data.get('event_category', ''),
+            before_state=data.get('before_state'),
+            after_state=data.get('after_state'),
+            related_entities=data.get('related_entities', []),
+            duration_ms=data.get('duration_ms'),
+            level=data.get('level', 'Note'),
+            transaction_id=data.get('transaction_id', ''),
+            global_transaction_id=data.get('global_transaction_id', ''),
+            thread_id=data.get('thread_id', ''),
+            transaction_type=data.get('transaction_type', ''),
+            transaction_state=data.get('transaction_state', ''),
+            isolation_level=data.get('isolation_level', ''),
+            seqno=data.get('seqno'),
+            depends_seqno=data.get('depends_seqno'),
+            certification_outcome=data.get('certification_outcome', ''),
+            transaction_duration=data.get('transaction_duration'),
+            rows_affected=data.get('rows_affected'),
+            lock_wait_time=data.get('lock_wait_time'),
+            has_conflict=data.get('has_conflict', False),
+            conflict_type=data.get('conflict_type', ''),
+            conflicting_transaction=data.get('conflicting_transaction', '')
+        )
+
+
 # Register entity classes with the registry (to be imported by other modules)
 def register_core_entities(registry):
     """
@@ -708,3 +1153,6 @@ def register_core_entities(registry):
     registry.register_entity_class(EntityType.VIEW, ViewEntity)
     registry.register_entity_class(EntityType.COMMUNICATION, CommunicationEntity)
     registry.register_entity_class(EntityType.WARNING, WarningEntity)
+    registry.register_entity_class(EntityType.ERROR, ErrorEntity)
+    registry.register_entity_class(EntityType.PERFORMANCE, PerformanceEntity)
+    registry.register_entity_class(EntityType.TRANSACTION, TransactionEntity)

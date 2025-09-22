@@ -147,7 +147,7 @@ class SSTEventClassifier:
         Returns:
             Dict with extracted SST details
         """
-        details = {'event_type': event_type.value}
+        details = {'event_type': event_type.value if hasattr(event_type, 'value') else str(event_type)}
         
         if event_type == SSTEventType.START:
             details.update(self._extract_start_details(log_line))

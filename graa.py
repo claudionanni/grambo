@@ -63,11 +63,15 @@ class GraAnalyzer:
         """Perform comprehensive analysis of the entities"""
         analysis = {
             'overview': self._analyze_overview(),
+            'nodes': self._analyze_nodes(),
+            'cluster_views': self._analyze_cluster_views(),
             'sst_sessions': self._analyze_sst_sessions(),
             'timeline': self._analyze_timeline(),
             'errors': self._analyze_errors(),
             'cluster_state': self._analyze_cluster_state(),
-            'performance': self._analyze_performance()
+            'performance': self._analyze_performance(),
+            'warnings': self._analyze_warnings(),
+            'connectivity': self._analyze_connectivity()
         }
         return analysis
     
@@ -189,6 +193,180 @@ class GraAnalyzer:
         }
         return performance
     
+    def _analyze_nodes(self) -> Dict[str, Any]:
+        """Analyze node information and state"""
+        node_entities = [e for e in self.entities if e.get('entity_type') == 'NODE']
+        
+        nodes = {}
+        node_names = set()
+        node_ids = set()
+        
+        for entity in node_entities:
+            node_id = entity.get('node_id', '')
+            node_name = entity.get('node_name', '')
+            
+            if node_id:
+                node_ids.add(node_id)
+            if node_name:
+                node_names.add(node_name)
+            
+            # Create or update node info
+            key = node_name or node_id or 'unknown'
+            if key not in nodes:
+                nodes[key] = {
+                    'node_name': node_name,
+                    'node_id': node_id,
+                    'long_uuid': entity.get('long_uuid', ''),
+                    'states': [],
+                    'addresses': set(),
+                    'first_seen': entity.get('timestamp'),
+                    'last_seen': entity.get('timestamp'),
+                    'pattern_matches': []
+                }
+            
+            node_info = nodes[key]
+            
+            # Update node information
+            if entity.get('current_state'):
+                node_info['states'].append({
+                    'timestamp': entity.get('timestamp'),
+                    'state': entity.get('current_state'),
+                    'previous_state': entity.get('previous_state')
+                })
+            
+            if entity.get('node_address'):
+                node_info['addresses'].add(entity.get('node_address'))
+            
+            if entity.get('timestamp'):
+                if not node_info['last_seen'] or entity['timestamp'] > node_info['last_seen']:
+                    node_info['last_seen'] = entity['timestamp']
+                if not node_info['first_seen'] or entity['timestamp'] < node_info['first_seen']:
+                    node_info['first_seen'] = entity['timestamp']
+            
+            node_info['pattern_matches'].append(entity.get('pattern_name'))
+        
+        # Convert addresses sets to lists for JSON serialization
+        for node_info in nodes.values():
+            node_info['addresses'] = list(node_info['addresses'])
+        
+        return {
+            'total_nodes': len(nodes),
+            'unique_node_names': list(node_names),
+            'unique_node_ids': list(node_ids),
+            'node_details': nodes,
+            'nodes_with_names': len([n for n in nodes.values() if n['node_name']]),
+            'nodes_with_ids': len([n for n in nodes.values() if n['node_id']])
+        }
+    
+    def _analyze_cluster_views(self) -> Dict[str, Any]:
+        """Analyze cluster view changes and membership"""
+        view_entities = [e for e in self.entities if e.get('entity_type') == 'VIEW']
+        
+        if not view_entities:
+            return {'total_views': 0, 'message': 'No cluster view changes found'}
+        
+        views = []
+        cluster_sizes = []
+        
+        for entity in view_entities:
+            view_info = {
+                'timestamp': entity.get('timestamp'),
+                'cluster_uuid': entity.get('cluster_uuid', ''),
+                'cluster_state': entity.get('cluster_state', ''),
+                'members': entity.get('members', []),
+                'member_count': len(entity.get('members', [])),
+                'member_addresses': entity.get('member_addresses', []),
+                'joined_nodes': entity.get('joined_nodes', []),
+                'left_nodes': entity.get('left_nodes', []),
+                'pattern_name': entity.get('pattern_name'),
+                'raw_line': entity.get('raw_line', '')
+            }
+            views.append(view_info)
+            
+            if view_info['member_count'] > 0:
+                cluster_sizes.append(view_info['member_count'])
+        
+        views.sort(key=lambda x: x.get('timestamp', ''))
+        
+        return {
+            'total_views': len(views),
+            'view_changes': views,
+            'cluster_size_changes': cluster_sizes,
+            'max_cluster_size': max(cluster_sizes) if cluster_sizes else 0,
+            'min_cluster_size': min(cluster_sizes) if cluster_sizes else 0,
+            'final_cluster_size': cluster_sizes[-1] if cluster_sizes else 0,
+            'membership_changes': {
+                'total_joins': sum(len(v['joined_nodes']) for v in views),
+                'total_leaves': sum(len(v['left_nodes']) for v in views)
+            }
+        }
+    
+    def _analyze_warnings(self) -> Dict[str, Any]:
+        """Analyze warning messages"""
+        warning_entities = [e for e in self.entities if e.get('entity_type') == 'WARNING']
+        
+        warnings = []
+        warning_types = Counter()
+        
+        for entity in warning_entities:
+            warning = {
+                'timestamp': entity.get('timestamp'),
+                'level': entity.get('level'),
+                'pattern_name': entity.get('pattern_name'),
+                'raw_line': entity.get('raw_line', ''),
+                'entity_id': entity.get('entity_id')
+            }
+            warnings.append(warning)
+            warning_types[entity.get('pattern_name', 'unknown')] += 1
+        
+        warnings.sort(key=lambda x: x.get('timestamp', ''))
+        
+        return {
+            'total_warnings': len(warnings),
+            'warning_details': warnings,
+            'warning_types': dict(warning_types),
+            'recent_warnings': warnings[-5:] if warnings else []
+        }
+    
+    def _analyze_connectivity(self) -> Dict[str, Any]:
+        """Analyze network connectivity and communication issues"""
+        # Look for connection-related patterns and errors
+        connectivity_issues = []
+        
+        for entity in self.entities:
+            # Check for connection-related errors
+            raw_line = entity.get('raw_line', '').lower()
+            if any(keyword in raw_line for keyword in ['connection', 'network', 'timeout', 'unreachable', 'refused']):
+                connectivity_issues.append({
+                    'timestamp': entity.get('timestamp'),
+                    'entity_type': entity.get('entity_type'),
+                    'issue_type': 'connection',
+                    'description': entity.get('raw_line', ''),
+                    'pattern_name': entity.get('pattern_name')
+                })
+            
+            # Check for SST communication failures
+            if entity.get('entity_type') == 'STATE_TRANSFER':
+                error_msg = entity.get('current_error_message', '').lower()
+                if any(keyword in error_msg for keyword in ['communication', 'network', 'connection', 'timeout']):
+                    connectivity_issues.append({
+                        'timestamp': entity.get('start_timestamp') or entity.get('timestamp'),
+                        'entity_type': 'SST_COMMUNICATION',
+                        'issue_type': 'sst_communication',
+                        'description': entity.get('current_error_message', ''),
+                        'donor': entity.get('donor_node'),
+                        'joiner': entity.get('joiner_node')
+                    })
+        
+        connectivity_issues.sort(key=lambda x: x.get('timestamp', ''))
+        
+        return {
+            'total_issues': len(connectivity_issues),
+            'issue_details': connectivity_issues,
+            'has_connectivity_problems': len(connectivity_issues) > 0,
+            'issue_types': Counter(issue['issue_type'] for issue in connectivity_issues)
+        }
+    
     # Helper methods
     def _get_log_timespan(self) -> Optional[Dict[str, str]]:
         """Calculate the timespan covered by the log"""
@@ -263,8 +441,16 @@ class GraAnalyzer:
                 'duration_seconds': entity.get('duration_seconds'),
                 'donor': entity.get('donor_node', 'unknown'),
                 'joiner': entity.get('joiner_node', 'unknown'),
+                'donor_address': entity.get('donor_address', ''),
+                'joiner_address': entity.get('joiner_address', ''),
                 'error_message': entity.get('current_error_message', ''),
-                'bytes_transferred': entity.get('current_transferred_bytes', 0)
+                'bytes_transferred': entity.get('current_transferred_bytes', 0),
+                'progress_percentage': entity.get('current_progress_percentage', 0),
+                'seqno_start': entity.get('current_seqno_start'),
+                'seqno_end': entity.get('current_seqno_end'),
+                'pattern_matches': entity.get('pattern_name', ''),
+                'lifecycle_phase': entity.get('lifecycle_phase', ''),
+                'raw_lines': entity.get('raw_line', '')
             }
             sessions.append(session)
         
@@ -383,6 +569,47 @@ def print_analysis(analysis: Dict[str, Any]):
         for entity_type, count in overview['entity_types'].items():
             print(f"     {entity_type}: {count}")
     
+    # Node Analysis
+    nodes = analysis['nodes']
+    print(f"\n🖥️  CLUSTER NODES")
+    print(f"   Total Nodes Detected: {nodes.get('total_nodes', 0)}")
+    print(f"   Nodes with Names: {nodes.get('nodes_with_names', 0)}")
+    print(f"   Nodes with IDs: {nodes.get('nodes_with_ids', 0)}")
+    
+    if nodes.get('unique_node_names'):
+        print(f"   Node Names: {', '.join(nodes['unique_node_names'])}")
+    
+    if nodes.get('node_details'):
+        print(f"   Node Details:")
+        for node_key, node_info in nodes['node_details'].items():
+            name = node_info.get('node_name', 'Unknown')
+            node_id = node_info.get('node_id', 'Unknown')
+            states = len(node_info.get('states', []))
+            print(f"     {name} ({node_id}): {states} state changes")
+            
+            # Show recent states
+            recent_states = node_info.get('states', [])[-3:] if node_info.get('states') else []
+            for state in recent_states:
+                print(f"       {state.get('timestamp', 'Unknown')}: {state.get('state', 'Unknown')}")
+    
+    # Cluster Views
+    views = analysis['cluster_views']
+    print(f"\n🔗 CLUSTER VIEWS")
+    if views.get('total_views', 0) == 0:
+        print(f"   {views.get('message', 'No cluster view changes found')}")
+    else:
+        print(f"   Total View Changes: {views['total_views']}")
+        print(f"   Cluster Size: {views.get('min_cluster_size', 0)} → {views.get('final_cluster_size', 0)} (max: {views.get('max_cluster_size', 0)})")
+        
+        membership = views.get('membership_changes', {})
+        if membership.get('total_joins', 0) > 0 or membership.get('total_leaves', 0) > 0:
+            print(f"   Membership Changes: +{membership.get('total_joins', 0)} joined, -{membership.get('total_leaves', 0)} left")
+        
+        # Show recent view changes
+        recent_views = views.get('view_changes', [])[-3:]
+        for view in recent_views:
+            print(f"     {view.get('timestamp', 'Unknown')}: {view.get('member_count', 0)} members, state: {view.get('cluster_state', 'Unknown')}")
+    
     # SST Sessions
     sst = analysis['sst_sessions']
     print(f"\n🔄 SST SESSIONS")
@@ -409,6 +636,23 @@ def print_analysis(analysis: Dict[str, Any]):
             print(f"     Min: {format_duration(stats['min_seconds'])}")
             print(f"     Max: {format_duration(stats['max_seconds'])}")
             print(f"     Total: {format_duration(stats['total_seconds'])}")
+        
+        # Show detailed session information
+        sessions = sst.get('session_details', [])
+        if sessions:
+            print(f"   Session Details:")
+            for session in sessions[-5:]:  # Show last 5 sessions
+                donor = session.get('donor', 'unknown')
+                joiner = session.get('joiner', 'unknown') 
+                method = session.get('method', 'unknown')
+                status = session.get('status', 'unknown')
+                duration = session.get('duration_seconds')
+                error = session.get('error_message', '')
+                
+                duration_str = f" ({format_duration(duration)})" if duration and duration > 0 else ""
+                error_str = f" - {error}" if error else ""
+                
+                print(f"     {session.get('start_time', 'Unknown')}: {donor} → {joiner} ({method}) {status}{duration_str}{error_str}")
     
     # Performance
     performance = analysis['performance']
@@ -423,29 +667,56 @@ def print_analysis(analysis: Dict[str, Any]):
     if avg_duration:
         print(f"   Average SST Duration: {format_duration(avg_duration)}")
     
+    # Connectivity Issues
+    connectivity = analysis['connectivity']
+    if connectivity.get('has_connectivity_problems', False):
+        print(f"\n🌐 CONNECTIVITY")
+        print(f"   Total Issues: {connectivity['total_issues']}")
+        
+        issue_types = connectivity.get('issue_types', {})
+        for issue_type, count in issue_types.items():
+            print(f"   {issue_type}: {count}")
+        
+        # Show recent connectivity issues
+        recent_issues = connectivity.get('issue_details', [])[-3:]
+        for issue in recent_issues:
+            print(f"     {issue.get('timestamp', 'Unknown')}: {issue.get('issue_type', 'unknown')} - {issue.get('description', 'No description')[:100]}...")
+    
+    # Warnings
+    warnings = analysis['warnings']
+    if warnings.get('total_warnings', 0) > 0:
+        print(f"\n⚠️  WARNINGS")
+        print(f"   Total Warnings: {warnings['total_warnings']}")
+        
+        warning_types = warnings.get('warning_types', {})
+        for warning_type, count in warning_types.items():
+            print(f"   {warning_type}: {count}")
+        
+        # Show recent warnings
+        recent_warnings = warnings.get('recent_warnings', [])
+        for warning in recent_warnings:
+            print(f"     {warning.get('timestamp', 'Unknown')}: {warning.get('raw_line', 'No details')[:100]}...")
+    
     # Errors
     errors = analysis['errors']
-    if errors.get('error_count', 0) > 0 or errors.get('warning_count', 0) > 0:
-        print(f"\n⚠️  ISSUES")
-        if errors.get('error_count', 0) > 0:
-            print(f"   Errors: {errors['error_count']}")
-            for error in errors['errors'][:5]:  # Show first 5
-                print(f"     {error.get('entity_id', 'unknown')}: {error.get('error_message', error.get('status', 'Unknown error'))}")
+    if errors.get('error_count', 0) > 0:
+        print(f"\n❌ ERRORS")
+        print(f"   Total Errors: {errors['error_count']}")
         
-        if errors.get('warning_count', 0) > 0:
-            print(f"   Warnings: {errors['warning_count']}")
-            for warning in errors['warnings'][:5]:  # Show first 5
-                print(f"     {warning.get('entity_id', 'unknown')}: {warning.get('message', 'Unknown warning')}")
+        for error in errors['errors'][:5]:  # Show first 5
+            print(f"     {error.get('entity_id', 'unknown')}: {error.get('error_message', error.get('status', 'Unknown error'))}")
     
-    # Recent Timeline (last 10 events)
+    # Recent Timeline (last 15 events)
     timeline = analysis['timeline']
     if timeline:
-        print(f"\n🕒 RECENT TIMELINE (last 10 events)")
-        for event in timeline[-10:]:
+        print(f"\n🕒 RECENT TIMELINE (last 15 events)")
+        for event in timeline[-15:]:
             timestamp = event.get('timestamp', 'Unknown')
             if len(timestamp) > 19:  # Trim microseconds for readability
                 timestamp = timestamp[:19]
-            print(f"   {timestamp}: {event.get('description', 'Unknown event')}")
+            entity_type = event.get('entity_type', 'unknown')
+            description = event.get('description', 'Unknown event')
+            print(f"   {timestamp} [{entity_type}]: {description}")
     
     print("\n" + "="*80)
 

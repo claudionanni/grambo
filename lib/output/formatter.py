@@ -176,7 +176,12 @@ class OutputFormatter:
         """Group entities by their type"""
         grouped = {}
         for entity in entities:
-            entity_type = entity.entity_type.value
+            # Handle both enum and string entity types
+            if hasattr(entity.entity_type, 'value'):
+                entity_type = entity.entity_type.value
+            else:
+                entity_type = str(entity.entity_type)
+                
             if entity_type not in grouped:
                 grouped[entity_type] = []
             grouped[entity_type].append(entity)
@@ -424,10 +429,16 @@ class OutputFormatter:
         
     def _entity_to_detailed_event(self, entity: Entity) -> Dict[str, Any]:
         """Convert entity to detailed_event format"""
+        # Handle entity_type safely - could be enum or string
+        if hasattr(entity.entity_type, 'value'):
+            event_type = entity.entity_type.value
+        else:
+            event_type = str(entity.entity_type)
+            
         event = {
             'timestamp': entity.timestamp.isoformat() if entity.timestamp else None,
             'line_number': entity.line_number,
-            'event_type': entity.entity_type.value,
+            'event_type': event_type,
             'raw_line': entity.raw_line,
             'confidence': entity.confidence,
             'pattern': entity.pattern_name,
@@ -446,9 +457,15 @@ class OutputFormatter:
         
     def _entity_to_cluster_event(self, entity: Entity) -> Dict[str, Any]:
         """Convert entity to cluster_event format for significant events"""
+        # Handle entity_type safely - could be enum or string
+        if hasattr(entity.entity_type, 'value'):
+            event_type = entity.entity_type.value
+        else:
+            event_type = str(entity.entity_type)
+            
         event = {
             'timestamp': entity.timestamp.isoformat() if entity.timestamp else None,
-            'event_type': entity.entity_type.value,
+            'event_type': event_type,
             'description': self._generate_event_description(entity),
             'nodes_involved': self._extract_nodes_involved(entity),
             'significance': self._calculate_event_significance(entity)
@@ -474,17 +491,28 @@ class OutputFormatter:
         if entity.entity_type == EntityType.NODE:
             if hasattr(entity, 'current_state') and hasattr(entity, 'previous_state'):
                 if entity.previous_state:
-                    return f"Node state change: {entity.previous_state.value} -> {entity.current_state.value}"
+                    # Handle enum values safely
+                    prev_state_str = entity.previous_state.value if hasattr(entity.previous_state, 'value') else str(entity.previous_state)
+                    current_state_str = entity.current_state.value if hasattr(entity.current_state, 'value') else str(entity.current_state)
+                    return f"Node state change: {prev_state_str} -> {current_state_str}"
                 else:
-                    return f"Node state: {entity.current_state.value}"
+                    current_state_str = entity.current_state.value if hasattr(entity.current_state, 'value') else str(entity.current_state)
+                    return f"Node state: {current_state_str}"
         elif entity.entity_type == EntityType.STATE_TRANSFER:
             if hasattr(entity, 'transfer_type') and hasattr(entity, 'transfer_status'):
-                return f"{entity.transfer_type.value} {entity.transfer_status}"
+                transfer_type_str = entity.transfer_type.value if hasattr(entity.transfer_type, 'value') else str(entity.transfer_type)
+                return f"{transfer_type_str} {entity.transfer_status}"
         elif entity.entity_type == EntityType.VIEW:
             if hasattr(entity, 'cluster_state'):
                 return f"Cluster view change: {entity.cluster_state}"
                 
-        return f"{entity.entity_type.value} event"
+        # Handle entity_type safely for the final return
+        if hasattr(entity.entity_type, 'value'):
+            entity_type_str = entity.entity_type.value
+        else:
+            entity_type_str = str(entity.entity_type)
+            
+        return f"{entity_type_str} event"
         
     def _extract_nodes_involved(self, entity: Entity) -> List[str]:
         """Extract list of nodes involved in the entity/event"""

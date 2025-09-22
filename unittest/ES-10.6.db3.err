@@ -1,0 +1,501 @@
+ubuntu@UAT-DB-03:~$ cat /var/log/mysql/error.log | tail -n 500
+  final: no
+  own_index: 0
+  members(1):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+=================================================
+2025-09-15 13:45:48 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:45:48 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1593
+2025-09-15 13:45:48 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:45:49 0 [Note] WSREP: async IST sender served
+2025-09-15 13:45:54 0 [Note] WSREP:  cleaning up f85a74b7-87a9 (tcp://10.0.1.192:4567)
+2025-09-15 13:45:54 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') connection established to 4d1157d4-8693 tcp://10.0.1.192:4567
+2025-09-15 13:45:55 0 [Note] WSREP: declaring 4d1157d4-8693 at tcp://10.0.1.192:4567 stable
+2025-09-15 13:45:55 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:45:55 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,16) memb {
+        378c0ec7-a3db,1
+        4d1157d4-8693,1
+} joined {
+} left {
+} partitioned {
+})
+2025-09-15 13:45:55 0 [Note] WSREP: save pc into disk
+2025-09-15 13:45:55 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-15 13:45:55 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 4d5e96ee-923a-11f0-b426-cf4f2e9f9de8
+2025-09-15 13:45:55 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 4d5e96ee-923a-11f0-b426-cf4f2e9f9de8
+2025-09-15 13:45:55 0 [Note] WSREP: STATE EXCHANGE: got state msg: 4d5e96ee-923a-11f0-b426-cf4f2e9f9de8 from 0 (UAT-DB-03)
+2025-09-15 13:45:55 0 [Note] WSREP: STATE EXCHANGE: got state msg: 4d5e96ee-923a-11f0-b426-cf4f2e9f9de8 from 1 (UAT-DB-01)
+2025-09-15 13:45:55 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 15,
+        members    = 1/2 (joined/total),
+        act_id     = 1624,
+        last_appl. = 1592,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:45:55 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:45:55 2 [Note] WSREP: ####### processing CC 1625, local, ordered
+2025-09-15 13:45:55 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:45:55 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:45:55 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:45:55 2 [Note] WSREP: ####### Adjusting cert position: 1624 -> 1625
+2025-09-15 13:45:55 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:45:55 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1625
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(2):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+        1: 4d1157d4-923a-11f0-8693-8f415dace7e5, UAT-DB-01
+=================================================
+2025-09-15 13:45:55 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:45:55 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1593
+2025-09-15 13:45:55 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:45:56 0 [Note] WSREP: Member 1.1 (UAT-DB-01) requested state transfer from '*any*'. Selected 0.1 (UAT-DB-03)(SYNCED) as donor.
+2025-09-15 13:45:56 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 1625)
+2025-09-15 13:45:56 2 [Note] WSREP: Detected STR version: 1, req_len: 127, req: STRv1
+2025-09-15 13:45:56 2 [Note] WSREP: Cert index preload: 1593 -> 1625
+2025-09-15 13:45:56 2 [Note] WSREP: Server status change synced -> donor
+2025-09-15 13:45:56 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:45:56 0 [Note] WSREP: async IST sender starting to serve tcp://10.0.1.192:4568 sending 1593-1625, preload starts from 1593
+2025-09-15 13:45:56 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-15 13:45:56 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1625' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290'
+2025-09-15 13:45:56 0 [Note] WSREP: IST sender 1593 -> 1625
+2025-09-15 13:45:56 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250915 13:45:56.276)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250915 13:45:56.322)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /usr//bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250915 13:45:56.471)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250915 13:45:56.473)
+WSREP_SST: [INFO] Streaming with mbstream (20250915 13:45:56.485)
+WSREP_SST: [INFO] Using socat as streamer (20250915 13:45:56.487)
+WSREP_SST: [INFO] Logging all stderr of SST/mariadb-backup to syslog (20250915 13:45:56.491)
+2025-09-15 13:45:57 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') turning message relay requesting off
+2025-09-15 13:46:24 4935 [Warning] Aborted connection 4935 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4936 [Warning] Aborted connection 4936 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4930 [Warning] Aborted connection 4930 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4941 [Warning] Aborted connection 4941 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 3995 [Warning] Aborted connection 3995 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4932 [Warning] Aborted connection 4932 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 3996 [Warning] Aborted connection 3996 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4929 [Warning] Aborted connection 4929 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4942 [Warning] Aborted connection 4942 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4937 [Warning] Aborted connection 4937 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4933 [Warning] Aborted connection 4933 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4944 [Warning] Aborted connection 4944 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4931 [Warning] Aborted connection 4931 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4939 [Warning] Aborted connection 4939 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4938 [Warning] Aborted connection 4938 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4943 [Warning] Aborted connection 4943 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4934 [Warning] Aborted connection 4934 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:24 4940 [Warning] Aborted connection 4940 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:32 4315 [Warning] Aborted connection 4315 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:46:32 4306 [Warning] Aborted connection 4306 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:47:08 3268 [Warning] Aborted connection 3268 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:47:08 4579 [Warning] Aborted connection 4579 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:47:08 4645 [Warning] Aborted connection 4645 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:47:16 2307 [Warning] Aborted connection 2307 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:48:06 5088 [Warning] Aborted connection 5088 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:48:06 2275 [Warning] Aborted connection 2275 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:48:11 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1625' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290
+2025-09-15 13:48:11 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1625' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290: 32 (Broken pipe)
+2025-09-15 13:48:11 0 [Note] WSREP: SST sending failed: -32
+2025-09-15 13:48:11 0 [Note] WSREP: Server status change donor -> joined
+2025-09-15 13:48:11 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1625' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290
+2025-09-15 13:48:11 0 [Note] WSREP: Donor monitor thread ended with total time 135 sec
+2025-09-15 13:48:11 0 [Warning] WSREP: 0.1 (UAT-DB-03): State transfer to 1.1 (UAT-DB-01) failed: Broken pipe
+2025-09-15 13:48:11 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 1645)
+2025-09-15 13:48:11 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-15 13:48:12 0 [Note] WSREP: forgetting 4d1157d4-8693 (tcp://10.0.1.192:4567)
+2025-09-15 13:48:12 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:48:12 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,17) memb {
+        378c0ec7-a3db,1
+} joined {
+} left {
+} partitioned {
+        4d1157d4-8693,1
+})
+2025-09-15 13:48:12 0 [Note] WSREP: save pc into disk
+2025-09-15 13:48:12 0 [Note] WSREP: Member 0.1 (UAT-DB-03) synced with group.
+2025-09-15 13:48:12 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-15 13:48:12 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1645)
+2025-09-15 13:48:12 2 [Note] WSREP: Server UAT-DB-03 synced with group
+2025-09-15 13:48:12 2 [Note] WSREP: Server status change joined -> synced
+2025-09-15 13:48:12 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-15 13:48:12 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:48:12 0 [Note] WSREP: forgetting 4d1157d4-8693 (tcp://10.0.1.192:4567)
+2025-09-15 13:48:12 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-15 13:48:12 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 9f18b03e-923a-11f0-80ae-2700d1649ff8
+2025-09-15 13:48:12 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 9f18b03e-923a-11f0-80ae-2700d1649ff8
+2025-09-15 13:48:12 0 [Note] WSREP: STATE EXCHANGE: got state msg: 9f18b03e-923a-11f0-80ae-2700d1649ff8 from 0 (UAT-DB-03)
+2025-09-15 13:48:12 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 16,
+        members    = 1/1 (joined/total),
+        act_id     = 1645,
+        last_appl. = 1592,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:48:12 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:48:12 2 [Note] WSREP: ####### processing CC 1646, local, ordered
+2025-09-15 13:48:12 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:48:12 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:48:12 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:48:12 2 [Note] WSREP: ####### Adjusting cert position: 1645 -> 1646
+2025-09-15 13:48:12 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:48:12 0 [Note] WSREP: async IST sender served
+2025-09-15 13:48:12 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1646
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+=================================================
+2025-09-15 13:48:12 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:48:12 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1593
+2025-09-15 13:48:12 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:48:17 0 [Note] WSREP:  cleaning up 4d1157d4-8693 (tcp://10.0.1.192:4567)
+2025-09-15 13:48:18 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') connection established to a30d114a-b86e tcp://10.0.1.192:4567
+2025-09-15 13:48:19 0 [Note] WSREP: declaring a30d114a-b86e at tcp://10.0.1.192:4567 stable
+2025-09-15 13:48:19 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:48:19 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,18) memb {
+        378c0ec7-a3db,1
+        a30d114a-b86e,1
+} joined {
+} left {
+} partitioned {
+})
+2025-09-15 13:48:19 0 [Note] WSREP: save pc into disk
+2025-09-15 13:48:19 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-15 13:48:19 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: a35a5282-923a-11f0-97a8-3b5becdf5306
+2025-09-15 13:48:19 0 [Note] WSREP: STATE EXCHANGE: sent state msg: a35a5282-923a-11f0-97a8-3b5becdf5306
+2025-09-15 13:48:19 0 [Note] WSREP: STATE EXCHANGE: got state msg: a35a5282-923a-11f0-97a8-3b5becdf5306 from 0 (UAT-DB-03)
+2025-09-15 13:48:19 0 [Note] WSREP: STATE EXCHANGE: got state msg: a35a5282-923a-11f0-97a8-3b5becdf5306 from 1 (UAT-DB-01)
+2025-09-15 13:48:19 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 17,
+        members    = 1/2 (joined/total),
+        act_id     = 1646,
+        last_appl. = 1592,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:48:19 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:48:19 2 [Note] WSREP: ####### processing CC 1647, local, ordered
+2025-09-15 13:48:19 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:48:19 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:48:19 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:48:19 2 [Note] WSREP: ####### Adjusting cert position: 1646 -> 1647
+2025-09-15 13:48:19 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:48:19 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1647
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(2):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+        1: a30d114a-923a-11f0-b86e-8ac0ba71bea5, UAT-DB-01
+=================================================
+2025-09-15 13:48:19 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:48:19 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1593
+2025-09-15 13:48:19 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:48:20 0 [Note] WSREP: Member 1.1 (UAT-DB-01) requested state transfer from '*any*'. Selected 0.1 (UAT-DB-03)(SYNCED) as donor.
+2025-09-15 13:48:20 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 1647)
+2025-09-15 13:48:20 2 [Note] WSREP: Detected STR version: 1, req_len: 127, req: STRv1
+2025-09-15 13:48:20 2 [Note] WSREP: Cert index preload: 1593 -> 1647
+2025-09-15 13:48:20 2 [Note] WSREP: Server status change synced -> donor
+2025-09-15 13:48:20 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:48:20 0 [Note] WSREP: async IST sender starting to serve tcp://10.0.1.192:4568 sending 1593-1647, preload starts from 1593
+2025-09-15 13:48:20 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-15 13:48:20 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1647' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290'
+2025-09-15 13:48:20 0 [Note] WSREP: IST sender 1593 -> 1647
+2025-09-15 13:48:20 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250915 13:48:20.507)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250915 13:48:20.572)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /usr//bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250915 13:48:20.810)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250915 13:48:20.813)
+WSREP_SST: [INFO] Streaming with mbstream (20250915 13:48:20.831)
+WSREP_SST: [INFO] Using socat as streamer (20250915 13:48:20.834)
+WSREP_SST: [INFO] Logging all stderr of SST/mariadb-backup to syslog (20250915 13:48:20.838)
+2025-09-15 13:48:22 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') turning message relay requesting off
+2025-09-15 13:49:02 4797 [Warning] Aborted connection 4797 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:49:10 5181 [Warning] Aborted connection 5181 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:49:10 5182 [Warning] Aborted connection 5182 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:49:45 5232 [Warning] Aborted connection 5232 to db: 'denovosystem_portal_dev' user: 'steam' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)
+2025-09-15 13:50:34 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1647' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290
+2025-09-15 13:50:34 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1647' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290: 32 (Broken pipe)
+2025-09-15 13:50:34 0 [Note] WSREP: SST sending failed: -32
+2025-09-15 13:50:34 0 [Note] WSREP: Server status change donor -> joined
+2025-09-15 13:50:34 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1647' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290
+2025-09-15 13:50:34 0 [Note] WSREP: Donor monitor thread ended with total time 134 sec
+2025-09-15 13:50:34 0 [Warning] WSREP: 0.1 (UAT-DB-03): State transfer to 1.1 (UAT-DB-01) failed: Broken pipe
+2025-09-15 13:50:34 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 1776)
+2025-09-15 13:50:34 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-15 13:50:35 0 [Note] WSREP: forgetting a30d114a-b86e (tcp://10.0.1.192:4567)
+2025-09-15 13:50:35 0 [Note] WSREP: Member 0.1 (UAT-DB-03) synced with group.
+2025-09-15 13:50:35 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:50:35 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-15 13:50:35 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1776)
+2025-09-15 13:50:35 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,19) memb {
+        378c0ec7-a3db,1
+} joined {
+} left {
+} partitioned {
+        a30d114a-b86e,1
+})
+2025-09-15 13:50:35 2 [Note] WSREP: Server UAT-DB-03 synced with group
+2025-09-15 13:50:35 0 [Note] WSREP: save pc into disk
+2025-09-15 13:50:35 2 [Note] WSREP: Server status change joined -> synced
+2025-09-15 13:50:35 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-15 13:50:35 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:50:35 0 [Note] WSREP: forgetting a30d114a-b86e (tcp://10.0.1.192:4567)
+2025-09-15 13:50:35 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-15 13:50:35 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: f48d7b5a-923a-11f0-ba62-a6179bc36f65
+2025-09-15 13:50:35 0 [Note] WSREP: STATE EXCHANGE: sent state msg: f48d7b5a-923a-11f0-ba62-a6179bc36f65
+2025-09-15 13:50:35 0 [Note] WSREP: STATE EXCHANGE: got state msg: f48d7b5a-923a-11f0-ba62-a6179bc36f65 from 0 (UAT-DB-03)
+2025-09-15 13:50:35 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 18,
+        members    = 1/1 (joined/total),
+        act_id     = 1776,
+        last_appl. = 1725,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:50:35 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:50:35 2 [Note] WSREP: ####### processing CC 1777, local, ordered
+2025-09-15 13:50:35 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:50:35 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:50:35 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:50:35 2 [Note] WSREP: ####### Adjusting cert position: 1776 -> 1777
+2025-09-15 13:50:35 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:50:35 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1777
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+=================================================
+2025-09-15 13:50:35 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:50:35 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1726
+2025-09-15 13:50:35 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:50:35 0 [Note] WSREP: async IST sender served
+2025-09-15 13:50:40 0 [Note] WSREP:  cleaning up a30d114a-b86e (tcp://10.0.1.192:4567)
+2025-09-15 13:50:42 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') connection established to f89221de-b3f4 tcp://10.0.1.192:4567
+2025-09-15 13:50:42 0 [Note] WSREP: declaring f89221de-b3f4 at tcp://10.0.1.192:4567 stable
+2025-09-15 13:50:42 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:50:42 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,20) memb {
+        378c0ec7-a3db,1
+        f89221de-b3f4,1
+} joined {
+} left {
+} partitioned {
+})
+2025-09-15 13:50:42 0 [Note] WSREP: save pc into disk
+2025-09-15 13:50:42 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-15 13:50:42 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: f8df59e7-923a-11f0-bfba-8bab674ed52d
+2025-09-15 13:50:42 0 [Note] WSREP: STATE EXCHANGE: sent state msg: f8df59e7-923a-11f0-bfba-8bab674ed52d
+2025-09-15 13:50:42 0 [Note] WSREP: STATE EXCHANGE: got state msg: f8df59e7-923a-11f0-bfba-8bab674ed52d from 0 (UAT-DB-03)
+2025-09-15 13:50:43 0 [Note] WSREP: STATE EXCHANGE: got state msg: f8df59e7-923a-11f0-bfba-8bab674ed52d from 1 (UAT-DB-01)
+2025-09-15 13:50:43 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 19,
+        members    = 1/2 (joined/total),
+        act_id     = 1777,
+        last_appl. = 1725,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:50:43 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:50:43 2 [Note] WSREP: ####### processing CC 1778, local, ordered
+2025-09-15 13:50:43 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:50:43 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:50:43 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:50:43 2 [Note] WSREP: ####### Adjusting cert position: 1777 -> 1778
+2025-09-15 13:50:43 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:50:43 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1778
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(2):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+        1: f89221de-923a-11f0-b3f4-66078f38b1a6, UAT-DB-01
+=================================================
+2025-09-15 13:50:43 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:50:43 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1726
+2025-09-15 13:50:43 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:50:43 0 [Note] WSREP: Member 1.1 (UAT-DB-01) requested state transfer from '*any*'. Selected 0.1 (UAT-DB-03)(SYNCED) as donor.
+2025-09-15 13:50:43 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 1778)
+2025-09-15 13:50:43 2 [Note] WSREP: Detected STR version: 1, req_len: 127, req: STRv1
+2025-09-15 13:50:43 2 [Note] WSREP: Cert index preload: 1726 -> 1778
+2025-09-15 13:50:43 2 [Note] WSREP: Server status change synced -> donor
+2025-09-15 13:50:43 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:50:43 0 [Note] WSREP: async IST sender starting to serve tcp://10.0.1.192:4568 sending 1726-1778, preload starts from 1726
+2025-09-15 13:50:43 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-15 13:50:43 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1778' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290'
+2025-09-15 13:50:43 0 [Note] WSREP: IST sender 1726 -> 1778
+2025-09-15 13:50:43 2 [Note] WSREP: sst_donor_thread signaled with 0
+WSREP_SST: [INFO] mariabackup SST started on donor (20250915 13:50:43.971)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250915 13:50:44.013)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /usr//bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250915 13:50:44.163)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250915 13:50:44.165)
+WSREP_SST: [INFO] Streaming with mbstream (20250915 13:50:44.178)
+WSREP_SST: [INFO] Using socat as streamer (20250915 13:50:44.180)
+WSREP_SST: [INFO] Logging all stderr of SST/mariadb-backup to syslog (20250915 13:50:44.184)
+2025-09-15 13:50:45 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') turning message relay requesting off
+2025-09-15 13:52:58 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1778' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290
+2025-09-15 13:52:58 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1778' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290: 32 (Broken pipe)
+2025-09-15 13:52:58 0 [Note] WSREP: SST sending failed: -32
+2025-09-15 13:52:58 0 [Note] WSREP: Server status change donor -> joined
+2025-09-15 13:52:58 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1778' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290
+2025-09-15 13:52:58 0 [Note] WSREP: Donor monitor thread ended with total time 135 sec
+2025-09-15 13:52:58 0 [Warning] WSREP: 0.1 (UAT-DB-03): State transfer to 1.1 (UAT-DB-01) failed: Broken pipe
+2025-09-15 13:52:58 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 1808)
+2025-09-15 13:52:58 0 [Note] WSREP: Processing event queue:... -nan% (0/0 events) complete.
+2025-09-15 13:52:58 0 [Note] WSREP: Member 0.1 (UAT-DB-03) synced with group.
+2025-09-15 13:52:58 0 [Note] WSREP: Processing event queue:... 100.0% (1/1 events) complete.
+2025-09-15 13:52:58 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1808)
+2025-09-15 13:52:58 2 [Note] WSREP: Server UAT-DB-03 synced with group
+2025-09-15 13:52:58 2 [Note] WSREP: Server status change joined -> synced
+2025-09-15 13:52:58 2 [Note] WSREP: Synchronized with group, ready for connections
+2025-09-15 13:52:58 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:52:59 0 [Note] WSREP: forgetting f89221de-b3f4 (tcp://10.0.1.192:4567)
+2025-09-15 13:52:59 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:52:59 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,21) memb {
+        378c0ec7-a3db,1
+} joined {
+} left {
+} partitioned {
+        f89221de-b3f4,1
+})
+2025-09-15 13:52:59 0 [Note] WSREP: save pc into disk
+2025-09-15 13:52:59 0 [Note] WSREP: forgetting f89221de-b3f4 (tcp://10.0.1.192:4567)
+2025-09-15 13:52:59 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-09-15 13:52:59 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 49fea221-923b-11f0-92bc-13bc27329881
+2025-09-15 13:52:59 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 49fea221-923b-11f0-92bc-13bc27329881
+2025-09-15 13:52:59 0 [Note] WSREP: STATE EXCHANGE: got state msg: 49fea221-923b-11f0-92bc-13bc27329881 from 0 (UAT-DB-03)
+2025-09-15 13:52:59 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 20,
+        members    = 1/1 (joined/total),
+        act_id     = 1808,
+        last_appl. = 1725,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:52:59 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:52:59 2 [Note] WSREP: ####### processing CC 1809, local, ordered
+2025-09-15 13:52:59 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:52:59 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:52:59 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:52:59 2 [Note] WSREP: ####### Adjusting cert position: 1808 -> 1809
+2025-09-15 13:52:59 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:52:59 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1809
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(1):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+=================================================
+2025-09-15 13:52:59 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:52:59 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1726
+2025-09-15 13:52:59 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:52:59 0 [Note] WSREP: async IST sender served
+2025-09-15 13:53:04 0 [Note] WSREP:  cleaning up f89221de-b3f4 (tcp://10.0.1.192:4567)
+2025-09-15 13:53:04 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') connection established to 4d718057-85f2 tcp://10.0.1.192:4567
+2025-09-15 13:53:05 0 [Note] WSREP: declaring 4d718057-85f2 at tcp://10.0.1.192:4567 stable
+2025-09-15 13:53:05 0 [Note] WSREP: Node 378c0ec7-a3db state prim
+2025-09-15 13:53:05 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,22) memb {
+        378c0ec7-a3db,1
+        4d718057-85f2,1
+} joined {
+} left {
+} partitioned {
+})
+2025-09-15 13:53:05 0 [Note] WSREP: save pc into disk
+2025-09-15 13:53:05 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-09-15 13:53:05 0 [Note] WSREP: STATE_EXCHANGE: sent state UUID: 4dbec288-923b-11f0-8f80-0f47e222d62f
+2025-09-15 13:53:05 0 [Note] WSREP: STATE EXCHANGE: sent state msg: 4dbec288-923b-11f0-8f80-0f47e222d62f
+2025-09-15 13:53:05 0 [Note] WSREP: STATE EXCHANGE: got state msg: 4dbec288-923b-11f0-8f80-0f47e222d62f from 0 (UAT-DB-03)
+2025-09-15 13:53:05 0 [Note] WSREP: STATE EXCHANGE: got state msg: 4dbec288-923b-11f0-8f80-0f47e222d62f from 1 (UAT-DB-01)
+2025-09-15 13:53:05 0 [Note] WSREP: Quorum results:
+        version    = 6,
+        component  = PRIMARY,
+        conf_id    = 21,
+        members    = 1/2 (joined/total),
+        act_id     = 1809,
+        last_appl. = 1725,
+        protocols  = 5/11/4 (gcs/repl/appl),
+        vote policy= 0,
+        group UUID = 378cdc73-9236-11f0-a8d4-426872f4d003
+2025-09-15 13:53:05 0 [Note] WSREP: Flow-control interval: [102, 128]
+2025-09-15 13:53:05 2 [Note] WSREP: ####### processing CC 1810, local, ordered
+2025-09-15 13:53:05 2 [Note] WSREP: ####### My UUID: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d
+2025-09-15 13:53:05 2 [Note] WSREP: Skipping cert index reset
+2025-09-15 13:53:05 2 [Note] WSREP: REPL Protocols: 11 (6)
+2025-09-15 13:53:05 2 [Note] WSREP: ####### Adjusting cert position: 1809 -> 1810
+2025-09-15 13:53:05 0 [Note] WSREP: Service thread queue flushed.
+2025-09-15 13:53:05 2 [Note] WSREP: ================================================
+View:
+  id: 378cdc73-9236-11f0-a8d4-426872f4d003:1810
+  status: primary
+  protocol_version: 4
+  capabilities: MULTI-MASTER, CERTIFICATION, PARALLEL_APPLYING, REPLAY, ISOLATION, PAUSE, CAUSAL_READ, INCREMENTAL_WS, UNORDERED, PREORDERED, STREAMING, NBO
+  final: no
+  own_index: 0
+  members(2):
+        0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03
+        1: 4d718057-923b-11f0-85f2-e281f60451d3, UAT-DB-01
+=================================================
+2025-09-15 13:53:05 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:53:05 2 [Note] WSREP: Lowest cert index boundary for CC from group: 1726
+2025-09-15 13:53:05 2 [Note] WSREP: Min available from gcache for CC from group: 1
+2025-09-15 13:53:06 0 [Note] WSREP: Member 1.1 (UAT-DB-01) requested state transfer from '*any*'. Selected 0.1 (UAT-DB-03)(SYNCED) as donor.
+2025-09-15 13:53:06 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 1811)
+2025-09-15 13:53:06 2 [Note] WSREP: Detected STR version: 1, req_len: 127, req: STRv1
+2025-09-15 13:53:06 2 [Note] WSREP: Cert index preload: 1726 -> 1810
+2025-09-15 13:53:06 2 [Note] WSREP: Server status change synced -> donor
+2025-09-15 13:53:06 2 [Note] WSREP: wsrep_notify_cmd is not defined, skipping notification.
+2025-09-15 13:53:06 0 [Note] WSREP: async IST sender starting to serve tcp://10.0.1.192:4568 sending 1726-1810, preload starts from 1726
+2025-09-15 13:53:06 0 [Note] WSREP: Donor monitor thread started to monitor
+2025-09-15 13:53:06 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1' --local-port 3306 --socket '/run/mysqld/mysqld.sock' --progress 0 --datadir '/var/lib/mysql/' --gtid '378cdc73-9236-11f0-a8d4-426872f4d003:1811' --gtid-domain-id 0 --binlog '/var/log/mysql/mysql-bin' --mysqld-args --wsrep-new-cluster --wsrep_start_position=e23e9633-80ff-11ed-971a-7a16695c2ff6:38025290'
+2025-09-15 13:53:06 2 [Note] WSREP: sst_donor_thread signaled with 0
+2025-09-15 13:53:06 0 [Note] WSREP: IST sender 1726 -> 1810
+WSREP_SST: [INFO] mariabackup SST started on donor (20250915 13:53:06.364)
+WSREP_SST: [INFO] SSL configuration: CA='', CAPATH='', CERT='', KEY='', MODE='DISABLED', encrypt='0' (20250915 13:53:06.407)
+WSREP_SST: [INFO] Progress reporting tool pv not found in path: /usr//bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin (20250915 13:53:06.574)
+WSREP_SST: [INFO] Disabling all progress/rate-limiting (20250915 13:53:06.576)
+WSREP_SST: [INFO] Streaming with mbstream (20250915 13:53:06.589)
+WSREP_SST: [INFO] Using socat as streamer (20250915 13:53:06.591)
+WSREP_SST: [INFO] Logging all stderr of SST/mariadb-backup to syslog (20250915 13:53:06.594)
+2025-09-15 13:53:08 0 [Note] WSREP: (378c0ec7-a3db, 'tcp://0.0.0.0:4567') turning message relay requesting off

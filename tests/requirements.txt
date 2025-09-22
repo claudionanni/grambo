@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""
+Test requirements for GRAP unit tests
+"""
+
+# No external dependencies required - using only Python standard library:
+# - unittest (built-in)
+# - pathlib (built-in)
+# - datetime (built-in)
+# - json (built-in)
+# - typing (built-in)
+# - logging (built-in)
+# - io (built-in)
+# - tempfile (built-in)
+# - os, sys (built-in)
+
+# Optional: For enhanced testing (not required for basic tests)
+# pytest>=6.0.0  # Alternative test runner with better output
+# coverage>=5.0  # Test coverage analysis

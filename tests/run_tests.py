@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from test_entities import TestEntityBase, TestPatternMatching
 from test_patterns import TestPatternMatcher
 from test_output import TestOutputFormatter
+from test_log_processing import TestLogProcessing, TestTemporalPropertyHandling
 
 
 def create_test_suite():
@@ -30,6 +31,10 @@ def create_test_suite():
     
     # Add output formatter tests
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestOutputFormatter))
+    
+    # Add log processing regression tests
+    suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestLogProcessing))
+    suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestTemporalPropertyHandling))
     
     return suite
 

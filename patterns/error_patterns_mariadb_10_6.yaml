@@ -1,0 +1,89 @@
+# Error patterns for MariaDB 10.6 Galera cluster logs
+# These patterns extract ERROR entity types from various error conditions
+
+version: "10.6"
+description: "Error patterns for MariaDB 10.6 Galera cluster logs"
+mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
+
+patterns:
+  ERROR:
+    - name: "mariadb_10_6_connection_timeout"
+      description: "MySQL connection timeout - client connection dropped due to timeout"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+(?P<thread_id>\d+)\s+\[Warning\]\s+Aborted connection (?P<connection_id>\d+) to db: ''(?P<database>[^'']*)'' user: ''(?P<user>[^'']*)'' host: ''(?P<host>[^'']*)''\s+\(Got timeout reading communication packets\)'
+      field_mappings:
+        thread_id: "thread_id"
+        connection_id: "connection_id" 
+        database: "database"
+        user: "user"
+        host: "host"
+      examples:
+        - "2025-09-15 13:46:24 4935 [Warning] Aborted connection 4935 to db: 'denovosystem_portal_dev' user: 'portal' host: 'ip-10-0-21-10.ec2.internal' (Got timeout reading communication packets)"
+
+    - name: "mariadb_10_6_sst_read_failure"
+      description: "SST (State Snapshot Transfer) read failure during cluster synchronization"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[ERROR\]\s+WSREP:\s+Failed to read from:\s+(?P<sst_command>wsrep_sst_\w+.*)'
+      field_mappings:
+        sst_command: "sst_command"
+      examples:
+        - "2025-09-15 13:48:11 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor'"
+
+    - name: "mariadb_10_6_sst_sending_failed"
+      description: "SST sending operation failed with error code"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+SST sending failed:\s+(?P<error_code>-?\d+)'
+      field_mappings:
+        error_code: "error_code"
+      examples:
+        - "2025-09-15 13:48:11 0 [Note] WSREP: SST sending failed: -32"
+
+    - name: "mariadb_10_6_state_transfer_failed"
+      description: "State transfer between cluster nodes failed"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Warning\]\s+WSREP:\s+(?P<source_node>\d+\.\d+)\s+\((?P<source_node_name>[^)]+)\):\s+State transfer to (?P<target_node>\d+\.\d+)\s+\((?P<target_node_name>[^)]+)\)\s+failed:\s+(?P<failure_reason>.+)'
+      field_mappings:
+        source_node: "source_node"
+        source_node_name: "source_node_name"
+        target_node: "target_node"
+        target_node_name: "target_node_name"
+        failure_reason: "failure_reason"
+      examples:
+        - "2025-09-15 13:48:11 0 [Warning] WSREP: 0.1 (UAT-DB-03): State transfer to 1.1 (UAT-DB-01) failed: Broken pipe"
+
+    - name: "mariadb_10_6_wsrep_error_generic"
+      description: "Generic WSREP error message"
+      confidence: 0.8
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[ERROR\]\s+WSREP:\s+(?P<error_message>.+)'
+      field_mappings:
+        error_message: "error_message"
+
+    - name: "mariadb_10_6_wsrep_fatal"
+      description: "Fatal GCS (Group Communication System) error"
+      confidence: 0.99
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[ERROR\]\s+WSREP:\s+gcs_caused\(\)\s+returned\s+(?P<error_code>-?\d+)\s+\((?P<failure_reason>[^)]+)\)'
+      field_mappings:
+        error_code: "error_code"
+        failure_reason: "failure_reason"
+
+    - name: "mariadb_10_6_certification_failure"
+      description: "Transaction certification failed in cluster"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Warning\]\s+WSREP:\s+transaction\s+certification\s+failed\s+for\s+reason:\s+(?P<error_code>\d+)'
+      field_mappings:
+        error_code: "error_code"
+
+    - name: "mariadb_10_6_network_error"
+      description: "Network or connection related error in cluster communication"
+      confidence: 0.85
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[ERROR\]\s+WSREP:\s+.*(?:connection|network|socket).*(?:failed|error|timeout)'
+
+    - name: "mariadb_10_6_disk_error"
+      description: "Disk or filesystem related error"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[ERROR\].*(?:disk|file|write|read).*(?:failed|error|full)'
+
+    - name: "mariadb_10_6_authentication_error"
+      description: "User authentication failure"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Warning\].*Access denied.*user.*host'

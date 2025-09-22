@@ -352,7 +352,13 @@ class PatternMatcher:
         Returns:
             str: Semantic key representing the entity's core identity
         """
-        key_parts = [entity.entity_type.value, entity.raw_line]
+        # Handle entity_type safely - could be enum or string
+        if hasattr(entity.entity_type, 'value'):
+            entity_type_str = entity.entity_type.value
+        else:
+            entity_type_str = str(entity.entity_type)
+            
+        key_parts = [entity_type_str, entity.raw_line]
         
         # Add type-specific identifying fields
         if hasattr(entity, 'view_id') and entity.view_id:
@@ -542,7 +548,13 @@ class PatternMatcher:
                 else:
                     results['failed_patterns'] += 1
                     
-            results['details'][entity_type.value] = type_results
+            # Handle entity_type safely - could be enum or string
+            if hasattr(entity_type, 'value'):
+                entity_type_str = entity_type.value
+            else:
+                entity_type_str = str(entity_type)
+                
+            results['details'][entity_type_str] = type_results
             
         return results
         
@@ -563,7 +575,13 @@ class PatternMatcher:
         }
         
         for entity_type, patterns in self._patterns.items():
-            stats['patterns_by_type'][entity_type.value] = {
+            # Handle entity_type safely - could be enum or string
+            if hasattr(entity_type, 'value'):
+                entity_type_str = entity_type.value
+            else:
+                entity_type_str = str(entity_type)
+                
+            stats['patterns_by_type'][entity_type_str] = {
                 'count': len(patterns),
                 'avg_confidence': sum(p.confidence for p in patterns) / len(patterns) if patterns else 0,
                 'min_confidence': min(p.confidence for p in patterns) if patterns else 0,
