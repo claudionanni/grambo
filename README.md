@@ -2,11 +2,52 @@
 
 A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log files, now featuring a complete **3-tool pipeline** for single-node analysis, multi-node correlation, and interactive web visualization.
 
-## 🔧 Tool Pipeline Overview
+## � GRAP - Next Generation Entity Extraction (v2-rewrite branch)
 
-Grambo consists of three complementary tools that work together:
+**GRAP** (Galera log analysis with Python) is the modern, entity-based rewrite of Grambo featuring:
 
-1. **`gra`** - Single-node log analysis (main analysis tool)
+- **🎯 Entity-Based Architecture** - Extracts structured entities (NODE, VIEW, SST, WARNING) instead of raw text
+- **🔍 Dialect Detection** - Automatically detects MariaDB/MySQL versions and adapts patterns accordingly
+- **📊 Structured Output** - JSON and formatted text output with entity relationships
+- **🛡️ Advanced Pattern Matching** - YAML-based patterns with confidence scoring and deduplication
+- **�🔧 Modern Python Implementation** - Clean, maintainable codebase with comprehensive testing
+
+### GRAP Tool Suite (graX naming)
+```bash
+# Entity extraction (replaces old gra functionality)
+./grap.py galera-node.log
+
+# Analysis summary (new gra equivalent)  
+./graa.py galera-node.log
+
+# JSON pipeline mode
+./grap.py --format=json galera-node.log | ./graa.py --stdin
+```
+
+**Tool Evolution:**
+- **`grap.py`** - Low-level entity extraction engine
+- **`graa.py`** - Analysis summaries (new version of `gra`)
+- **Future: `graS.py`** - Multi-node correlation (new version of `gras`)
+- **Future: `graW.py`** - Web visualization (new version of `graw`)
+
+**Entity Types Extracted:**
+- **NODE** - State changes, configuration, cluster membership
+- **VIEW** - Cluster membership changes, splits, merges  
+- **STATE_TRANSFER** - SST/IST operations with detailed progress
+- **WARNING** - Connection issues, timeouts, configuration problems
+
+For detailed documentation, see [README_grap.md](README_grap.md).
+
+### 📁 Repository Structure
+
+- **`master` branch** - Stable original tools (`gra`, `gras`, `graw`)
+- **`v2-rewrite` branch** - Modern GRAP system (future main implementation)
+
+## 🔧 Original Tool Pipeline Overview (Legacy - master branch)
+
+The original Grambo consists of three complementary bash-based tools that work together:
+
+1. **`gra`** - Single-node log analysis (legacy version, now replaced by `graa.py`)
 2. **`gras`** - Multi-node cluster correlation (grambo state)
 3. **`graw`** - Interactive web visualization (grambo web)
 
