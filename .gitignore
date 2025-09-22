@@ -1,0 +1,63 @@
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/settings.json
+.idea/
+
+# Log files (except sample logs)
+*.log
+!db3.log
+!10.6-*.log
+!11.4-*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development files
+debug_*.txt
+temp_*
+scratch_*
+
+# Large archives
+*.tar.gz
+*.zip
+*.tar.bz2
+
+# Build artifacts
+server/
+galera-*/
+
+# Test outputs
+test_output/
+temp_results/
