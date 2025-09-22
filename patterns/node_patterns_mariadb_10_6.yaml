@@ -1,0 +1,27 @@
+# MariaDB 10.6 Node Patterns for Actual Log Format
+# Based on real enterprise logs from UAT-DB-03
+
+version: "10.6"
+description: "Node patterns matching actual MariaDB 10.6 log format"
+mariadb_versions: ["10.6"]
+
+patterns:
+  NODE:
+    - name: "mariadb_10_6_node_state"
+      description: "Node state announcements"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Node\s+(?P<node_uuid>[a-f0-9-]+)\s+state\s+(?P<state>\w+)'
+      field_mappings:
+        node_uuid: "node_id" 
+        state: "current_state"
+      required_fields: ["node_id", "current_state"]
+
+  WARNING:
+    - name: "mariadb_10_6_aborted_connection"
+      description: "Aborted connections"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+(?P<thread_id>\d+)\s+\[(?P<level>Warning)\]\s+Aborted\s+connection\s+(?P<connection_id>\d+)'
+      field_mappings:
+        thread_id: "thread_id"
+        connection_id: "connection_id"
+      required_fields: ["connection_id"]

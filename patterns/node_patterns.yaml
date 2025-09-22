@@ -1,0 +1,88 @@
+# MariaDB 10.6+ Galera Node State Patterns
+# Pattern definitions for extracting node state information from Galera logs
+
+version: "10.6"
+description: "Node state patterns for MariaDB 10.6+ Galera cluster"
+mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
+
+patterns:
+  NODE:
+    - name: "node_state_change"
+      description: "Captures node state transitions"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<node_uuid>[a-f0-9-]+)\s+state\s+change:\s+(?P<from_state>\w+)\s+->\s+(?P<to_state>\w+)'
+      field_mappings:
+        node_uuid: "node_id"
+        from_state: "previous_state"
+        to_state: "current_state"
+      required_fields: ["node_id", "current_state"]
+      examples:
+        - "2024-09-15 10:30:45 12345 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Synced -> Donor/Desynced"
+        - "2024-09-15 10:31:02 12346 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Donor/Desynced -> Synced"
+      test_cases:
+        - input: "2024-09-15 10:30:45 12345 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Synced -> Donor/Desynced"
+          expected:
+            timestamp: "2024-09-15 10:30:45"
+            level: "Note"
+            node_id: "a1b2c3d4-e5f6-7890-abcd-123456789012"
+            previous_state: "Synced"
+            current_state: "Donor/Desynced"
+
+    - name: "node_address_info"
+      description: "Captures node address and identification"
+      confidence: 0.85
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Member|Node)\s+(?P<node_index>\d+)\.(?P<node_id>[a-f0-9-]+)\s+at\s+(?P<node_address>[\d\.]+:\d+)'
+      field_mappings:
+        node_index: "local_index"
+      required_fields: ["node_id", "node_address"]
+      examples:
+        - "2024-09-15 10:25:30 12340 [Note] WSREP: Member 0.a1b2c3d4 at 192.168.1.100:4567"
+      test_cases:
+        - input: "2024-09-15 10:25:30 12340 [Note] WSREP: Member 0.a1b2c3d4 at 192.168.1.100:4567"
+          expected:
+            timestamp: "2024-09-15 10:25:30"
+            local_index: "0"
+            node_id: "a1b2c3d4"
+            node_address: "192.168.1.100:4567"
+
+    - name: "wsrep_ready"
+      description: "Captures wsrep ready state changes"
+      confidence: 0.8
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+wsrep_ready\s*=\s*(?P<ready_state>ON|OFF)'
+      field_mappings:
+        ready_state: "current_state"
+      required_fields: ["current_state"]
+      examples:
+        - "2024-09-15 10:25:35 12341 [Note] WSREP: wsrep_ready = ON"
+      test_cases:
+        - input: "2024-09-15 10:25:35 12341 [Note] WSREP: wsrep_ready = ON"
+          expected:
+            timestamp: "2024-09-15 10:25:35"
+            current_state: "ON"
+
+    - name: "node_cluster_membership"
+      description: "Captures cluster membership information"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:wsrep_cluster_state_uuid|Cluster\s+state\s+uuid):\s*(?P<cluster_uuid>[a-f0-9-]+)'
+      required_fields: ["cluster_uuid"]
+      examples:
+        - "2024-09-15 10:25:28 12339 [Note] WSREP: wsrep_cluster_state_uuid: b2c3d4e5-f6a7-8901-bcde-234567890123"
+      test_cases:
+        - input: "2024-09-15 10:25:28 12339 [Note] WSREP: wsrep_cluster_state_uuid: b2c3d4e5-f6a7-8901-bcde-234567890123"
+          expected:
+            timestamp: "2024-09-15 10:25:28"
+            cluster_uuid: "b2c3d4e5-f6a7-8901-bcde-234567890123"
+
+    - name: "galera_version_info"
+      description: "Captures Galera and MariaDB version information"
+      confidence: 0.7
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Galera|wsrep)\s+(?P<galera_version>[\d\.]+)\s+.*(?:MariaDB|MySQL)\s+(?P<mariadb_version>[\d\.]+)'
+      required_fields: []
+      examples:
+        - "2024-09-15 10:25:20 12337 [Note] WSREP: Galera 26.4.14 wsrep provider loaded MariaDB 10.6.15"
+      test_cases:
+        - input: "2024-09-15 10:25:20 12337 [Note] WSREP: Galera 26.4.14 wsrep provider loaded MariaDB 10.6.15"
+          expected:
+            timestamp: "2024-09-15 10:25:20"
+            galera_version: "26.4.14"
+            mariadb_version: "10.6.15"

@@ -1,0 +1,122 @@
+# MariaDB 10.6+ Cluster View Patterns
+# Pattern definitions for extracting cluster membership and view changes
+
+version: "10.6"
+description: "Cluster view patterns for MariaDB 10.6+ Galera cluster"
+mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
+
+patterns:
+  VIEW:
+    - name: "cluster_view_change"
+      description: "New cluster view formation"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:New|Shifting\s+to)\s+(?P<cluster_state>PRIMARY|NON_PRIMARY)\s+view:\s+(?P<view_id>[a-f0-9-]+):(?P<view_seq>\d+)'
+      required_fields: ["cluster_state", "view_id"]
+      examples:
+        - "2024-09-15 10:25:30 12340 [Note] WSREP: New PRIMARY view: b2c3d4e5-f6a7-8901-bcde-234567890123:15"
+        - "2024-09-15 10:26:45 12355 [Note] WSREP: Shifting to NON_PRIMARY view: b2c3d4e5-f6a7-8901-bcde-234567890123:16"
+      test_cases:
+        - input: "2024-09-15 10:25:30 12340 [Note] WSREP: New PRIMARY view: b2c3d4e5-f6a7-8901-bcde-234567890123:15"
+          expected:
+            timestamp: "2024-09-15 10:25:30"
+            cluster_state: "PRIMARY"
+            view_id: "b2c3d4e5-f6a7-8901-bcde-234567890123"
+            view_seq: "15"
+
+    - name: "cluster_membership"
+      description: "Cluster membership list in view"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Member|Members)(?:\s+\((?P<member_count>\d+)\))?:\s+(?P<members>(?:[a-f0-9-]+(?:\s+at\s+[\d\.]+:\d+)?(?:,\s*)?)+)'
+      required_fields: ["members"]
+      examples:
+        - "2024-09-15 10:25:32 12341 [Note] WSREP: Members (3): a1b2c3d4-e5f6-7890 at 192.168.1.100:4567, b2c3d4e5-f6a7-8901 at 192.168.1.101:4567, c3d4e5f6-a7b8-9012 at 192.168.1.102:4567"
+      test_cases:
+        - input: "2024-09-15 10:25:32 12341 [Note] WSREP: Members (3): a1b2c3d4-e5f6-7890 at 192.168.1.100:4567, b2c3d4e5-f6a7-8901 at 192.168.1.101:4567"
+          expected:
+            timestamp: "2024-09-15 10:25:32"
+            member_count: "3"
+            members: "a1b2c3d4-e5f6-7890 at 192.168.1.100:4567, b2c3d4e5-f6a7-8901 at 192.168.1.101:4567"
+
+    - name: "node_join_event"
+      description: "Node joining cluster"
+      confidence: 0.85
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Node|Member)\s+(?P<node_id>[a-f0-9-]+)(?:\s+at\s+(?P<node_address>[\d\.]+:\d+))?\s+(?:joined|joining)\s+(?:cluster|group)'
+      required_fields: ["node_id"]
+      examples:
+        - "2024-09-15 10:27:15 12360 [Note] WSREP: Node d4e5f6a7-b8c9-0123 at 192.168.1.103:4567 joined cluster"
+      test_cases:
+        - input: "2024-09-15 10:27:15 12360 [Note] WSREP: Node d4e5f6a7-b8c9-0123 at 192.168.1.103:4567 joined cluster"
+          expected:
+            timestamp: "2024-09-15 10:27:15"
+            node_id: "d4e5f6a7-b8c9-0123"
+            node_address: "192.168.1.103:4567"
+
+    - name: "node_leave_event"
+      description: "Node leaving cluster"
+      confidence: 0.85
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Node|Member)\s+(?P<node_id>[a-f0-9-]+)(?:\s+at\s+(?P<node_address>[\d\.]+:\d+))?\s+(?:left|leaving|disconnected|failed)'
+      required_fields: ["node_id"]
+      examples:
+        - "2024-09-15 10:29:30 12375 [Warning] WSREP: Node d4e5f6a7-b8c9-0123 at 192.168.1.103:4567 left cluster"
+      test_cases:
+        - input: "2024-09-15 10:29:30 12375 [Warning] WSREP: Node d4e5f6a7-b8c9-0123 at 192.168.1.103:4567 left cluster"
+          expected:
+            timestamp: "2024-09-15 10:29:30"
+            level: "Warning"
+            node_id: "d4e5f6a7-b8c9-0123"
+            node_address: "192.168.1.103:4567"
+
+    - name: "cluster_size_change"
+      description: "Cluster size and quorum information"
+      confidence: 0.8
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Cluster\s+size|quorum):\s+(?P<cluster_size>\d+)(?:\s+(?P<quorum_status>quorum|no\s+quorum))?'
+      required_fields: ["cluster_size"]
+      examples:
+        - "2024-09-15 10:25:33 12342 [Note] WSREP: Cluster size: 3 quorum"
+        - "2024-09-15 10:29:31 12376 [Warning] WSREP: quorum: 1 no quorum"
+      test_cases:
+        - input: "2024-09-15 10:25:33 12342 [Note] WSREP: Cluster size: 3 quorum"
+          expected:
+            timestamp: "2024-09-15 10:25:33"
+            cluster_size: "3"
+            quorum_status: "quorum"
+
+    - name: "evs_protocol_version"
+      description: "EVS protocol version information"
+      confidence: 0.7
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:EVS\s+protocol|gcomm)\s+(?:version|ver):\s+(?P<evs_protocol_version>\d+)'
+      required_fields: ["evs_protocol_version"]
+      examples:
+        - "2024-09-15 10:25:29 12339 [Note] WSREP: EVS protocol version: 1"
+      test_cases:
+        - input: "2024-09-15 10:25:29 12339 [Note] WSREP: EVS protocol version: 1"
+          expected:
+            timestamp: "2024-09-15 10:25:29"
+            evs_protocol_version: "1"
+
+    - name: "cluster_uuid_info"
+      description: "Cluster UUID establishment"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Cluster|Group)\s+(?:UUID|uuid):\s+(?P<cluster_uuid>[a-f0-9-]+)'
+      required_fields: ["cluster_uuid"]
+      examples:
+        - "2024-09-15 10:25:28 12338 [Note] WSREP: Cluster UUID: b2c3d4e5-f6a7-8901-bcde-234567890123"
+      test_cases:
+        - input: "2024-09-15 10:25:28 12338 [Note] WSREP: Cluster UUID: b2c3d4e5-f6a7-8901-bcde-234567890123"
+          expected:
+            timestamp: "2024-09-15 10:25:28"
+            cluster_uuid: "b2c3d4e5-f6a7-8901-bcde-234567890123"
+
+    - name: "bootstrap_view"
+      description: "Bootstrap or first cluster view"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Bootstrap|Starting)\s+(?:view|cluster)(?:\s+with\s+(?P<member_count>\d+)\s+members?)?'
+      required_fields: []
+      examples:
+        - "2024-09-15 10:25:25 12335 [Note] WSREP: Bootstrap view with 1 member"
+        - "2024-09-15 10:25:26 12336 [Note] WSREP: Starting cluster"
+      test_cases:
+        - input: "2024-09-15 10:25:25 12335 [Note] WSREP: Bootstrap view with 1 member"
+          expected:
+            timestamp: "2024-09-15 10:25:25"
+            member_count: "1"

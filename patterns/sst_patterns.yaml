@@ -1,0 +1,119 @@
+# MariaDB 10.6+ State Transfer Patterns
+# Enhanced patterns for extracting SST/IST information with lifecycle classification
+
+version: "10.6"
+description: "Enhanced state transfer patterns for MariaDB 10.6+ Galera cluster with lifecycle management"
+mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
+
+patterns:
+  STATE_TRANSFER:
+    # SST START EVENTS
+    - name: "sst_request_start"
+      description: "SST request initiation (START event)"
+      confidence: 0.95
+      lifecycle_phase: "START"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Requesting|Running|Initiating|Starting)\s+(?P<transfer_type>SST|IST)(?:\s*:\s*(?P<transfer_method>\w+))?(?:\s+to\s+(?P<joiner_address>[\d\.]+:\d+))?'
+      field_mappings:
+        transfer_method: "transfer_method"
+        transfer_status: "started"
+      required_fields: ["transfer_type"]
+      examples:
+        - "2024-09-15 10:30:45 12345 [Note] WSREP: Requesting SST: mariabackup"
+        - "2024-09-15 10:30:46 12345 [Note] WSREP: Starting SST to 192.168.1.101:4444"
+
+    - name: "sst_donor_selection"
+      description: "SST donor node selection (START event)"
+      confidence: 0.9
+      lifecycle_phase: "START"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Donor|Selected)\s+(?P<donor_node>[a-f0-9-]+)\s+at\s+(?P<donor_address>[\d\.]+:\d+)'
+      field_mappings:
+        transfer_status: "donor_selected"
+      required_fields: ["donor_node", "donor_address"]
+      examples:
+        - "2024-09-15 10:30:47 12346 [Note] WSREP: Donor a1b2c3d4-e5f6-7890-abcd-123456789012 at 192.168.1.100:4567"
+
+    - name: "sst_method_start"
+      description: "SST method and command details (START event)"
+      confidence: 0.8
+      lifecycle_phase: "START"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<transfer_type>SST|IST)\s+method:\s+(?P<transfer_method>\w+)(?:\s+cmd:\s+(?P<sst_command>.+))?'
+      field_mappings:
+        transfer_status: "method_selected"
+      required_fields: ["transfer_type", "transfer_method"]
+      examples:
+        - "2024-09-15 10:30:48 12347 [Note] WSREP: SST method: mariabackup cmd: mariabackup --defaults-file=/etc/mysql/my.cnf"
+
+    # SST PROGRESS EVENTS
+    - name: "sst_progress_update"
+      description: "SST transfer progress updates (PROGRESS event)"
+      confidence: 0.85
+      lifecycle_phase: "PROGRESS"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+(?:WSREP|mariabackup):\s+(?:Progress|Sending|Transferred).*?(?P<progress_percentage>\d+(?:\.\d+)?)%|(?P<transferred_bytes>\d+)\s*(?:MB|GB|bytes)|rate.*?(?P<transfer_rate>\d+(?:\.\d+)?)'
+      field_mappings:
+        transfer_status: "in_progress"
+      required_fields: []
+      examples:
+        - "2024-09-15 10:32:00 12348 [Note] WSREP: Progress 45.5% transferred"
+        - "2024-09-15 10:32:15 12349 [Note] mariabackup: Sending 1024 MB at rate 50.5 MB/s"
+
+    - name: "sst_seqno_range"
+      description: "SST sequence number range information (PROGRESS event)"
+      confidence: 0.9
+      lifecycle_phase: "PROGRESS"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<transfer_type>SST|IST)\s+(?:from|to)\s+seqno\s+(?P<seqno_start>\d+)(?:\s+to\s+(?P<seqno_end>\d+))?'
+      field_mappings:
+        transfer_status: "seqno_update"
+      required_fields: ["transfer_type"]
+      examples:
+        - "2024-09-15 10:32:15 12348 [Note] WSREP: SST from seqno 10000 to 12345"
+        - "2024-09-15 10:32:16 12349 [Note] WSREP: IST to seqno 12500"
+
+    # SST END EVENTS
+    - name: "sst_completion"
+      description: "SST transfer completion (END event)"
+      confidence: 0.95
+      lifecycle_phase: "END"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<transfer_type>SST|IST)\s+(?P<transfer_status>completed|finished|done)(?:\s+with\s+seqno\s+(?P<seqno_end>\d+))?(?:\s+transferred\s+(?P<transferred_bytes>\d+)\s+bytes)?'
+      field_mappings:
+        transfer_status: "completed"
+      required_fields: ["transfer_type", "transfer_status"]
+      examples:
+        - "2024-09-15 10:35:20 12350 [Note] WSREP: SST completed with seqno 12345"
+        - "2024-09-15 10:35:21 12351 [Note] WSREP: SST finished transferred 1048576 bytes"
+
+    - name: "sst_error"
+      description: "SST error and failure messages (ERROR event)"
+      confidence: 0.95
+      lifecycle_phase: "ERROR"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>ERROR|Warning)\]\s+WSREP:\s+(?P<transfer_type>SST|IST)\s+(?:failed|error|abort|timeout)(?:\s+(?P<error_code>\d+))?(?:\s*:\s*(?P<error_message>.+))?'
+      field_mappings:
+        transfer_status: "failed"
+      required_fields: ["transfer_type"]
+      examples:
+        - "2024-09-15 10:33:30 12349 [ERROR] WSREP: SST failed 2: mariabackup process failed"
+        - "2024-09-15 10:33:31 12350 [ERROR] WSREP: SST timeout"
+
+    # IST SPECIFIC EVENTS
+    - name: "ist_status"
+      description: "IST (Incremental State Transfer) status messages"
+      confidence: 0.9
+      lifecycle_phase: "AUTO"  # Auto-detect based on status
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<transfer_type>IST)\s+(?P<transfer_status>started|completed|cancelled|failed)(?:\s+gap:\s+(?P<seqno_start>\d+)-(?P<seqno_end>\d+))?'
+      required_fields: ["transfer_type", "transfer_status"]
+      examples:
+        - "2024-09-15 10:31:00 12347 [Note] WSREP: IST started gap: 12000-12345"
+        - "2024-09-15 10:31:45 12351 [Note] WSREP: IST completed"
+
+    # BACKUP-SPECIFIC PATTERNS  
+    - name: "mariabackup_progress"
+      description: "Mariabackup-specific progress messages"
+      confidence: 0.8
+      lifecycle_phase: "PROGRESS"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+mariabackup:\s+(?:Progress|Streaming|backup).*?(?P<progress_percentage>\d+(?:\.\d+)?)%|(?P<transferred_bytes>\d+(?:\.\d+)?)\s*(?P<size_unit>MB|GB|KB)|(?P<transfer_rate>\d+(?:\.\d+)?)\s*(?P<rate_unit>MB/s|KB/s)'
+      field_mappings:
+        transfer_method: "mariabackup"
+        transfer_status: "in_progress"
+      required_fields: []
+      examples:
+        - "2024-09-15 10:32:30 12349 [Note] mariabackup: Progress 67.8% completed"
+        - "2024-09-15 10:32:35 12350 [Note] mariabackup: Streaming 256.5 MB at 45.2 MB/s"

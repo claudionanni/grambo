@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Grambo Help",
+			"type": "shell",
+			"command": "./grambo",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run Python Grambo with Sample Log",
+			"type": "shell",
+			"command": "python3",
+			"args": [
+				"gramboo.py",
+				"db3.log"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
