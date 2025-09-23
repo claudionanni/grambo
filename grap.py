@@ -243,7 +243,8 @@ Examples:
             # Initialize output formatter
             self.formatter = OutputFormatter(
                 format_type=args.format,
-                show_stats=args.stats
+                show_stats=args.stats,
+                relationship_manager=self.parser.relationship_manager
             )
             
         except Exception as e:

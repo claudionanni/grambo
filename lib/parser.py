@@ -13,6 +13,7 @@ import logging
 
 from .entities import Entity, EntityType, create_default_registry
 from .entities.session_manager import SessionManager
+from .entities.relationships import RelationshipManager, RelationshipDiscovery
 from .patterns import PatternMatcher
 
 
@@ -42,6 +43,8 @@ class LogParser:
         self.pattern_matcher = pattern_matcher
         self.entity_registry = entity_registry or create_default_registry()
         self.session_manager = SessionManager()
+        self.relationship_manager = RelationshipManager()
+        self.relationship_discovery = RelationshipDiscovery(self.relationship_manager)
         self.learning_mode = learning_mode
         self.interactive = interactive
         
@@ -157,6 +160,12 @@ class LogParser:
             
         self.logger.info(f"Parsing complete: {len(entities)} entities extracted from "
                         f"{self.stats['total_lines']} lines")
+        
+        # Discover relationships between entities
+        if entities:
+            self.logger.info("Discovering relationships between entities...")
+            relationships_found = self.relationship_discovery.discover_all_relationships(entities)
+            self.logger.info(f"Discovered {relationships_found} relationships")
         
         return entities
         

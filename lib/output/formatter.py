@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..entities import Entity, EntityType
 from ..entities.temporal_entities import TemporalStateTransferEntity
+from ..entities.relationships import RelationshipManager
 
 
 class OutputFormatter:
@@ -24,7 +25,7 @@ class OutputFormatter:
     """
     
     def __init__(self, format_type: str = "text", show_stats: bool = False,
-                 compact: bool = False):
+                 compact: bool = False, relationship_manager: Optional[RelationshipManager] = None):
         """
         Initialize output formatter
         
@@ -32,10 +33,12 @@ class OutputFormatter:
             format_type: Output format ('text', 'json', 'yaml')
             show_stats: Include parsing statistics in output
             compact: Use compact formatting when possible
+            relationship_manager: Optional relationship manager for including relationships
         """
         self.format_type = format_type.lower()
         self.show_stats = show_stats
         self.compact = compact
+        self.relationship_manager = relationship_manager
         
         # Validate format type
         if self.format_type not in ['text', 'json', 'yaml']:
@@ -86,6 +89,19 @@ class OutputFormatter:
         if self.show_stats and stats:
             output_data['statistics'] = stats
             
+        # Add relationships if relationship manager is available
+        if self.relationship_manager:
+            relationships = []
+            for rel in self.relationship_manager.relationships.values():
+                relationships.append(rel.to_dict())
+            
+            output_data['relationships'] = relationships
+            output_data['metadata']['total_relationships'] = len(relationships)
+            
+            # Add relationship statistics
+            rel_stats = self.relationship_manager.get_relationship_stats()
+            output_data['metadata']['relationship_stats'] = rel_stats
+        
         # Format JSON using custom datetime handler
         if self.compact:
             return json.dumps(output_data, separators=(',', ':'), default=datetime_handler)
