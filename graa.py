@@ -151,8 +151,13 @@ class SSTSessionTracker:
             return sessions
         
         try:
-            with open(self.log_file_path, 'r') as f:
-                lines = f.readlines()
+            # Try UTF-8 first, fall back to latin-1 if that fails
+            try:
+                with open(self.log_file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                with open(self.log_file_path, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
         except (FileNotFoundError, IOError):
             return sessions
         
@@ -189,13 +194,17 @@ class SSTSessionTracker:
                 current_session.add_event(timestamp, line)
                 
             # Check for SST completion (both success and failure)
-            elif current_session and ('Process completed' in line or 'SST completed' in line or 'mariabackup SST completed' in line):
+            elif current_session and ('Process completed' in line or 'SST completed' in line or 'mariabackup SST completed' in line or 'State transfer' in line and 'failed:' in line):
                 # Determine if it was successful or failed
-                if 'error' in line.lower() or 'broken pipe' in line.lower():
+                if 'error' in line.lower() or 'broken pipe' in line.lower() or 'failed:' in line:
                     current_session.status = 'FAILED'
+                    # Extract error from different patterns
                     error_match = re.search(r'error:.*?(\d+) \(([^)]+)\)', line)
+                    failed_match = re.search(r'failed:\s*(.+)$', line)
                     if error_match:
                         current_session.error_message = f"Exit code {error_match.group(1)}: {error_match.group(2)}"
+                    elif failed_match:
+                        current_session.error_message = failed_match.group(1).strip()
                     else:
                         current_session.error_message = "Process completed with error"
                 else:
@@ -275,8 +284,15 @@ class SSTSessionTracker:
             return sst_lines
             
         try:
-            with open(self.log_file_path, 'r') as f:
-                for line in f:
+            # Try UTF-8 first, fall back to latin-1 if that fails
+            try:
+                with open(self.log_file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                with open(self.log_file_path, 'r', encoding='latin-1') as f:
+                    lines = f.readlines()
+            
+            for line in lines:
                     line = line.strip()
                     
                     # Extract timestamp from the line (format: YYYY-MM-DD HH:MM:SS)
