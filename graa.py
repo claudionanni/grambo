@@ -19,10 +19,496 @@ from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 from typing import Dict, List, Any, Optional
 import subprocess
+import re
 
 __version__ = "1.0.0-alpha1"
 __author__ = "Claudio Nanni"
 __description__ = "Galera Log Analysis Summary Tool - processes grap.py output"
+
+
+def safe_timestamp_key(obj):
+    """Safely extract a sortable timestamp key from an object"""
+    timestamp = obj.get('timestamp') if isinstance(obj, dict) else obj
+    
+    if timestamp is None:
+        return ''
+    elif isinstance(timestamp, str):
+        return timestamp
+    elif hasattr(timestamp, 'isoformat'):
+        return timestamp.isoformat()
+    else:
+        return str(timestamp)
+
+
+class SSTSession:
+    """Represents a complete SST session from request to completion"""
+    
+    def __init__(self, request_time: str, request_line: str):
+        self.request_time = request_time
+        self.request_line = request_line
+        self.donor = None
+        self.joiner = None
+        self.method = None
+        self.status = "ONGOING"  # ONGOING, COMPLETED, FAILED
+        self.completion_time = None
+        self.completion_line = None
+        self.error_message = None
+        self.duration_seconds = 0.0  # Duration of the SST session
+        self.events = []  # All log events belonging to this session
+        
+    def add_event(self, timestamp: str, line: str):
+        """Add a log event to this session"""
+        self.events.append((timestamp, line))
+        
+        # Extract information from the event
+        self._extract_info_from_line(line)
+        
+    def _extract_info_from_line(self, line: str):
+        """Extract donor, joiner, method info from log line"""
+        
+        # Extract donor and joiner from patterns like:
+        # "Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor"
+        # "State transfer from 1.1 (vinfr-db-d-d01) complete"
+        # "State transfer to 2.1 (vinfr-db-d-l05) complete"
+        
+        donor_match = re.search(r'Selected\s+[\d.]+\s+\(([^)]+)\).*as donor', line)
+        if donor_match:
+            self.donor = donor_match.group(1)
+            
+        # Extract joiner from request patterns
+        joiner_match = re.search(r'Member\s+[\d.]+\s+\(([^)]+)\)\s+requested state transfer', line)
+        if joiner_match:
+            self.joiner = joiner_match.group(1)
+            
+        # Extract from completion patterns
+        from_donor_match = re.search(r'State transfer from\s+[\d.]+\s+\(([^)]+)\)\s+complete', line)
+        if from_donor_match and not self.donor:
+            self.donor = from_donor_match.group(1)
+            
+        to_joiner_match = re.search(r'State transfer to\s+[\d.]+\s+\(([^)]+)\)\s+(?:complete|failed)', line)
+        if to_joiner_match and not self.joiner:
+            self.joiner = to_joiner_match.group(1)
+            
+        # Extract method from SST command lines
+        if 'wsrep_sst_' in line:
+            if 'mariabackup' in line:
+                self.method = 'mariabackup'
+            elif 'rsync' in line:
+                self.method = 'rsync'
+            elif 'mysqldump' in line:
+                self.method = 'mysqldump'
+                
+    def mark_completed(self, timestamp: str, line: str):
+        """Mark session as completed"""
+        self.status = "COMPLETED"
+        self.completion_time = timestamp
+        self.completion_line = line
+        self.add_event(timestamp, line)
+        
+    def mark_failed(self, timestamp: str, line: str, error_msg: Optional[str] = None):
+        """Mark session as failed"""
+        self.status = "FAILED"
+        self.completion_time = timestamp
+        self.completion_line = line
+        self.error_message = error_msg
+        self.add_event(timestamp, line)
+        
+    def get_duration_seconds(self) -> float:
+        """Calculate session duration in seconds"""
+        if not self.completion_time:
+            return 0.0
+            
+        try:
+            start_dt = datetime.fromisoformat(self.request_time.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(self.completion_time.replace('Z', '+00:00'))
+            return (end_dt - start_dt).total_seconds()
+        except:
+            return 0.0
+
+
+class SSTSessionTracker:
+    """Tracks SST sessions chronologically from log events"""
+    
+    def __init__(self, log_file_path: Optional[str] = None):
+        self.sessions = []
+        self.log_file_path = log_file_path
+        
+    def process_entities(self, entities: List[Dict]) -> List[SSTSession]:
+        """Process entities chronologically to build SST sessions"""
+        
+        # Use direct log file parsing for more accurate SST detection
+        if self.log_file_path:
+            return self._build_sessions_from_log_file()
+        
+        # Fallback to entity processing if no log file
+        return self._build_sessions_from_entities(entities)
+    
+    def _build_sessions_from_log_file(self) -> List[SSTSession]:
+        """Build SST sessions by parsing the log file directly"""
+        sessions = []
+        
+        if not self.log_file_path:
+            return sessions
+        
+        try:
+            with open(self.log_file_path, 'r') as f:
+                lines = f.readlines()
+        except (FileNotFoundError, IOError):
+            return sessions
+        
+        current_session = None
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Extract timestamp from the line
+            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+            if not timestamp_match:
+                continue
+            timestamp = timestamp_match.group(1)
+            
+            # Check for SST request patterns
+            if 'requested state transfer' in line:
+                # If there's an ongoing session, mark it as interrupted/failed
+                if current_session:
+                    current_session.status = 'INTERRUPTED'
+                    current_session.completion_time = timestamp
+                    current_session.completion_line = "Session interrupted by new SST request"
+                    current_session.add_event(timestamp, "Session interrupted by new SST request")
+                    sessions.append(current_session)
+                
+                # Parse donor and joiner names
+                parsed = self._parse_sst_log_line(line)
+                
+                # Start new session
+                current_session = SSTSession(timestamp, line)
+                current_session.donor = parsed.get('donor', 'unknown_donor')
+                current_session.joiner = parsed.get('joiner', 'unknown_joiner')
+                current_session.method = 'mariabackup'  # Default
+                current_session.status = 'ONGOING'
+                current_session.add_event(timestamp, line)
+                
+            # Check for SST completion (both success and failure)
+            elif current_session and ('Process completed' in line or 'SST completed' in line or 'mariabackup SST completed' in line):
+                # Determine if it was successful or failed
+                if 'error' in line.lower() or 'broken pipe' in line.lower():
+                    current_session.status = 'FAILED'
+                    error_match = re.search(r'error:.*?(\d+) \(([^)]+)\)', line)
+                    if error_match:
+                        current_session.error_message = f"Exit code {error_match.group(1)}: {error_match.group(2)}"
+                    else:
+                        current_session.error_message = "Process completed with error"
+                else:
+                    current_session.status = 'COMPLETED'
+                
+                current_session.completion_time = timestamp
+                current_session.completion_line = line
+                current_session.add_event(timestamp, line)
+                
+                # Calculate duration
+                if current_session.request_time and current_session.completion_time:
+                    try:
+                        start_dt = datetime.fromisoformat(current_session.request_time.replace(' ', 'T'))
+                        end_dt = datetime.fromisoformat(current_session.completion_time.replace(' ', 'T'))
+                        duration_td = end_dt - start_dt
+                        current_session.duration_seconds = duration_td.total_seconds()
+                    except:
+                        current_session.duration_seconds = 0.0
+                
+                sessions.append(current_session)
+                current_session = None
+        
+        # Handle any remaining ongoing session
+        if current_session:
+            current_session.status = 'ONGOING'
+            sessions.append(current_session)
+        
+        return sessions
+    
+    def _build_sessions_from_entities(self, entities: List[Dict]) -> List[SSTSession]:
+        """Fallback method using grap.py entities (original approach)"""
+        # First, collect all SST-related log lines from any entity type
+        sst_log_lines = self._collect_sst_log_lines(entities)
+        
+        # Get STATE_TRANSFER entities sorted by timestamp, but filter out problematic ones
+        sst_entities = [e for e in entities if e.get('entity_type') == 'STATE_TRANSFER']
+        sst_entities = sorted(sst_entities, key=safe_timestamp_key)
+        
+        # Filter out auto-completed and problematic sessions
+        valid_entities = self._filter_valid_sst_entities(sst_entities)
+        
+        for entity in valid_entities:
+            self._convert_entity_to_session(entity, sst_log_lines)
+                
+        return self.sessions
+    
+    def _collect_sst_log_lines(self, entities: List[Dict]) -> List[tuple]:
+        """Collect all SST-related log lines from all entity types"""
+        sst_lines = []
+        
+        for entity in entities:
+            raw_line = entity.get('raw_line', '')
+            timestamp = entity.get('timestamp', '')
+            
+            # Look for SST patterns in the raw line
+            if raw_line and any(pattern in raw_line for pattern in [
+                'requested state transfer',
+                'Selected', 
+                'as donor',
+                'State transfer to',
+                'State transfer from', 
+                'complete',
+                'failed'
+            ]):
+                # Parse the line to see if it contains SST info
+                parsed = self._parse_sst_log_line(raw_line)
+                if parsed:
+                    sst_lines.append((timestamp, raw_line, parsed))
+        
+        return sorted(sst_lines, key=lambda x: x[0] or '')
+    
+    def _read_sst_lines_from_file(self) -> List[tuple]:
+        """Read SST-related lines directly from the log file"""
+        sst_lines = []
+        
+        if not self.log_file_path:
+            return sst_lines
+            
+        try:
+            with open(self.log_file_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    
+                    # Extract timestamp from the line (format: YYYY-MM-DD HH:MM:SS)
+                    timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                    timestamp = timestamp_match.group(1) if timestamp_match else ''
+                    
+                    # Check if line contains SST information
+                    if any(pattern in line for pattern in [
+                        'requested state transfer',
+                        'Selected', 
+                        'as donor',
+                        'State transfer to',
+                        'State transfer from'
+                    ]):
+                        parsed = self._parse_sst_log_line(line)
+                        if parsed:
+                            sst_lines.append((timestamp, line, parsed))
+                            
+        except (FileNotFoundError, IOError) as e:
+            # Silently fail if we can't read the file
+            pass
+            
+        return sst_lines
+    
+    def _filter_valid_sst_entities(self, sst_entities: List[Dict]) -> List[Dict]:
+        """Filter out invalid or auto-generated SST entities"""
+        valid_entities = []
+        
+        for entity in sst_entities:
+            # Skip auto-completed/interrupted sessions
+            status = entity.get('current_transfer_status', '').lower()
+            if 'auto_completed' in status or 'interrupted' in status:
+                continue
+                
+            # Skip sessions with negative or extremely long durations
+            duration = entity.get('duration_seconds', 0)
+            if duration < 0 or duration > 86400:  # More than 24 hours is suspicious
+                continue
+                
+            # Skip sessions where end time is before start time
+            start_time = entity.get('start_timestamp', '')
+            end_time = entity.get('end_timestamp', '')
+            if start_time and end_time:
+                try:
+                    if start_time > end_time:  # String comparison should work for ISO format
+                        continue
+                except:
+                    pass  # If comparison fails, keep the entity
+                    
+            valid_entities.append(entity)
+            
+        return valid_entities
+    
+    def _convert_entity_to_session(self, entity: Dict, sst_log_lines: List[tuple]):
+        """Convert a STATE_TRANSFER entity to an SSTSession"""
+        start_time = entity.get('start_timestamp', entity.get('timestamp', ''))
+        end_time = entity.get('end_timestamp', '')
+        
+        # Create session from entity
+        session = SSTSession(start_time, entity.get('raw_line', ''))
+        
+        # Extract better node information
+        session.donor = self._extract_node_name(entity, 'donor', sst_log_lines, start_time, end_time)
+        session.joiner = self._extract_node_name(entity, 'joiner', sst_log_lines, start_time, end_time)
+        session.method = entity.get('transfer_method', 'mariabackup')
+        
+        # Get duration from the entity (it's already calculated)
+        session.duration_seconds = entity.get('duration_seconds', 0.0)
+        
+        # Determine status from current_transfer_status
+        transfer_status = entity.get('current_transfer_status', '').lower()
+        if 'completed' in transfer_status:
+            session.status = 'COMPLETED'
+        elif 'failed' in transfer_status or 'error' in transfer_status:
+            session.status = 'FAILED'
+            session.error_message = entity.get('current_error_message')
+        elif 'started' in transfer_status or 'progress' in transfer_status:
+            if end_time:
+                # Has end time, so it completed
+                session.status = 'COMPLETED'
+            else:
+                session.status = 'ONGOING'
+        else:
+            # Unknown status, check if it has an end time
+            if end_time:
+                session.status = 'COMPLETED' 
+            else:
+                session.status = 'ONGOING'
+                
+        # Set completion time and line
+        if end_time:
+            session.completion_time = end_time
+            session.completion_line = f"SST {session.status.lower()} at {end_time}"
+            
+        # Add some events based on property timeline if available
+        property_timeline = entity.get('property_timeline', {})
+        if property_timeline:
+            # Add start event
+            if start_time:
+                session.add_event(start_time, f"SST started - {session.method}")
+                
+            # Add status progression events
+            status_timeline = property_timeline.get('transfer_status', [])
+            for timestamp, status in status_timeline:
+                session.add_event(timestamp, f"SST status: {status}")
+                
+            # Add completion event
+            if end_time:
+                session.add_event(end_time, f"SST {session.status.lower()}")
+        
+        # Try to improve node names by looking through all events in the session
+        self._improve_node_names_from_events(session)
+        
+        self.sessions.append(session)
+    
+    def _improve_node_names_from_events(self, session: SSTSession):
+        """Look through session events to find better node names"""
+        for timestamp, event_line in session.events:
+            names = self._parse_sst_log_line(event_line)
+            if names:
+                # Update donor if we found a better name
+                if names.get('donor') and (not session.donor or session.donor.startswith('unknown_')):
+                    session.donor = names['donor']
+                    
+                # Update joiner if we found a better name  
+                if names.get('joiner') and (not session.joiner or session.joiner.startswith('unknown_')):
+                    session.joiner = names['joiner']
+    
+    def _extract_node_name(self, entity: Dict, role: str, sst_log_lines: List[tuple], start_time: str, end_time: str) -> str:
+        """Extract node name with better fallback logic"""
+        
+        # First, try to find node names in the relevant SST log lines
+        def parse_time(ts):
+            if not ts:
+                return ''
+            return ts.replace('T', ' ').split('.')[0] if 'T' in ts else ts
+        
+        session_start = parse_time(start_time)
+        session_end = parse_time(end_time) if end_time else '9999-99-99'
+        
+        # Look through SST log lines for node names
+        for timestamp, raw_line, parsed_info in sst_log_lines:
+            line_time = parse_time(timestamp)
+            
+            # Check if this line is relevant to this session timeframe
+            if session_start <= line_time <= session_end:
+                if role == 'donor' and parsed_info.get('donor'):
+                    return parsed_info['donor']
+                elif role == 'joiner' and parsed_info.get('joiner'):
+                    return parsed_info['joiner']
+        
+        # First, try to extract from raw log lines in the entity
+        raw_line = entity.get('raw_line', '')
+        if raw_line:
+            names = self._parse_sst_log_line(raw_line)
+            if names:
+                if role == 'donor' and names.get('donor'):
+                    return names['donor']
+                elif role == 'joiner' and names.get('joiner'):
+                    return names['joiner']
+        
+        # Try the direct fields from entity
+        if role == 'donor':
+            node_name = entity.get('donor_node') or entity.get('donor_address')
+        else:  # joiner
+            node_name = entity.get('joiner_node') or entity.get('joiner_address')
+        
+        # If we got a name and it's not empty, clean it up
+        if node_name and node_name.strip():
+            # Remove quotes if present
+            node_name = node_name.strip("'\"")
+            
+            # If it's an IP:port, try to make it more readable
+            if ':' in node_name and node_name.count('.') == 3:
+                # It's an IP:port, keep it as is but format nicely
+                return f"Node[{node_name}]"
+            
+            return node_name
+        
+        # Try to extract from identity_key (format: donor→joiner@timestamp)
+        identity_key = entity.get('identity_key', '')
+        if identity_key and '→' in identity_key:
+            parts = identity_key.split('@')[0]  # Remove timestamp part
+            donor_joiner = parts.split('→')
+            if len(donor_joiner) == 2:
+                if role == 'donor':
+                    candidate = donor_joiner[0].strip()
+                else:
+                    candidate = donor_joiner[1].strip()
+                
+                if candidate and candidate != 'unknown_donor' and candidate != 'unknown_joiner':
+                    # Remove quotes if present
+                    candidate = candidate.strip("'\"")
+                    return candidate
+        
+        # Final fallback
+        return f'unknown_{role}'
+    
+    def _parse_sst_log_line(self, line: str) -> Dict[str, str]:
+        """Parse SST-related log lines to extract donor and joiner names"""
+        result = {}
+        
+        # Pattern for SST request: Member X.Y (joiner_name) requested state transfer from '*any*'. Selected A.B (donor_name)(SYNCED) as donor.
+        sst_request_pattern = r'Member\s+[\d.]+\s+\(([^)]+)\)\s+requested state transfer.*Selected\s+[\d.]+\s+\(([^)]+)\)'
+        match = re.search(sst_request_pattern, line, re.IGNORECASE)
+        if match:
+            result['joiner'] = match.group(1).strip()
+            result['donor'] = match.group(2).strip()
+            return result
+        
+        # Pattern for SST completion: State transfer from X.Y (donor_name) complete
+        completion_from_pattern = r'State transfer from\s+[\d.]+\s+\(([^)]+)\)\s+complete'
+        match = re.search(completion_from_pattern, line, re.IGNORECASE)
+        if match:
+            result['donor'] = match.group(1).strip()
+            return result
+            
+        # Pattern for SST completion: State transfer to X.Y (joiner_name) complete
+        completion_to_pattern = r'State transfer to\s+[\d.]+\s+\(([^)]+)\)\s+(?:complete|failed)'
+        match = re.search(completion_to_pattern, line, re.IGNORECASE)
+        if match:
+            result['joiner'] = match.group(1).strip()
+            return result
+        
+        # Pattern for donor selection: Selected X.Y (donor_name)(SYNCED) as donor
+        donor_selection_pattern = r'Selected\s+[\d.]+\s+\(([^)]+)\).*as donor'
+        match = re.search(donor_selection_pattern, line, re.IGNORECASE)
+        if match:
+            result['donor'] = match.group(1).strip()
+            return result
+            
+        return result
 
 
 class GraAnalyzer:
@@ -32,6 +518,7 @@ class GraAnalyzer:
         self.entities = []
         self.metadata = {}
         self.analysis_timestamp = datetime.now()
+        self.log_file_path = None  # Store the source log file path
         
     def load_from_json(self, json_data: str) -> bool:
         """Load entities from grap JSON output"""
@@ -47,6 +534,9 @@ class GraAnalyzer:
     def load_from_grap(self, logfile: Path) -> bool:
         """Run grap.py on logfile and load the JSON output"""
         try:
+            # Store the log file path for later use
+            self.log_file_path = str(logfile)
+            
             cmd = [sys.executable, 'grap.py', '--format=json', str(logfile)]
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent)
             
@@ -135,8 +625,8 @@ class GraAnalyzer:
                         'description': f"{property_name}: {value}"
                     })
         
-        # Sort by timestamp
-        events.sort(key=lambda x: x['timestamp'])
+        # Sort by timestamp (handle both string and datetime objects)
+        events.sort(key=safe_timestamp_key)
         return events
     
     def _analyze_errors(self) -> Dict[str, Any]:
@@ -286,7 +776,7 @@ class GraAnalyzer:
             if view_info['member_count'] > 0:
                 cluster_sizes.append(view_info['member_count'])
         
-        views.sort(key=lambda x: x.get('timestamp', ''))
+        views.sort(key=safe_timestamp_key)
         
         return {
             'total_views': len(views),
@@ -319,7 +809,7 @@ class GraAnalyzer:
             warnings.append(warning)
             warning_types[entity.get('pattern_name', 'unknown')] += 1
         
-        warnings.sort(key=lambda x: x.get('timestamp', ''))
+        warnings.sort(key=safe_timestamp_key)
         
         return {
             'total_warnings': len(warnings),
@@ -358,7 +848,7 @@ class GraAnalyzer:
                         'joiner': entity.get('joiner_node')
                     })
         
-        connectivity_issues.sort(key=lambda x: x.get('timestamp', ''))
+        connectivity_issues.sort(key=safe_timestamp_key)
         
         return {
             'total_issues': len(connectivity_issues),
@@ -455,7 +945,7 @@ class GraAnalyzer:
             sessions.append(session)
         
         # Sort by start time
-        sessions.sort(key=lambda x: x.get('start_time', ''))
+        sessions.sort(key=safe_timestamp_key)
         return sessions
     
     def _get_entity_description(self, entity: Dict[str, Any]) -> str:
@@ -535,16 +1025,6 @@ class GraAnalyzer:
         """Analyze throughput statistics"""
         # This would be expanded when we have transfer rate data
         return {'status': 'Not implemented - requires transfer rate data'}
-
-
-def format_duration(seconds: float) -> str:
-    """Format duration in human-readable format"""
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    elif seconds < 3600:
-        return f"{seconds/60:.1f}m"
-    else:
-        return f"{seconds/3600:.1f}h"
 
 
 def print_analysis(analysis: Dict[str, Any]):
@@ -721,6 +1201,98 @@ def print_analysis(analysis: Dict[str, Any]):
     print("\n" + "="*80)
 
 
+def format_duration(seconds: float) -> str:
+    """Format duration in human-readable format"""
+    if seconds < 0.001:
+        return f"{seconds*1000:.1f}ms"
+    elif seconds < 1.0:
+        return f"{seconds*1000:.0f}ms"
+    elif seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        secs = seconds % 60
+        return f"{minutes}m {secs:.1f}s"
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours}h {minutes}m {secs:.1f}s"
+
+
+def print_sst_sessions_timeline(analyzer: GraAnalyzer):
+    """Print SST sessions timeline in tree format similar to original 'gra' tool"""
+    print("\n" + "="*80)
+    print("SST SESSIONS TIMELINE")
+    print("="*80)
+    
+    # Get SST sessions using chronological tracker
+    tracker = SSTSessionTracker(analyzer.log_file_path)
+    sessions = tracker.process_entities(analyzer.entities)
+    
+    if not sessions:
+        print("No SST sessions detected in the log.")
+        return
+    
+    def format_timestamp(ts):
+        """Format timestamp for display"""
+        if not ts:
+            return "Unknown"
+        # Trim microseconds for better readability
+        if len(ts) > 19 and 'T' in ts:
+            return ts[:19].replace('T', ' ')
+        return ts
+        
+    print(f"\nTotal SST Sessions: {len(sessions)}")
+    print("-" * 40)
+    
+    for i, session in enumerate(sessions, 1):
+        print(f"\n[{i}] SST Session")
+        
+        start_time_str = format_timestamp(session.request_time)
+        end_time_str = format_timestamp(session.completion_time)
+        
+        # Timeline display
+        if session.request_time:
+            print(f"    ├─ Start:  {start_time_str}")
+            print(f"    ├─ Status: {session.status}")
+            
+            # Show donor and joiner info
+            if session.donor:
+                print(f"    ├─ Donor:  {session.donor}")
+            
+            if session.joiner:
+                print(f"    ├─ Joiner: {session.joiner}")
+                
+            if session.method:
+                print(f"    ├─ Method: {session.method}")
+                
+            # Show duration if available
+            if session.duration_seconds and session.duration_seconds > 0:
+                duration_str = format_duration(session.duration_seconds)
+                print(f"    ├─ Duration: {duration_str}")
+            
+        if session.completion_time and session.status in ['COMPLETED', 'FAILED']:
+            print(f"    └─ End:    {end_time_str}")
+            
+            if session.error_message:
+                # Truncate very long error messages
+                error_msg = session.error_message
+                if len(error_msg) > 120:
+                    error_msg = error_msg[:117] + "..."
+                print(f"       Error:  {error_msg}")
+        elif session.status == "ONGOING":
+            print(f"    └─ Status: Session still ongoing (incomplete)")
+        elif session.status == "INCOMPLETE":
+            print(f"    └─ Status: Session incomplete (no completion found)")
+            
+        # Show session events count
+        if hasattr(session, 'events') and session.events:
+            print(f"       Events: {len(session.events)} log entries")
+    
+    print("\n" + "="*80)
+
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
@@ -731,6 +1303,7 @@ def main():
     
     parser.add_argument('logfile', nargs='?', help='Galera log file to analyze')
     parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap.py)')
+    parser.add_argument('--sst-sessions', action='store_true', help='Show detailed SST session timeline (like gra format)')
     parser.add_argument('--version', action='version', version=f'gra-analyzer {__version__}')
     
     args = parser.parse_args()
@@ -762,7 +1335,10 @@ def main():
     analysis = analyzer.analyze()
     
     # Print results
-    print_analysis(analysis)
+    if args.sst_sessions:
+        print_sst_sessions_timeline(analyzer)
+    else:
+        print_analysis(analysis)
 
 
 if __name__ == '__main__':

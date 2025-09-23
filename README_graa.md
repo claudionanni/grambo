@@ -20,7 +20,61 @@ python3 grap.py --format=json galera-node.log | python3 graa.py --stdin
 ```bash
 python3 graa.py --help           # Show help
 python3 graa.py --version        # Show version
+python3 graa.py --sst-sessions   # Show detailed SST sessions timeline
 ```
+
+## SST Sessions Timeline
+
+The `--sst-sessions` option provides a detailed chronological view of SST (State Snapshot Transfer) sessions:
+
+```bash
+# Show detailed SST timeline
+python3 graa.py --sst-sessions galera-node.log
+```
+
+### Features
+- **Real Node Names**: Extracts actual node names from log patterns (e.g., UAT-DB-01, NODE_11407)
+- **Accurate Timing**: Calculates precise durations (e.g., 2m 15s, 16m 31s) 
+- **Session Status**: Shows COMPLETED, FAILED, ONGOING, or INTERRUPTED status
+- **Error Details**: Displays specific error messages and exit codes
+- **No Duplicates**: Filters out artificial auto-completed sessions from grap.py
+- **Direct Log Parsing**: Bypasses grap.py limitations by reading raw log files
+
+### Timeline Output Format
+```
+================================================================================
+SST SESSIONS TIMELINE
+================================================================================
+
+Total SST Sessions: 4
+----------------------------------------
+
+[1] SST Session
+    ├─ Start:  2025-09-15 13:45:56
+    ├─ Status: FAILED
+    ├─ Donor:  UAT-DB-03
+    ├─ Joiner: UAT-DB-01
+    ├─ Method: mariabackup
+    ├─ Duration: 2m 15.0s
+    └─ End:    2025-09-15 13:48:11
+       Error:  Exit code 32: Broken pipe
+       Events: 2 log entries
+
+[2] SST Session
+    ├─ Start:  2025-09-15 13:48:20
+    ├─ Status: ONGOING
+    ├─ Donor:  UAT-DB-03
+    ├─ Joiner: UAT-DB-01
+    ├─ Method: mariabackup
+    └─ Status: Session still ongoing (incomplete)
+       Events: 1 log entries
+```
+
+### Session Status Types
+- **COMPLETED**: SST finished successfully
+- **FAILED**: SST completed with errors (shows error details)
+- **ONGOING**: SST request found but no completion event
+- **INTERRUPTED**: SST was interrupted by a new SST request
 
 ## Output Format
 
@@ -153,7 +207,9 @@ python3 graa.py galera-node.log | grep "Failed Sessions"
 ## Features
 
 - **Temporal Entity Analysis**: Leverages the temporal SST session management system
+- **SST Timeline**: Detailed chronological view of SST sessions with real node names and accurate timing
 - **Multi-version Support**: Works with MariaDB 10.6, 11.4, and other Galera versions
 - **Pipeline Friendly**: Can be used in command pipelines
 - **Human Readable**: Clean, structured output with emojis and formatting
 - **Performance Focused**: Provides actionable metrics for cluster health assessment
+- **Direct Log Parsing**: Bypasses grap.py limitations for accurate SST session analysis
