@@ -2,13 +2,13 @@
 """
 GRA-Analyzer: Galera Log Analysis Summary Tool
 
-This script processes the structured output from grap.py and presents it in a clean,
+This script processes the structured output from grap and presents it in a clean,
 structured view similar to the original gra script but with enhanced temporal entity
 information and better organization.
 
 Usage:
     python3 gra-analyzer.py logfile.log
-    python3 grap.py --format=json logfile.log | python3 gra-analyzer.py --stdin
+    python3 grap --format=json logfile.log | python3 gra-analyzer.py --stdin
 """
 
 import sys
@@ -23,7 +23,7 @@ import re
 
 __version__ = "1.0.0-alpha1"
 __author__ = "Claudio Nanni"
-__description__ = "Galera Log Analysis Summary Tool - processes grap.py output"
+__description__ = "Galera Log Analysis Summary Tool - processes grap output"
 
 
 def safe_timestamp_key(obj):
@@ -136,11 +136,8 @@ class SSTSessionTracker:
     def process_entities(self, entities: List[Dict]) -> List[SSTSession]:
         """Process entities chronologically to build SST sessions"""
         
-        # Use direct log file parsing for more accurate SST detection
-        if self.log_file_path:
-            return self._build_sessions_from_log_file()
-        
-        # Fallback to entity processing if no log file
+        # Use grap temporal entities for consistent SST session analysis
+        # This ensures completion detection works properly through the session manager
         return self._build_sessions_from_entities(entities)
     
     def _build_sessions_from_log_file(self) -> List[SSTSession]:
@@ -235,16 +232,49 @@ class SSTSessionTracker:
         return sessions
     
     def _build_sessions_from_entities(self, entities: List[Dict]) -> List[SSTSession]:
-        """Fallback method using grap.py entities (original approach)"""
-        # First, collect all SST-related log lines from any entity type
-        sst_log_lines = self._collect_sst_log_lines(entities)
-        
-        # Get STATE_TRANSFER entities sorted by timestamp, but filter out problematic ones
+        """Build sessions from grap temporal entities (each represents a complete SST session)"""
+        # Get STATE_TRANSFER entities sorted by timestamp
         sst_entities = [e for e in entities if e.get('entity_type') == 'STATE_TRANSFER']
         sst_entities = sorted(sst_entities, key=safe_timestamp_key)
         
-        # Filter out auto-completed and problematic sessions
-        valid_entities = self._filter_valid_sst_entities(sst_entities)
+        # Group entities by donor/joiner/time to avoid duplicates from multiple completion perspectives
+        session_groups = {}
+        
+        for entity in sst_entities:
+            # Create a grouping key based on donor, joiner, and time window
+            donor = entity.get('donor_node', 'unknown')
+            joiner = entity.get('joiner_node', 'unknown')
+            timestamp = entity.get('timestamp', entity.get('start_timestamp', ''))
+            
+            # Normalize timestamp to minute precision for grouping
+            if timestamp:
+                try:
+                    if 'T' in str(timestamp):
+                        time_key = str(timestamp)[:16]  # YYYY-MM-DDTHH:MM
+                    else:
+                        time_key = str(timestamp)[:16]  # YYYY-MM-DD HH:MM
+                except:
+                    time_key = str(timestamp)
+            else:
+                time_key = 'unknown'
+            
+            group_key = f"{donor}→{joiner}@{time_key}"
+            
+            # Keep the entity with the most complete information (prefer completed ones)
+            if group_key not in session_groups:
+                session_groups[group_key] = entity
+            else:
+                existing = session_groups[group_key]
+                current_status = entity.get('current_transfer_status', '')
+                existing_status = existing.get('current_transfer_status', '')
+                
+                # Prefer completed entities over others
+                if 'completed' in current_status and 'completed' not in existing_status:
+                    session_groups[group_key] = entity
+        
+        # Convert grouped entities to sessions
+        sst_log_lines = self._collect_sst_log_lines(entities)
+        valid_entities = self._filter_valid_sst_entities(list(session_groups.values()))
         
         for entity in valid_entities:
             self._convert_entity_to_session(entity, sst_log_lines)
@@ -548,21 +578,21 @@ class GraAnalyzer:
             return False
             
     def load_from_grap(self, logfile: Path) -> bool:
-        """Run grap.py on logfile and load the JSON output"""
+        """Run grap on logfile and load the JSON output"""
         try:
             # Store the log file path for later use
             self.log_file_path = str(logfile)
             
-            cmd = [sys.executable, 'grap.py', '--format=json', str(logfile)]
+            cmd = [sys.executable, 'grap', '--format=json', str(logfile)]
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent)
             
             if result.returncode != 0:
-                print(f"Error running grap.py: {result.stderr}", file=sys.stderr)
+                print(f"Error running grap: {result.stderr}", file=sys.stderr)
                 return False
                 
             return self.load_from_json(result.stdout)
         except Exception as e:
-            print(f"Error running grap.py: {e}", file=sys.stderr)
+            print(f"Error running grap: {e}", file=sys.stderr)
             return False
     
     def analyze(self) -> Dict[str, Any]:
@@ -1312,13 +1342,13 @@ def print_sst_sessions_timeline(analyzer: GraAnalyzer):
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Analyze Galera logs using grap.py output",
+        description="Analyze Galera logs using grap output",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
     
     parser.add_argument('logfile', nargs='?', help='Galera log file to analyze')
-    parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap.py)')
+    parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap)')
     parser.add_argument('--sst-sessions', action='store_true', help='Show detailed SST session timeline (like gra format)')
     parser.add_argument('--version', action='version', version=f'gra-analyzer {__version__}')
     
@@ -1338,7 +1368,7 @@ def main():
         if not analyzer.load_from_json(json_input):
             sys.exit(1)
     else:
-        # Run grap.py on the logfile
+        # Run grap on the logfile
         logfile = Path(args.logfile)
         if not logfile.exists():
             print(f"Error: Log file '{args.logfile}' does not exist", file=sys.stderr)

@@ -7,24 +7,37 @@ mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
 
 patterns:
   STATE_TRANSFER:
-    # SST START EVENTS
-    - name: "sst_request_start"
-      description: "SST request initiation (START event)"
+    # SST START EVENTS - ONLY the actual SST request should create sessions
+    - name: "sst_member_selection_with_names"
+      description: "SST member selection with donor and joiner node names - THE ONLY START EVENT"
       confidence: 0.95
       lifecycle_phase: "START"
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Requesting|Running|Initiating|Starting)\s+(?P<transfer_type>SST|IST)(?:\s*:\s*(?P<transfer_method>\w+))?(?:\s+to\s+(?P<joiner_address>[\d\.]+:\d+))?'
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Member (?P<joiner_index>\d+)\.(?P<joiner_id>\d+) \((?P<joiner_name>[^)]+)\) requested state transfer from.*Selected (?P<donor_index>\d+)\.(?P<donor_id>\d+) \((?P<donor_name>[^)]+)\)'
       field_mappings:
-        transfer_method: "transfer_method"
-        transfer_status: "started"
-      required_fields: ["transfer_type"]
+        joiner_name: "joiner_node"
+        donor_name: "donor_node"
+        transfer_status: "requested"
+        transfer_type: "SST"
+      required_fields: ["joiner_node", "donor_node"]
       examples:
-        - "2024-09-15 10:30:45 12345 [Note] WSREP: Requesting SST: mariabackup"
-        - "2024-09-15 10:30:46 12345 [Note] WSREP: Starting SST to 192.168.1.101:4444"
+        - "2025-09-19 18:17:17 0 [Note] WSREP: Member 0.4 (vinfr-db-d-l05) requested state transfer from *any*. Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor."
+
+    # SST PROGRESS EVENTS - All these should update existing sessions, never create new ones
+    - name: "wsrep_sst_script_started"
+      description: "WSREP_SST script started message (PROGRESS event)"
+      confidence: 0.9
+      lifecycle_phase: "PROGRESS"
+      regex: '^WSREP_SST:\s+\[INFO\]\s+(?P<transfer_method>\w+)\s+(?P<transfer_type>SST)\s+started\s+on\s+(?P<role>joiner|donor)\s+\((?P<timestamp_script>\d{8}\s+\d{2}:\d{2}:\d{2}\.\d+)\)'
+      field_mappings:
+        transfer_status: "script_started"
+      required_fields: ["transfer_method", "transfer_type", "role"]
+      examples:
+        - "WSREP_SST: [INFO] mariabackup SST started on joiner (20250919 11:10:38.867)"
 
     - name: "sst_donor_selection"
-      description: "SST donor node selection (START event)"
+      description: "SST donor node selection (PROGRESS event)"
       confidence: 0.9
-      lifecycle_phase: "START"
+      lifecycle_phase: "PROGRESS"
       regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Donor|Selected)\s+(?P<donor_node>[a-f0-9-]+)\s+at\s+(?P<donor_address>[\d\.]+:\d+)'
       field_mappings:
         transfer_status: "donor_selected"
@@ -33,9 +46,9 @@ patterns:
         - "2024-09-15 10:30:47 12346 [Note] WSREP: Donor a1b2c3d4-e5f6-7890-abcd-123456789012 at 192.168.1.100:4567"
 
     - name: "sst_method_start"
-      description: "SST method and command details (START event)"
+      description: "SST method and command details (PROGRESS event)"
       confidence: 0.8
-      lifecycle_phase: "START"
+      lifecycle_phase: "PROGRESS"
       regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<transfer_type>SST|IST)\s+method:\s+(?P<transfer_method>\w+)(?:\s+cmd:\s+(?P<sst_command>.+))?'
       field_mappings:
         transfer_status: "method_selected"
@@ -43,7 +56,6 @@ patterns:
       examples:
         - "2024-09-15 10:30:48 12347 [Note] WSREP: SST method: mariabackup cmd: mariabackup --defaults-file=/etc/mysql/my.cnf"
 
-    # SST PROGRESS EVENTS
     - name: "sst_progress_update"
       description: "SST transfer progress updates (PROGRESS event)"
       confidence: 0.85
@@ -118,20 +130,7 @@ patterns:
         - "2024-09-15 10:32:30 12349 [Note] mariabackup: Progress 67.8% completed"
         - "2024-09-15 10:32:35 12350 [Note] mariabackup: Streaming 256.5 MB at 45.2 MB/s"
 
-    # NODE NAME EXTRACTION PATTERNS
-    - name: "sst_member_selection_with_names"
-      description: "SST member selection with donor and joiner node names"
-      confidence: 0.95
-      lifecycle_phase: "START"
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Member (?P<joiner_index>\d+)\.(?P<joiner_id>\d+) \((?P<joiner_name>[^)]+)\) requested state transfer from.*Selected (?P<donor_index>\d+)\.(?P<donor_id>\d+) \((?P<donor_name>[^)]+)\)'
-      field_mappings:
-        joiner_name: "joiner_node"
-        donor_name: "donor_node"
-        transfer_status: "donor_selected"
-        transfer_type: "SST"
-      required_fields: ["joiner_node", "donor_node"]
-      examples:
-        - "2025-09-19 18:17:17 0 [Note] WSREP: Member 0.4 (vinfr-db-d-l05) requested state transfer from *any*. Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor."
+    # NODE NAME EXTRACTION PATTERNS - Additional patterns for updating sessions
 
     - name: "sst_transfer_failure_with_names"
       description: "SST transfer failure with donor and joiner node names"
@@ -146,3 +145,39 @@ patterns:
       required_fields: ["donor_node", "joiner_node"]
       examples:
         - "2025-09-19 18:33:48 0 [Warning] WSREP: 1.1 (vinfr-db-d-d01): State transfer to 0.4 (vinfr-db-d-l05) failed: Invalid argument"
+
+    # SST SUCCESS COMPLETION PATTERNS
+    - name: "sst_transfer_complete_donor"
+      description: "SST transfer completion from donor's perspective"
+      confidence: 0.95
+      lifecycle_phase: "END"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[\w+\]\s+WSREP:\s+\d+\.\d+ \((?P<donor_node>[^)]+)\): State transfer to \d+\.\d+ \((?P<joiner_node>[^)]+)\) (?P<transfer_status>complete)\.'
+      field_mappings:
+        transfer_status: "completed"  # Normalize "complete" to "completed"
+      required_fields: ["donor_node", "joiner_node"]
+      examples:
+        - "2025-09-19 11:10:54 0 [Note] WSREP: 0.0 (NODE_54320): State transfer to 1.0 (NODE_50000) complete."
+
+    - name: "sst_transfer_complete_joiner"
+      description: "SST transfer completion from joiner's perspective"
+      confidence: 0.95
+      lifecycle_phase: "END"
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[\w+\]\s+WSREP:\s+\d+\.\d+ \((?P<joiner_node>[^)]+)\): State transfer from \d+\.\d+ \((?P<donor_node>[^)]+)\) (?P<transfer_status>complete)\.'
+      field_mappings:
+        transfer_status: "completed"  # Normalize "complete" to "completed"
+      required_fields: ["joiner_node", "donor_node"]
+      examples:
+        - "2025-09-19 11:12:24 0 [Note] WSREP: 1.0 (NODE_50000): State transfer from 0.0 (NODE_54320) complete."
+
+
+
+    - name: "wsrep_sst_script_completed"
+      description: "WSREP_SST script completed message"
+      confidence: 0.95
+      lifecycle_phase: "END"
+      regex: '^WSREP_SST:\s+\[INFO\]\s+(?P<transfer_method>\w+)\s+(?P<transfer_type>SST)\s+completed\s+on\s+(?P<role>joiner|donor)\s+\((?P<timestamp_script>\d{8}\s+\d{2}:\d{2}:\d{2}\.\d+)\)'
+      field_mappings:
+        transfer_status: "script_completed"
+      required_fields: ["transfer_method", "transfer_type", "role"]
+      examples:
+        - "WSREP_SST: [INFO] mariabackup SST completed on joiner (20250919 11:10:54.872)"

@@ -397,8 +397,20 @@ class PatternMatcher:
             # Apply field mappings
             mapped_data = {}
             for field, value in extracted_data.items():
-                mapped_field = pattern.field_mappings.get(field, field)
-                mapped_data[mapped_field] = value
+                if field in pattern.field_mappings:
+                    # Field mapping exists - use the mapped value
+                    mapped_value = pattern.field_mappings[field]
+                    mapped_data[field] = mapped_value  # Keep original field name, but use mapped value
+                else:
+                    # No field mapping, use original field name and value
+                    mapped_data[field] = value
+            
+            # Also inject any field mappings that don't correspond to captured groups
+            # (literal value injection for fields not captured in regex)
+            for field_name, field_value in pattern.field_mappings.items():
+                if field_name not in extracted_data:
+                    # This is a literal value injection
+                    mapped_data[field_name] = field_value
                 
             # Parse timestamp if present
             timestamp = None

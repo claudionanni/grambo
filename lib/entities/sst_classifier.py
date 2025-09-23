@@ -28,27 +28,26 @@ class SSTEventClassifier:
     of SST operations: start, progress updates, completion, and errors.
     """
     
-    # Patterns for SST start events (based on enterprise logs)
+    # Patterns for SST start events - ONLY the actual SST request should create sessions
     START_PATTERNS = [
-        # MariaDB 10.6 patterns
+        # The ONLY pattern that should create sessions: actual SST request with node names
+        (r'Member \d+\.\d+ \([^)]+\) requested state transfer from.*Selected \d+\.\d+ \([^)]+\)', re.IGNORECASE),
+    ]
+    
+    # Patterns for SST progress events - All SST-related events except the initial request
+    PROGRESS_PATTERNS = [
+        # Former START patterns - these should update existing sessions, not create new ones
         (r'Running:.*wsrep_sst_mariabackup', re.IGNORECASE),  # "WSREP: Running: 'wsrep_sst_mariabackup"
         (r'mariabackup SST started', re.IGNORECASE),          # "WSREP_SST: [INFO] mariabackup SST started"
         (r'Streaming with mbstream', re.IGNORECASE),          # "WSREP_SST: [INFO] Streaming with mbstream"
-        
-        # MariaDB 11.4 patterns  
         (r'Initiating SST/IST transfer', re.IGNORECASE),      # "WSREP: Initiating SST/IST transfer on DONOR side"
-        
-        # Legacy patterns (for backward compatibility)
         (r'Requesting.*SST', re.IGNORECASE),
         (r'Starting.*SST.*to', re.IGNORECASE),
         (r'wsrep_sst_.*started', re.IGNORECASE),
         (r'State transfer required', re.IGNORECASE),
         (r'SST.*method.*selected', re.IGNORECASE),
         (r'Streaming.*the backup', re.IGNORECASE),
-    ]
-    
-    # Patterns for SST progress events (based on enterprise logs)
-    PROGRESS_PATTERNS = [
+        
         # Common progress patterns across versions
         (r'Progress.*(\d+\.\d+)%', re.IGNORECASE),            # "Progress 45.5% transferred"
         (r'Sending.*(\d+).*bytes', re.IGNORECASE),            # Backup transfer progress
@@ -64,8 +63,13 @@ class SSTEventClassifier:
         (r'Disabling all progress/rate-limiting', re.IGNORECASE),   # 10.6 progress info
     ]
     
-    # Patterns for SST completion/end events
+    # Patterns for SST completion/end events - Match the actual completion messages
     END_PATTERNS = [
+        # The actual completion messages from the log
+        (r'State transfer (to|from) \d+\.\d+ \([^)]+\) complete\.', re.IGNORECASE),  # "State transfer to/from 1.0 (NODE_50000) complete."
+        (r'mariabackup SST completed on (joiner|donor)', re.IGNORECASE),              # "WSREP_SST: [INFO] mariabackup SST completed on joiner"
+        
+        # Legacy patterns for backward compatibility
         (r'SST complete', re.IGNORECASE),
         (r'SST.*finished', re.IGNORECASE),
         (r'SST.*completed.*successfully', re.IGNORECASE),
@@ -162,43 +166,34 @@ class SSTEventClassifier:
         """Extract details from SST start events."""
         details = {}
         
-        # Extract method information
-        method_patterns = [
-            (r'method.*(?:rsync|mariabackup|xtrabackup|mysqldump)', re.IGNORECASE),
-            (r'(?:rsync|mariabackup|xtrabackup|mysqldump).*method', re.IGNORECASE),
-            (r'SST.*(?:rsync|mariabackup|xtrabackup|mysqldump)', re.IGNORECASE),
-        ]
+        # Extract method information - the SST request line doesn't contain method info
+        # Method will be extracted from subsequent PROGRESS events like "WSREP_SST: [INFO] mariabackup SST started"
+        # So we don't set it here - let PROGRESS events update it
         
-        for pattern in method_patterns:
-            match = re.search(pattern[0], log_line, pattern[1])
-            if match:
-                method_text = match.group(0).lower()
-                if 'mariabackup' in method_text:
-                    details['transfer_method'] = 'mariabackup'
-                elif 'xtrabackup' in method_text:
-                    details['transfer_method'] = 'xtrabackup'
-                elif 'rsync' in method_text:
-                    details['transfer_method'] = 'rsync'
-                elif 'mysqldump' in method_text:
-                    details['transfer_method'] = 'mysqldump'
-                break
-        
-        # Extract donor/joiner information
-        node_patterns = [
-            r'to\s+([^\s,]+)',  # "SST to node123"
-            r'from\s+([^\s,]+)',  # "SST from node456"
-            r'donor\s*:\s*([^\s,]+)',  # "donor: node456"
-            r'joiner\s*:\s*([^\s,]+)',  # "joiner: node123"
-        ]
-        
-        for pattern in node_patterns:
-            match = re.search(pattern, log_line, re.IGNORECASE)
-            if match:
-                node_name = match.group(1)
-                if 'to' in pattern or 'joiner' in pattern:
-                    details['joiner_node'] = node_name
-                elif 'from' in pattern or 'donor' in pattern:
-                    details['donor_node'] = node_name
+        # Extract donor/joiner information from SST request line
+        # Pattern: "Member 1.0 (NODE_50000) requested state transfer from '*any*'. Selected 0.0 (NODE_54320)(SYNCED) as donor."
+        sst_request_pattern = r'Member \d+\.\d+ \(([^)]+)\) requested state transfer from.*Selected \d+\.\d+ \(([^)]+)\)'
+        match = re.search(sst_request_pattern, log_line, re.IGNORECASE)
+        if match:
+            details['joiner_node'] = match.group(1)  # NODE_50000
+            details['donor_node'] = match.group(2)   # NODE_54320
+        else:
+            # Fallback to legacy patterns
+            node_patterns = [
+                r'to\s+([^\s,]+)',  # "SST to node123"
+                r'from\s+([^\s,]+)',  # "SST from node456"
+                r'donor\s*:\s*([^\s,]+)',  # "donor: node456"
+                r'joiner\s*:\s*([^\s,]+)',  # "joiner: node123"
+            ]
+            
+            for pattern in node_patterns:
+                match = re.search(pattern, log_line, re.IGNORECASE)
+                if match:
+                    node_name = match.group(1)
+                    if 'to' in pattern or 'joiner' in pattern:
+                        details['joiner_node'] = node_name
+                    elif 'from' in pattern or 'donor' in pattern:
+                        details['donor_node'] = node_name
         
         details['transfer_status'] = 'started'
         return details
@@ -206,6 +201,33 @@ class SSTEventClassifier:
     def _extract_progress_details(self, log_line: str) -> Dict[str, Any]:
         """Extract details from SST progress events."""
         details = {}
+        
+        # Extract method from WSREP_SST script messages
+        wsrep_sst_pattern = r'WSREP_SST:.*\[INFO\]\s+(\w+)\s+SST\s+(started|completed)'
+        match = re.search(wsrep_sst_pattern, log_line, re.IGNORECASE)
+        if match:
+            details['transfer_method'] = match.group(1)  # mariabackup, rsync, etc.
+        else:
+            # Fallback method patterns for other progress messages
+            method_patterns = [
+                (r'method.*(?:rsync|mariabackup|xtrabackup|mysqldump)', re.IGNORECASE),
+                (r'(?:rsync|mariabackup|xtrabackup|mysqldump).*method', re.IGNORECASE),
+                (r'SST.*(?:rsync|mariabackup|xtrabackup|mysqldump)', re.IGNORECASE),
+            ]
+            
+            for pattern in method_patterns:
+                match = re.search(pattern[0], log_line, pattern[1])
+                if match:
+                    method_text = match.group(0).lower()
+                    if 'mariabackup' in method_text:
+                        details['transfer_method'] = 'mariabackup'
+                    elif 'xtrabackup' in method_text:
+                        details['transfer_method'] = 'xtrabackup'
+                    elif 'rsync' in method_text:
+                        details['transfer_method'] = 'rsync'
+                    elif 'mysqldump' in method_text:
+                        details['transfer_method'] = 'mysqldump'
+                    break
         
         # Extract percentage
         percent_match = re.search(r'(\d+(?:\.\d+)?)%', log_line)
