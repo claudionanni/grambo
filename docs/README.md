@@ -26,7 +26,26 @@ A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log fi
 
 # IST workflow analysis
 ./grap --entities=IST --format=json galera-node.log
+
+# Hierarchical SST+IST visualization with graa
+./grap --entities=SST,IST --format=json galera-node.log | python3 graa --stdin --sst-ist-tree
 ```
+
+### SST+IST Hierarchical Visualization
+
+GRAP combined with GRAA now provides comprehensive **hierarchical SST+IST relationship trees**:
+
+**Normal SST with backup transfer:**
+![SST+IST Tree Example](../img/graa_sst_ist_tree_example.png)
+
+**SST script-only mode with extensive IST processing:**
+![SST+IST No Backup Transfer](../img/graa_sst_ist_no_backup_transfer.png)
+
+Features:
+- **🔗 Clear Relationships**: Visual mapping between SST sessions and related IST events
+- **📊 Progress Tracking**: IST completion percentages and event counts
+- **⚡ Status Indicators**: Icons for different SST types and transfer modes
+- **🎯 Session Grouping**: Logical organization by time ranges and workflows
 
 **Current Implementation:**
 - **`grap`** - Complete entity extraction with IST workflow support

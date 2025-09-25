@@ -21,7 +21,58 @@ python3 grap.py --format=json galera-node.log | python3 graa.py --stdin
 python3 graa.py --help           # Show help
 python3 graa.py --version        # Show version
 python3 graa.py --sst-sessions   # Show detailed SST sessions timeline
+python3 graa.py --sst-ist-tree   # Show hierarchical SST+IST relationship tree
 ```
+
+## SST+IST Hierarchical Tree
+
+The `--sst-ist-tree` option provides a comprehensive hierarchical view of SST (State Snapshot Transfer) and IST (Incremental State Transfer) relationships:
+
+```bash
+# Show hierarchical SST+IST tree visualization
+./grap logfile.log --entities=SST,IST --format=json | python3 graa --stdin --sst-ist-tree
+```
+
+### Tree Visualization Features
+- **📊 Session Grouping**: SST events grouped into logical sessions with time ranges
+- **🔗 Relationship Mapping**: IST events clearly linked to their corresponding SST sessions
+- **📈 Progress Tracking**: IST progress percentages and event counts displayed
+- **🎯 Visual Hierarchy**: Tree structure with proper indentation and visual indicators
+- **⚡ Status Indicators**: Icons showing SST types (🚀 active, 📋 script-only, ❓ status changes) and IST events (📥)
+
+### Example Output
+
+#### Normal SST with Backup Transfer
+![SST+IST Tree Example](../img/graa_sst_ist_tree_example.png)
+
+This shows a typical scenario where SST completes with actual backup transfer, followed by minimal IST processing.
+
+#### SST Script-Only Mode with Extensive IST
+![SST+IST No Backup Transfer](../img/graa_sst_ist_no_backup_transfer.png)
+
+This demonstrates a scenario where SST initiates without backup transfer (script-only mode), requiring extensive IST processing to synchronize the node. Key features shown:
+- **⚠️ Warning**: "Backup Transfer: NO (script only)"
+- **Extensive IST Processing**: Multiple progress updates from 28.4% to 100.0%
+- **Large Event Counts**: Processing hundreds of thousands of events (303,719 total)
+- **Performance Insights**: Timeline showing IST processing duration and throughput
+
+### Tree Structure Format
+```
+[SESSION_NUMBER] SST SESSION
+    Time Range: start_time → end_time
+    ├─ 🚀 SST entity_name │ Status │ Method │ Backup Transfer status
+    └─ 📋 SST entity_name │ Status │ Transfer complete
+    │
+    ├─ 🔄 RELATED IST EVENTS:
+    │      ├─ 📥 IST entity_name │ Status │ Time │ Range │ Progress: X% (events)
+    │      └─ 📥 IST entity_name │ Status │ Time │ Progress: 100.0% (final_count)
+```
+
+### Benefits
+- **Troubleshooting**: Quickly identify SST/IST workflow issues
+- **Performance Analysis**: Monitor state transfer duration and progress
+- **Operational Insight**: Understand backup transfer vs IST processing patterns
+- **Documentation**: Clear visual representation for cluster behavior analysis
 
 ## SST Sessions Timeline
 
