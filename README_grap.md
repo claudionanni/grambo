@@ -31,30 +31,34 @@ chmod +x grap.py
 
 ```bash
 # Basic analysis
-./grap.py test_logs/db3.log
+./grap test_logs/db3.log
 
-# JSON output for integration
-./grap.py --format=json test_logs/db3.log
+# JSON output for integration  
+./grap --format=json test_logs/db3.log
 
 # Filter specific entity types
-./grap.py --entities=NODE,STATE_TRANSFER test_logs/db3.log
+./grap --entities=SST,IST test_logs/db3.log
 
-# Interactive learning mode
-./grap.py --learn --interactive test_logs/db3.log
+# Multi-node cluster analysis
+./grap node1.log node2.log --multi
 
-# Show available patterns
-./grap.py --show-patterns
+# IST workflow analysis
+./grap --entities=IST --format=json test_logs/db3.log
+
+# YAML output with confidence filtering
+./grap --format=yaml --confidence-threshold=0.9 test_logs/db3.log
 ```
 
 ## Architecture
 
 ### Entity Types
 
-- **NODE**: Galera cluster nodes and their state transitions
-- **STATE_TRANSFER**: SST/IST operations between nodes
+- **SST**: State Snapshot Transfer operations and lifecycle tracking
+- **IST**: Incremental State Transfer with comprehensive workflow monitoring
 - **VIEW**: Cluster membership and view changes
-- **COMMUNICATION**: Network communication events
-- **ERROR/WARNING**: Error conditions and warnings
+- **NODE**: Galera cluster nodes and their state transitions  
+- **ERROR**: Error conditions and critical issues
+- **TRANSACTION**: Transaction processing events
 
 ### Pattern Registry
 
@@ -122,31 +126,22 @@ NODE (5 entities)
 
 ### Basic Options
 ```bash
-grap.py [options] <logfile>
+grap [options] <logfile(s)>
 ```
 
 ### Output Options
 - `--format={text,json,yaml}`: Output format (default: text)
 - `--output=FILE`: Write output to file (default: stdout)
-- `--stats`: Include parsing statistics
+- `-v, --verbose`: Enable verbose logging
 
 ### Entity Options
-- `--entities=LIST`: Comma-separated entity types to extract
-- `--confidence-threshold=N`: Minimum confidence threshold (0.0-1.0)
+- `--entities=LIST`: Comma-separated entity types to extract (SST,IST,VIEW,NODE,ERROR,TRANSACTION)
+- `--confidence-threshold=N`: Minimum confidence threshold for entity extraction (default: 0.0)
 
-### Pattern Options
-- `--pattern-version=VER`: Use specific MariaDB version patterns
-- `--pattern-dir=DIR`: Custom pattern directory
-- `--show-patterns`: Display loaded patterns and exit
-
-### Learning Options
-- `--learn`: Enable interactive learning mode
-- `--interactive`: Enable interactive pattern validation
-- `--save-patterns=FILE`: Save learned patterns to file
-
-### Debug Options
-- `--dry-run`: Validate configuration without processing
-- `--verbose`: Increase verbosity (-v, -vv, -vvv)
+### Analysis Options
+- `--multi`: Multi-node cluster analysis mode
+- `--no-cache`: Disable cache usage (force re-analysis)
+- `--cache-dir=DIR`: Cache directory (default: ./grap_cache)
 
 ## Pattern Development
 

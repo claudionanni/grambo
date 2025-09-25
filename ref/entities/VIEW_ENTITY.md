@@ -15,10 +15,11 @@
 - **Membership Snapshot**: Complete list of active cluster members with their UUIDs and hostnames
 - **State Transition**: Each view change represents a cluster reconfiguration event
 
-### 1.2 Key Characteristics
+### 1.2 Key Characteristics  
 - **Immutable Snapshots**: Each view represents a fixed cluster state
 - **Sequential Evolution**: Views progress through incrementing sequence numbers
 - **Membership Authority**: Definitive source for cluster member identification
+- **Perspective-Based**: Each view is from a specific node's perspective (CRITICAL for split-brain)
 - **Correlation Hub**: Primary mechanism for linking UUIDs to nodes and members
 
 ### 1.3 Entity Relationships

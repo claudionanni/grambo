@@ -87,6 +87,10 @@ class TemporalStateTransferEntity(Entity):
             timestamp = datetime.now()
             
         self.temporal_properties.update_property(property_name, value, timestamp)
+        
+        # Also update main entity properties for key fields used by formatter
+        if property_name == 'transfer_method':
+            self.transfer_method = value
     
     def complete_transfer(self, final_status: str, end_timestamp: Optional[datetime] = None) -> None:
         """

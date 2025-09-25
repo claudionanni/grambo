@@ -1,0 +1,40 @@
+WSREP_SST: [INFO] mariabackup IST completed on joiner (20250925 13:54:33.052)
+2025-09-25 13:54:36 1 [Note] WSREP: Receiving IST: 25508 writesets, seqnos 41831-67338
+2025-09-25 13:54:36 0 [Note] WSREP: ####### IST applying starts with 41831
+2025-09-25 13:54:36 0 [Note] WSREP: ####### IST current seqno initialized to 41831
+2025-09-25 13:54:36 0 [Note] WSREP: Receiving IST... 0.0% (0/25508 events) complete.
+2025-09-25 13:54:36 0 [Note] WSREP: Lowest cert index boundary for CC from ist: 41831
+2025-09-25 13:54:36 0 [Note] WSREP: Min available from gcache for CC from ist: 362
+2025-09-25 13:54:36 0 [Note] WSREP: IST preload starting at 67209
+2025-09-25 13:54:56 0 [Note] WSREP: Lowest cert index boundary for CC from ist: 67209
+2025-09-25 13:54:56 0 [Note] WSREP: Min available from gcache for CC from ist: 32924
+2025-09-25 13:54:56 0 [Note] WSREP: Receiving IST... 100.0% (25508/25508 events) complete.
+2025-09-25 13:54:56 1 [Note] WSREP: Draining apply monitors after IST up to 67338
+2025-09-25 13:54:56 1 [Note] WSREP: IST received: a572a681-97f2-11f0-9f63-c7c3a72b2527:67338
+2025-09-25 13:54:56 0 [Note] WSREP: Processing event queue:... 0.0% (0/33290 events) complete.
+250925 13:55:04 mysqld_safe A mysqld process already exists
+2025-09-25 13:55:06 1 [Note] WSREP: Processing event queue:... 28.4% (13072/46040 events) complete.
+2025-09-25 13:55:16 1 [Note] WSREP: Processing event queue:... 44.2% (25968/58732 events) complete.
+2025-09-25 13:55:26 1 [Note] WSREP: Processing event queue:... 54.5% (38864/71371 events) complete.
+2025-09-25 13:55:36 1 [Note] WSREP: Processing event queue:... 61.7% (51920/84099 events) complete.
+2025-09-25 13:55:46 1 [Note] WSREP: Processing event queue:... 67.0% (64800/96704 events) complete.
+2025-09-25 13:55:56 1 [Note] WSREP: Processing event queue:... 70.9% (77280/108983 events) complete.
+2025-09-25 13:56:06 1 [Note] WSREP: Processing event queue:... 74.0% (89632/121120 events) complete.
+2025-09-25 13:56:16 1 [Note] WSREP: Processing event queue:... 76.3% (101024/132337 events) complete.
+2025-09-25 13:56:26 1 [Note] WSREP: Processing event queue:... 78.4% (113600/144811 events) complete.
+2025-09-25 13:56:36 1 [Note] WSREP: Processing event queue:... 80.2% (126160/157298 events) complete.
+2025-09-25 13:56:46 1 [Note] WSREP: Processing event queue:... 81.8% (138576/169494 events) complete.
+2025-09-25 13:56:56 1 [Note] WSREP: Processing event queue:... 83.0% (150912/181721 events) complete.
+2025-09-25 13:57:06 1 [Note] WSREP: Processing event queue:... 84.2% (163104/193760 events) complete.
+2025-09-25 13:57:16 1 [Note] WSREP: Processing event queue:... 85.2% (175056/205461 events) complete.
+2025-09-25 13:57:26 1 [Note] WSREP: Processing event queue:... 86.1% (186864/217124 events) complete.
+2025-09-25 13:57:36 1 [Note] WSREP: Processing event queue:... 86.9% (199376/229527 events) complete.
+2025-09-25 13:57:46 1 [Note] WSREP: Processing event queue:... 87.6% (211744/241794 events) complete.
+2025-09-25 13:57:56 1 [Note] WSREP: Processing event queue:... 88.2% (224288/254219 events) complete.
+2025-09-25 13:58:06 1 [Note] WSREP: Processing event queue:... 88.8% (236512/266290 events) complete.
+2025-09-25 13:58:16 1 [Note] WSREP: Processing event queue:... 89.4% (248896/278516 events) complete.
+2025-09-25 13:58:26 1 [Note] WSREP: Processing event queue:... 89.9% (261408/290864 events) complete.
+2025-09-25 13:58:36 1 [Note] WSREP: Processing event queue:... 90.3% (273872/303247 events) complete.
+2025-09-25 13:58:46 1 [Note] WSREP: Processing event queue:... 95.3% (289328/303719 events) complete.
+2025-09-25 13:58:55 0 [Note] WSREP: Processing event queue:... 100.0% (303719/303719 events) complete.
+

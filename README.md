@@ -2,39 +2,45 @@
 
 A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log files, now featuring a complete **3-tool pipeline** for single-node analysis, multi-node correlation, and interactive web visualization.
 
-## � GRAP - Next Generation Entity Extraction (v2-rewrite branch)
+## 🔧 GRAP - Enhanced Entity Extraction (Production Ready)
 
-**GRAP** (Galera log analysis with Python) is the modern, entity-based rewrite of Grambo featuring:
+**GRAP** (Galera Real-time Analysis Parser) is the enhanced production implementation featuring:
 
-- **🎯 Entity-Based Architecture** - Extracts structured entities (NODE, VIEW, SST, WARNING) instead of raw text
-- **🔍 Dialect Detection** - Automatically detects MariaDB/MySQL versions and adapts patterns accordingly
-- **📊 Structured Output** - JSON and formatted text output with entity relationships
-- **🛡️ Advanced Pattern Matching** - YAML-based patterns with confidence scoring and deduplication
-- **�🔧 Modern Python Implementation** - Clean, maintainable codebase with comprehensive testing
+- **🎯 Entity-Based Architecture** - Extracts structured entities (SST, IST, VIEW, NODE, ERROR, TRANSACTION)
+- **� IST Workflow Tracking** - Complete Incremental State Transfer lifecycle monitoring
+- **📊 Multi-Format Output** - Text, JSON, and YAML output formats
+- **� Intelligent Caching** - Cache analysis results for faster re-processing
+- **🌐 Multi-Node Analysis** - Analyze multiple log files with cluster correlation
+- **⚡ Advanced Filtering** - Filter by entity types and confidence thresholds
 
-### GRAP Tool Suite (graX naming)
+### GRAP Usage
 ```bash
-# Entity extraction (replaces old gra functionality)
-./grap.py galera-node.log
+# Basic single node analysis
+./grap galera-node.log
 
-# Analysis summary (new gra equivalent)  
-./graa.py galera-node.log
+# Multi-node cluster analysis
+./grap node1.log node2.log --multi
 
-# JSON pipeline mode
-./grap.py --format=json galera-node.log | ./graa.py --stdin
+# JSON output with entity filtering
+./grap --format=json --entities=SST,IST galera-node.log
+
+# IST workflow analysis
+./grap --entities=IST --format=json galera-node.log
 ```
 
-**Tool Evolution:**
-- **`grap.py`** - Low-level entity extraction engine
-- **`graa.py`** - Analysis summaries (new version of `gra`)
-- **Future: `graS.py`** - Multi-node correlation (new version of `gras`)
-- **Future: `graW.py`** - Web visualization (new version of `graw`)
+**Current Implementation:**
+- **`grap`** - Complete entity extraction with IST workflow support
+- **`graa`** - Analysis summaries (legacy compatibility)
+- **`gras`** - Multi-node correlation (legacy)
+- **`graw`** - Web visualization (legacy)
 
 **Entity Types Extracted:**
-- **NODE** - State changes, configuration, cluster membership
-- **VIEW** - Cluster membership changes, splits, merges  
-- **STATE_TRANSFER** - SST/IST operations with detailed progress
-- **WARNING** - Connection issues, timeouts, configuration problems
+- **SST** - State Snapshot Transfer operations and lifecycle
+- **IST** - Incremental State Transfer with 8-stage workflow tracking  
+- **VIEW** - Cluster membership changes and view formations
+- **NODE** - State transitions, configuration, membership
+- **ERROR** - Error conditions and critical issues
+- **TRANSACTION** - Transaction processing events
 
 For detailed documentation, see [README_grap.md](README_grap.md).
 

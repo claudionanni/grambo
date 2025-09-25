@@ -6,19 +6,25 @@ This is a workspace for the Grambo project cloned from https://github.com/claudi
 
 ## Project Context
 - **Repository**: claudionanni/grambo
-- **Branch**: master
-- **Project Type**: Shell script utility
-- **Language**: Bash
-- **Purpose**: Galera Log Deforester - analyze MySQL/MariaDB Galera cluster log files
+- **Branch**: v2-rewrite (comprehensive entity architecture)
+- **Project Type**: Advanced Galera cluster analysis platform
+- **Languages**: Python (modern), Bash (legacy)
+- **Purpose**: Comprehensive Galera cluster analysis with entity-based architecture
 - **Setup Date**: September 15, 2025
+- **Architecture**: Entity-based hierarchical cluster analysis system
 
 ## Project Structure
 - `grambo`: Original bash script (legacy version)
-- `gramboo.py`: Modern Python rewrite with organized output and advanced features
-- `grambo.recipes`: Usage examples and recipes for log analysis (for bash version)
-- `README.md`: Installation and basic usage instructions for bash version
-- `README_python.md`: Comprehensive documentation for Python version
-- `db3.log`: Sample Galera log file for testing
+- `gramboo.py`: Modern Python rewrite (transitional)
+- `grap`: Next-generation entity-based parser (current focus)
+- `graa`: Advanced cluster analyzer with comprehensive entity support
+- `lib/entities/`: Comprehensive entity architecture framework
+- `ref/entities/`: Entity research documentation and specifications
+- `patterns/`: YAML-based pattern definitions for entity recognition
+- `test_logs/`: Sample Galera log files for testing and validation
+- `README.md`: Installation and basic usage instructions
+- `COMPREHENSIVE_ENTITY_MODEL.md`: Complete entity architecture specification
+- `ENTITY_IMPLEMENTATION_ROADMAP.md`: Development phases and priorities
 
 ## Usage
 ```bash

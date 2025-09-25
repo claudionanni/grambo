@@ -7,6 +7,7 @@ lifecycles (start/progress/end), particularly useful for SST operations.
 """
 
 import logging
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
@@ -123,6 +124,16 @@ class SessionManager:
             # Discard orphaned progress events - they don't represent real sessions
             self.logger.warning("Found SST progress without active session. Discarding orphaned progress event.")
             return None
+        
+        # Check if this is the method-containing line right after session start
+        if 'wsrep_sst_' in log_line and '--role' in log_line:
+            # Extract method from wsrep_sst_METHOD pattern
+            method_match = re.search(r'wsrep_sst_(\w+)', log_line)
+            if method_match:
+                method = method_match.group(1)
+                current_sst.update_property('transfer_method', method, timestamp)
+                current_sst.transfer_method = method  # Also update the main property
+                self.logger.info(f"Extracted SST method: {method}")
         
         # Update temporal properties
         for property_name, value in data.items():

@@ -186,19 +186,35 @@ class LogParser:
             # Extract timestamp from line for session management
             timestamp = self._extract_timestamp(line)
             
-            # First try session management for SST events
-            sst_entity = self.session_manager.process_sst_event(line, timestamp, {})
+            # First try pattern matching to extract any SST data
+            sst_pattern_data = {}
+            if self.pattern_matcher:
+                matched_entities = self.pattern_matcher.match_line(line, entity_types)
+                sst_pattern_entities = [e for e in matched_entities if e.entity_type == EntityType.STATE_TRANSFER]
+                if sst_pattern_entities:
+                    # Extract data from the first SST pattern match for session manager
+                    sst_entity_dict = sst_pattern_entities[0].to_dict()
+                    sst_pattern_data = {k: v for k, v in sst_entity_dict.items() 
+                                       if k in ['donor_node', 'joiner_node', 'transfer_status', 'transfer_method']}
+            
+            # Try session management for SST events with pattern data
+            sst_processed = False
+            sst_entity = self.session_manager.process_sst_event(line, timestamp, sst_pattern_data)
             if sst_entity:
                 entities.append(sst_entity)
                 self.stats['extracted_entities'] += 1
+                sst_processed = True
+            else:
+                # Check if session manager processed the line (even if it returned None)
+                sst_processed = self.session_manager.sst_classifier.is_sst_related(line)
             
-            # Use pattern matcher for other entities if configured
+            # Use pattern matcher for non-SST entities or when session manager didn't process SST
             if self.pattern_matcher:
                 matched_entities = self.pattern_matcher.match_line(line, entity_types)
                 
                 for entity in matched_entities:
-                    # Skip if this is an SST entity and we already handled it
-                    if entity.entity_type == EntityType.STATE_TRANSFER and sst_entity:
+                    # Skip SST entities if session manager already processed this line
+                    if entity.entity_type == EntityType.STATE_TRANSFER and sst_processed:
                         continue
                         
                     # Enrich entity with parsing context
@@ -248,6 +264,8 @@ class LogParser:
             r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
             # MySQL format with microseconds: 2025-09-15T13:45:48.123456Z
             r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z?)',
+            # WSREP_SST format: (20250919 11:10:54.872)
+            r'\((\d{8}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\)',
             # Syslog format: Sep 15 13:45:48
             r'([A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})',
         ]
@@ -265,6 +283,12 @@ class LogParser:
                             return datetime.fromisoformat(timestamp_str)
                         else:
                             return datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S')
+                    elif len(timestamp_str.split()) == 2 and len(timestamp_str.split()[0]) == 8:
+                        # WSREP_SST format: 20250919 11:10:54.872 (YYYYMMDD HH:MM:SS.mmm)
+                        if '.' in timestamp_str:
+                            return datetime.strptime(timestamp_str, '%Y%m%d %H:%M:%S.%f')
+                        else:
+                            return datetime.strptime(timestamp_str, '%Y%m%d %H:%M:%S')
                     elif len(timestamp_str.split()) == 2:
                         # YYYY-MM-DD HH:MM:SS format
                         return datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
