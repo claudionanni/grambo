@@ -61,3 +61,6 @@ galera-*/
 # Test outputs
 test_output/
 temp_results/
+
+# Temporary stuff directory (not to be committed)
+stuff/
