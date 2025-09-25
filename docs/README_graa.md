@@ -43,12 +43,96 @@ The `--sst-ist-tree` option provides a comprehensive hierarchical view of SST (S
 ### Example Output
 
 #### Normal SST with Backup Transfer
-![SST+IST Tree Example](../img/graa_sst_ist_tree_example.png)
+```
+[1] SST SESSION
+    Time Range: 2025-09-23 17:56:51 → 2025-09-23 17:57:07
+    ├─ 🚀 SST sst_94
+    │     Time: 2025-09-23 17:56:51
+    │     Status: backup_transfer_started
+    │     Method: mariabackup
+    │     ✅ Backup Transfer: YES
+    ├─ ❓ SST sst_donor_106
+    │     Time: 2025-09-23 17:56:51
+    │     Status: donor_selected
+    ├─ 🚀 SST sst_proceeding_111
+    │     Time: 2025-09-23 17:56:51
+    │     Status: proceeding_with_backup
+    │     ✅ Backup Transfer: YES
+    ├─ ❓ SST sst_xfer_complete_117
+    │     Time: 2025-09-23 17:57:07
+    │     Status: transfer_complete
+    └─ ❓ SST sst_94
+          Time: 2025-09-23 17:57:07
+          Status: completed
+          Method: mariabackup
+    │
+    ├─ 🔄 RELATED IST EVENTS:
+    │      ├─ 📥 IST ist_00000000 │ Status: preparing │ Time: 2025-09-23 17:56:51 │ Range: 0→17
+    │      ├─ 📥 IST ist_receiver_104 │ Status: receiver_ready │ Time: 2025-09-23 17:56:51
+    │      ├─ 📥 IST ist_prepared_105 │ Status: prepared │ Time: 2025-09-23 17:56:51 │ Range: 0→17
+    │      ├─ 📥 IST ist_applying_182 │ Status: applying │ Time: 2025-09-23 17:57:12 │ Range: 18→0
+    │      ├─ 📥 IST ist_seqno_init_183 │ Status: seqno_initialized │ Time: 2025-09-23 17:57:12 │ Range: 7→0
+    │      ├─ 📥 IST ist_progress_184 │ Status: receiving │ Time: 2025-09-23 17:57:12
+    │      ├─ 📥 IST ist_preload_185 │ Status: preloading │ Time: 2025-09-23 17:57:12 │ Range: 7→0
+    │      ├─ 📥 IST ist_progress_233 │ Status: receiving │ Time: 2025-09-23 17:57:12 │ Progress: 100.0% (11/11 events)
+    │      ├─ 📥 IST ist_received_234 │ Status: received │ Time: 2025-09-23 17:57:12 │ Range: 0→17
+    │      └─ 📥 IST ist_processing_241 │ Status: processing │ Time: 2025-09-23 17:57:12 │ Progress: 100.0% (1/1 events)
+```
 
 This shows a typical scenario where SST completes with actual backup transfer, followed by minimal IST processing.
 
 #### SST Script-Only Mode with Extensive IST
-![SST+IST No Backup Transfer](../img/graa_sst_ist_no_backup_transfer.png)
+```
+[2] SST SESSION
+    Time Range: 2025-09-25 13:54:32 → 2025-09-25 13:54:33
+    ├─ 📋 SST sst_1343
+    │     Time: 2025-09-25 13:54:32
+    │     Status: started
+    │     Method: mariabackup
+    │     ⚠️  Backup Transfer: NO (script only)
+    ├─ ❓ SST sst_donor_1357
+    │     Time: 2025-09-25 13:54:32
+    │     Status: donor_selected
+    └─ ❓ SST sst_xfer_complete_1360
+          Time: 2025-09-25 13:54:33
+          Status: transfer_complete
+    │
+    ├─ 🔄 RELATED IST EVENTS:
+    │      ├─ 📥 IST ist_a572a681 │ Status: preparing │ Time: 2025-09-25 13:54:32 │ Range: 41831→67338
+    │      ├─ 📥 IST ist_receiver_1355 │ Status: receiver_ready │ Time: 2025-09-25 13:54:32
+    │      ├─ 📥 IST ist_prepared_1356 │ Status: prepared │ Time: 2025-09-25 13:54:32 │ Range: 41831→67338
+    │      ├─ 📥 IST ist_applying_1415 │ Status: applying │ Time: 2025-09-25 13:54:36 │ Range: 41831→0
+    │      ├─ 📥 IST ist_seqno_init_1416 │ Status: seqno_initialized │ Time: 2025-09-25 13:54:36 │ Range: 41831→0
+    │      ├─ 📥 IST ist_progress_1417 │ Status: receiving │ Time: 2025-09-25 13:54:36
+    │      ├─ 📥 IST ist_preload_1439 │ Status: preloading │ Time: 2025-09-25 13:54:36 │ Range: 67209→0
+    │      ├─ 📥 IST ist_progress_1445 │ Status: receiving │ Time: 2025-09-25 13:54:56 │ Progress: 100.0% (25508/25508 events)
+    │      ├─ 📥 IST ist_received_1462 │ Status: received │ Time: 2025-09-25 13:54:56 │ Range: 0→67338
+    │      ├─ 📥 IST ist_processing_1467 │ Status: processing │ Time: 2025-09-25 13:54:56
+    │      ├─ 📥 IST ist_processing_1469 │ Status: processing │ Time: 2025-09-25 13:55:06 │ Progress: 28.4% (13072/46040 events)
+    │      ├─ 📥 IST ist_processing_1470 │ Status: processing │ Time: 2025-09-25 13:55:16 │ Progress: 44.2% (25968/58732 events)
+    │      ├─ 📥 IST ist_processing_1471 │ Status: processing │ Time: 2025-09-25 13:55:26 │ Progress: 54.5% (38864/71371 events)
+    │      ├─ 📥 IST ist_processing_1472 │ Status: processing │ Time: 2025-09-25 13:55:36 │ Progress: 61.7% (51920/84099 events)
+    │      ├─ 📥 IST ist_processing_1473 │ Status: processing │ Time: 2025-09-25 13:55:46 │ Progress: 67.0% (64800/96704 events)
+    │      ├─ 📥 IST ist_processing_1474 │ Status: processing │ Time: 2025-09-25 13:55:56 │ Progress: 70.9% (77280/108983 events)
+    │      ├─ 📥 IST ist_processing_1475 │ Status: processing │ Time: 2025-09-25 13:56:06 │ Progress: 74.0% (89632/121120 events)
+    │      ├─ 📥 IST ist_processing_1476 │ Status: processing │ Time: 2025-09-25 13:56:16 │ Progress: 76.3% (101024/132337 events)
+    │      ├─ 📥 IST ist_processing_1477 │ Status: processing │ Time: 2025-09-25 13:56:26 │ Progress: 78.4% (113600/144811 events)
+    │      ├─ 📥 IST ist_processing_1478 │ Status: processing │ Time: 2025-09-25 13:56:36 │ Progress: 80.2% (126160/157298 events)
+    │      ├─ 📥 IST ist_processing_1479 │ Status: processing │ Time: 2025-09-25 13:56:46 │ Progress: 81.8% (138576/169494 events)
+    │      ├─ 📥 IST ist_processing_1480 │ Status: processing │ Time: 2025-09-25 13:56:56 │ Progress: 83.0% (150912/181721 events)
+    │      ├─ 📥 IST ist_processing_1481 │ Status: processing │ Time: 2025-09-25 13:57:06 │ Progress: 84.2% (163104/193760 events)
+    │      ├─ 📥 IST ist_processing_1482 │ Status: processing │ Time: 2025-09-25 13:57:16 │ Progress: 85.2% (175056/205461 events)
+    │      ├─ 📥 IST ist_processing_1483 │ Status: processing │ Time: 2025-09-25 13:57:26 │ Progress: 86.1% (186864/217124 events)
+    │      ├─ 📥 IST ist_processing_1484 │ Status: processing │ Time: 2025-09-25 13:57:36 │ Progress: 86.9% (199376/229527 events)
+    │      ├─ 📥 IST ist_processing_1485 │ Status: processing │ Time: 2025-09-25 13:57:46 │ Progress: 87.6% (211744/241794 events)
+    │      ├─ 📥 IST ist_processing_1486 │ Status: processing │ Time: 2025-09-25 13:57:56 │ Progress: 88.2% (224288/254219 events)
+    │      ├─ 📥 IST ist_processing_1487 │ Status: processing │ Time: 2025-09-25 13:58:06 │ Progress: 88.8% (236512/266290 events)
+    │      ├─ 📥 IST ist_processing_1488 │ Status: processing │ Time: 2025-09-25 13:58:16 │ Progress: 89.4% (248896/278516 events)
+    │      ├─ 📥 IST ist_processing_1489 │ Status: processing │ Time: 2025-09-25 13:58:26 │ Progress: 89.9% (261408/290864 events)
+    │      ├─ 📥 IST ist_processing_1490 │ Status: processing │ Time: 2025-09-25 13:58:36 │ Progress: 90.3% (273872/303247 events)
+    │      ├─ 📥 IST ist_processing_1491 │ Status: processing │ Time: 2025-09-25 13:58:46 │ Progress: 95.3% (289328/303719 events)
+    │      └─ 📥 IST ist_processing_1493 │ Status: processing │ Time: 2025-09-25 13:58:55 │ Progress: 100.0% (303719/303719 events)
+```
 
 This demonstrates a scenario where SST initiates without backup transfer (script-only mode), requiring extensive IST processing to synchronize the node. Key features shown:
 - **⚠️ Warning**: "Backup Transfer: NO (script only)"

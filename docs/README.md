@@ -35,11 +35,32 @@ A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log fi
 
 GRAP combined with GRAA now provides comprehensive **hierarchical SST+IST relationship trees**:
 
-**Normal SST with backup transfer:**
-![SST+IST Tree Example](../img/graa_sst_ist_tree_example.png)
+#### Normal SST with backup transfer:
+```
+[1] SST SESSION
+    Time Range: 2025-09-23 17:56:51 → 2025-09-23 17:57:07
+    ├─ 🚀 SST sst_94
+    │     Status: backup_transfer_started │ Method: mariabackup │ ✅ Backup Transfer: YES
+    ├─ 🚀 SST sst_proceeding_111
+    │     Status: proceeding_with_backup │ ✅ Backup Transfer: YES
+    └─ ❓ SST sst_94 │ Status: completed
+    │
+    ├─ 🔄 RELATED IST EVENTS:
+    │      ├─ 📥 IST ist_progress_233 │ Status: receiving │ Progress: 100.0% (11/11 events)
+    │      └─ 📥 IST ist_processing_241 │ Status: processing │ Progress: 100.0% (1/1 events)
+```
 
-**SST script-only mode with extensive IST processing:**
-![SST+IST No Backup Transfer](../img/graa_sst_ist_no_backup_transfer.png)
+#### SST script-only mode with extensive IST processing:
+```
+[2] SST SESSION
+    Time Range: 2025-09-25 13:54:32 → 2025-09-25 13:54:33
+    ├─ 📋 SST sst_1343 │ Status: started │ ⚠️ Backup Transfer: NO (script only)
+    │
+    ├─ 🔄 RELATED IST EVENTS:
+    │      ├─ 📥 IST ist_processing_1469 │ Progress: 28.4% (13072/46040 events)
+    │      ├─ 📥 IST ist_processing_1486 │ Progress: 88.2% (224288/254219 events)
+    │      └─ 📥 IST ist_processing_1493 │ Progress: 100.0% (303719/303719 events)
+```
 
 Features:
 - **🔗 Clear Relationships**: Visual mapping between SST sessions and related IST events
