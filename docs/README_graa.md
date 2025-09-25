@@ -81,7 +81,7 @@ The `--sst-ist-tree` option provides a comprehensive hierarchical view of SST (S
 
 This shows a typical scenario where SST completes with actual backup transfer, followed by minimal IST processing.
 
-#### SST Script-Only Mode with Extensive IST
+#### SST Without Backup Transfer, Only IST needed
 ```
 [2] SST SESSION
     Time Range: 2025-09-25 13:54:32 → 2025-09-25 13:54:33
