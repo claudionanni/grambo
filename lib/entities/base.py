@@ -22,12 +22,20 @@ from .id_strategy import EntityIDGenerator
 
 class EntityType(Enum):
     """Enumeration of supported entity types"""
+    # Core cluster entities
+    CLUSTER = "CLUSTER"
     NODE = "NODE"
+    NODE_STATE = "NODE_STATE"
+    
+    # Operational entities  
     STATE_TRANSFER = "STATE_TRANSFER"
     VIEW = "VIEW"
+    WSREP_VIEW = "WSREP_VIEW"
     COMMUNICATION = "COMMUNICATION"
+    
+    # Event entities
     ERROR = "ERROR"
-    WARNING = "WARNING"
+    WARNING = "WARNING" 
     PERFORMANCE = "PERFORMANCE"
     TRANSACTION = "TRANSACTION"
 

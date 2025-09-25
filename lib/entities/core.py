@@ -60,11 +60,14 @@ class NodeEntity(Entity):
     level: str = "Note"
     
     # Node identification
-    node_id: str = ""  # Galera node UUID (short format)
-    long_uuid: str = ""  # Full UUID format (when available)
+    node_uuid: str = ""  # Full Galera node UUID 
+    short_uuid: str = ""  # Short UUID format (parts 1 and 4)
     node_name: str = ""  # Human-readable node name
     node_address: str = ""  # IP:port combination
     state_uuid: str = ""  # State exchange UUID (when available)
+    
+    # Relationship aliases (for efficient lookups)
+    uuid_alias: str = field(default="", init=False)  # Short UUID for direct relationship matching
     
     # Node state
     current_state: NodeState = NodeState.UNKNOWN
@@ -85,8 +88,8 @@ class NodeEntity(Entity):
     
     def validate(self) -> bool:
         """Validate node entity data"""
-        if not self.node_id and not self.node_name and not self.node_address:
-            raise ValueError("Node must have at least one identifier (id, name, or address)")
+        if not self.short_uuid and not self.node_name and not self.node_address:
+            raise ValueError("Node must have at least one identifier (uuid, name, or address)")
             
         # Validate state transition if both states are present
         if self.previous_state and self.current_state:
@@ -101,18 +104,20 @@ class NodeEntity(Entity):
     
     def convert_long_uuid_to_short(self) -> None:
         """Convert long UUID format to short format if available"""
-        if self.long_uuid and not self.node_id:
+        if self.node_uuid and not self.short_uuid:
             # Long UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
             # Short UUID format: xxxxxxxx-xxxx (1st part + 4th part)
-            parts = self.long_uuid.split('-')
+            parts = self.node_uuid.split('-')
             if len(parts) == 5:
-                self.node_id = f"{parts[0]}-{parts[3]}"
+                self.short_uuid = f"{parts[0]}-{parts[3]}"
     
     def __post_init__(self):
         """Post-initialization processing"""
         super().__post_init__()
         # Convert long UUID to short format if needed
         self.convert_long_uuid_to_short()
+        # Set UUID alias for relationship matching
+        self.uuid_alias = self.short_uuid if self.short_uuid else ""
         
     def _get_valid_transitions(self) -> List[tuple]:
         """Get list of valid Galera state transitions"""
@@ -196,8 +201,8 @@ class NodeEntity(Entity):
         base_dict = super().to_dict()
         base_dict.update({
             'level': self.level,
-            'node_id': self.node_id,
-            'long_uuid': self.long_uuid,
+            'node_uuid': self.node_uuid,
+            'short_uuid': self.short_uuid,
             'node_name': self.node_name,
             'node_address': self.node_address,
             'state_uuid': self.state_uuid,
@@ -241,8 +246,8 @@ class NodeEntity(Entity):
             validated=data.get('validated', False),
             validation_notes=data.get('validation_notes', ''),
             level=data.get('level', 'Note'),
-            node_id=data.get('node_id', ''),
-            long_uuid=data.get('long_uuid', ''),
+            node_uuid=data.get('node_uuid', ''),
+            short_uuid=data.get('short_uuid', ''),
             node_name=data.get('node_name', ''),
             node_address=data.get('node_address', ''),
             state_uuid=data.get('state_uuid', ''),
@@ -499,7 +504,10 @@ class ViewEntity(Event):
     
     def get_id_attributes(self) -> Dict[str, Any]:
         """Get attributes for view entity ID generation"""
-        view_identifier = self.view_id if self.view_id else (f"seq_{self.view_seq}" if self.view_seq is not None else "unknown")
+        # Use (node_short_uuid,seqno) format to prevent duplicates
+        node_short_uuid = self.view_id if self.view_id else "unknown"
+        seqno = str(self.view_seq) if self.view_seq is not None else "0"
+        view_identifier = f"({node_short_uuid},{seqno})"
         return {
             'id': view_identifier,
             'timestamp': self.timestamp,
@@ -556,6 +564,150 @@ class ViewEntity(Event):
             left_nodes=data.get('left_nodes', []),
             protocol_version=data.get('protocol_version'),
             evs_protocol_version=data.get('evs_protocol_version')
+        )
+
+
+@dataclass
+class WsrepViewEntity(Event):
+    """
+    Represents a WSREP layer cluster view event
+    
+    This entity captures information about WSREP layer views which contain
+    cluster UUID + view sequence number (actual GTID seqno) and provide
+    complete membership details with capabilities.
+    """
+    
+    entity_type: EntityType = field(default=EntityType.WSREP_VIEW, init=False)
+    
+    # Log level (Note, Warning, Error, etc.)
+    level: str = "Note"
+    
+    # WSREP View identification (cluster_uuid:seqno format)
+    wsrep_view_id: str = ""  # Full cluster_uuid:seqno identifier
+    cluster_uuid: str = ""   # Cluster UUID part
+    view_seqno: Optional[int] = None  # WSREP view sequence number (GTID seqno)
+    
+    # View status and capabilities
+    status: str = "unknown"  # primary, non_primary, etc.
+    protocol_version: Optional[int] = None
+    capabilities: List[str] = field(default_factory=list)
+    final: bool = False
+    own_index: Optional[int] = None
+    
+    # Membership information (detailed format)
+    members: List[Dict[str, str]] = field(default_factory=list)  # List of member dicts with index, uuid, name
+    member_count: Optional[int] = None
+    member_uuids: List[str] = field(default_factory=list)  # List of member UUIDs for easy access
+    
+    def __post_init__(self):
+        """Post-initialization processing"""
+        super().__post_init__()
+        
+        # Extract cluster_uuid and view_seqno from wsrep_view_id if provided
+        if self.wsrep_view_id and ":" in self.wsrep_view_id:
+            parts = self.wsrep_view_id.split(":", 1)
+            if len(parts) == 2:
+                self.cluster_uuid = parts[0]
+                try:
+                    self.view_seqno = int(parts[1])
+                except ValueError:
+                    pass
+    
+    def validate(self) -> bool:
+        """Validate WSREP view entity"""
+        # Call parent validation
+        super().validate()
+        
+        if not self.wsrep_view_id and not self.cluster_uuid:
+            raise ValueError("WSREP view must have wsrep_view_id or cluster_uuid")
+            
+        # Set member_count from members list if not provided
+        if self.member_count is None and self.members:
+            self.member_count = len(self.members)
+            
+        return True
+        
+    def is_primary_view(self) -> bool:
+        """Check if this is a primary cluster view"""
+        return self.status.lower() == "primary"
+        
+    def get_member_by_index(self, index: int) -> Optional[Dict[str, str]]:
+        """Get member information by index"""
+        for member in self.members:
+            if member.get('index') == str(index):
+                return member
+        return None
+        
+    def get_member_names(self) -> List[str]:
+        """Get list of member names"""
+        return [member.get('name', '') for member in self.members if member.get('name')]
+        
+    def get_member_uuids(self) -> List[str]:
+        """Get list of member UUIDs"""
+        return [member.get('uuid', '') for member in self.members if member.get('uuid')]
+    
+    def get_id_attributes(self) -> Dict[str, Any]:
+        """Get attributes for WSREP view entity ID generation"""
+        # Use cluster_uuid:seqno format for ID
+        wsrep_identifier = self.wsrep_view_id if self.wsrep_view_id else f"{self.cluster_uuid}:{self.view_seqno or 0}"
+        return {
+            'id': wsrep_identifier,
+            'timestamp': self.timestamp,
+        }
+        
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert WSREP view entity to dictionary"""
+        base_dict = super().to_dict()
+        base_dict.update({
+            'wsrep_view_id': self.wsrep_view_id,
+            'cluster_uuid': self.cluster_uuid,
+            'view_seqno': self.view_seqno,
+            'status': self.status,
+            'protocol_version': self.protocol_version,
+            'capabilities': self.capabilities,
+            'final': self.final,
+            'own_index': self.own_index,
+            'members': self.members,
+            'member_count': self.member_count,
+            'member_uuids': self.member_uuids
+        })
+        return base_dict
+        
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'WsrepViewEntity':
+        """Create WSREP view entity from dictionary"""
+        timestamp = None
+        if data.get('timestamp'):
+            timestamp = datetime.fromisoformat(data['timestamp'])
+            
+        return cls(
+            entity_id=data.get('entity_id', ''),
+            timestamp=timestamp,
+            line_number=data.get('line_number'),
+            raw_line=data.get('raw_line', ''),
+            log_source=data.get('log_source', ''),
+            confidence=data.get('confidence', 1.0),
+            pattern_name=data.get('pattern_name', ''),
+            extraction_method=data.get('extraction_method', 'manual'),
+            validated=data.get('validated', False),
+            validation_notes=data.get('validation_notes', ''),
+            event_name=data.get('event_name', ''),
+            event_category=data.get('event_category', ''),
+            before_state=data.get('before_state'),
+            after_state=data.get('after_state'),
+            related_entities=data.get('related_entities', []),
+            duration_ms=data.get('duration_ms'),
+            wsrep_view_id=data.get('wsrep_view_id', ''),
+            cluster_uuid=data.get('cluster_uuid', ''),
+            view_seqno=data.get('view_seqno'),
+            status=data.get('status', 'unknown'),
+            protocol_version=data.get('protocol_version'),
+            capabilities=data.get('capabilities', []),
+            final=data.get('final', False),
+            own_index=data.get('own_index'),
+            members=data.get('members', []),
+            member_count=data.get('member_count'),
+            member_uuids=data.get('member_uuids', [])
         )
 
 
@@ -1148,9 +1300,22 @@ def register_core_entities(registry):
     Args:
         registry: EntityRegistry instance to register with
     """
-    registry.register_entity_class(EntityType.NODE, NodeEntity)
+    # Import enhanced node entities
+    try:
+        from .enhanced_nodes import ClusterEntity, NodeEntity as EnhancedNodeEntity, NodeStateEntity
+        # Register enhanced entities
+        registry.register_entity_class(EntityType.CLUSTER, ClusterEntity)
+        registry.register_entity_class(EntityType.NODE, EnhancedNodeEntity)
+        registry.register_entity_class(EntityType.NODE_STATE, NodeStateEntity)
+    except ImportError as e:
+        # Fallback to legacy NODE entity if enhanced entities not available
+        print(f"WARNING: Enhanced entities not available: {e}")
+        registry.register_entity_class(EntityType.NODE, NodeEntity)
+    
+    # Register other core entities
     registry.register_entity_class(EntityType.STATE_TRANSFER, StateTransferEntity)
     registry.register_entity_class(EntityType.VIEW, ViewEntity)
+    registry.register_entity_class(EntityType.WSREP_VIEW, WsrepViewEntity)
     registry.register_entity_class(EntityType.COMMUNICATION, CommunicationEntity)
     registry.register_entity_class(EntityType.WARNING, WarningEntity)
     registry.register_entity_class(EntityType.ERROR, ErrorEntity)

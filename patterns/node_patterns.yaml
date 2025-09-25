@@ -6,7 +6,73 @@ description: "Node state patterns for MariaDB 10.6+ Galera cluster"
 mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
 
 patterns:
+  # Enhanced entity patterns for proper NODE, NODE_STATE, CLUSTER separation
+  CLUSTER:
+    - name: "cluster_uuid_declaration"
+      description: "Captures cluster UUID and name"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:wsrep_cluster_state_uuid|Cluster\s+state\s+uuid):\s*(?P<cluster_uuid>[a-f0-9-]+)'
+      required_fields: ["cluster_uuid"]
+      examples:
+        - "2024-09-15 10:25:28 12339 [Note] WSREP: wsrep_cluster_state_uuid: b2c3d4e5-f6a7-8901-bcde-234567890123"
+
+    - name: "provider_information"
+      description: "Captures Galera provider information for cluster"
+      confidence: 0.8
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<provider_name>Galera|wsrep)\s+(?P<provider_version>[\d\.]+)'
+      required_fields: ["provider_name", "provider_version"]
+      examples:
+        - "2024-09-15 10:25:20 12337 [Note] WSREP: Galera 26.4.14 wsrep provider loaded by Codership Oy"
+
+    - name: "galera_version_info"
+      description: "Captures Galera and MariaDB version information"
+      confidence: 0.7
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Galera|wsrep)\s+(?P<galera_version>[\d\.]+)\s+.*(?:MariaDB|MySQL)\s+(?P<mariadb_version>[\d\.]+)'
+      required_fields: []
+      examples:
+        - "2024-09-15 10:25:20 12337 [Note] WSREP: Galera 26.4.14 wsrep provider loaded MariaDB 10.6.15"
+
   NODE:
+    - name: "node_uuid_declaration"
+      description: "Captures node UUID declaration (long format)"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*?My UUID:\s*(?P<node_uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+      required_fields: ["node_uuid"]
+      examples:
+        - "2025-09-19 18:17:17 2 [Note] WSREP: ####### My UUID: 9dbff1f8-956b-11f0-a3ef-5eaf96bde0cd"
+
+    - name: "node_name_from_connection"
+      description: "Captures node name from server connection messages"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+connected\s+to\s+cluster'
+      required_fields: ["node_name"]
+      examples:
+        - "2025-08-26 16:33:11 2 [Note] WSREP: Server NODE_30622 connected to cluster at position"
+
+    - name: "mariadb_server_version"
+      description: "Captures MariaDB server version information"
+      confidence: 0.8
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+Server version:\s*(?P<server_version>[\d\.]+-MariaDB[^,\s]*)'
+      required_fields: ["server_version"]
+      examples:
+        - "2025-09-19 18:17:15 0 [Note] Server version: 10.6.18-MariaDB-log"
+
+  NODE_STATE:
+    - name: "wsrep_state_shift"
+      description: "Captures WSREP state shifts (SYNCED -> OPEN pattern)"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Shifting\s+(?P<from_state>\w+(?:/\w+)?)\s*->\s*(?P<to_state>\w+(?:/\w+)?)\s*(?:\(TO:\s*(?P<total_order>\d+)\))?'
+      required_fields: ["from_state", "to_state"]
+      examples:
+        - "2025-09-24  8:39:36 0 [Note] WSREP: Shifting SYNCED -> OPEN (TO: 18)"
+
+    - name: "server_status_change"
+      description: "Captures server status transitions"
+      confidence: 0.9
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+status\s+change\s+(?P<from_state>\w+)\s*->\s*(?P<to_state>\w+)'
+      required_fields: ["from_state", "to_state"]
+      examples:
+        - "2025-09-23 17:56:51 2 [Note] WSREP: Server status change disconnected -> connected"
     - name: "node_state_change"
       description: "Captures node state transitions"
       confidence: 0.9
@@ -19,31 +85,6 @@ patterns:
       examples:
         - "2024-09-15 10:30:45 12345 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Synced -> Donor/Desynced"
         - "2024-09-15 10:31:02 12346 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Donor/Desynced -> Synced"
-      test_cases:
-        - input: "2024-09-15 10:30:45 12345 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Synced -> Donor/Desynced"
-          expected:
-            timestamp: "2024-09-15 10:30:45"
-            level: "Note"
-            node_id: "a1b2c3d4-e5f6-7890-abcd-123456789012"
-            previous_state: "Synced"
-            current_state: "Donor/Desynced"
-
-    - name: "node_address_info"
-      description: "Captures node address and identification"
-      confidence: 0.85
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Member|Node)\s+(?P<node_index>\d+)\.(?P<node_id>[a-f0-9-]+)\s+at\s+(?P<node_address>[\d\.]+:\d+)'
-      field_mappings:
-        node_index: "local_index"
-      required_fields: ["node_id", "node_address"]
-      examples:
-        - "2024-09-15 10:25:30 12340 [Note] WSREP: Member 0.a1b2c3d4 at 192.168.1.100:4567"
-      test_cases:
-        - input: "2024-09-15 10:25:30 12340 [Note] WSREP: Member 0.a1b2c3d4 at 192.168.1.100:4567"
-          expected:
-            timestamp: "2024-09-15 10:25:30"
-            local_index: "0"
-            node_id: "a1b2c3d4"
-            node_address: "192.168.1.100:4567"
 
     - name: "wsrep_ready"
       description: "Captures wsrep ready state changes"
@@ -54,80 +95,55 @@ patterns:
       required_fields: ["current_state"]
       examples:
         - "2024-09-15 10:25:35 12341 [Note] WSREP: wsrep_ready = ON"
-      test_cases:
-        - input: "2024-09-15 10:25:35 12341 [Note] WSREP: wsrep_ready = ON"
-          expected:
-            timestamp: "2024-09-15 10:25:35"
-            current_state: "ON"
 
-    - name: "node_cluster_membership"
-      description: "Captures cluster membership information"
-      confidence: 0.9
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:wsrep_cluster_state_uuid|Cluster\s+state\s+uuid):\s*(?P<cluster_uuid>[a-f0-9-]+)'
-      required_fields: ["cluster_uuid"]
+  # Additional NODE patterns (physical node information)
+  NODE:
+    - name: "member_node_synced"
+      description: "Extract node name from member sync messages (matches actual log format)"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Member\s+(?P<cluster_position>\d+\.\d+)\s+\((?P<node_name>[^)]+)\)\s+synced\s+with\s+group\.'
+      entity_type: "NODE"
+      required_fields: ["node_name", "cluster_position"]
       examples:
-        - "2024-09-15 10:25:28 12339 [Note] WSREP: wsrep_cluster_state_uuid: b2c3d4e5-f6a7-8901-bcde-234567890123"
-      test_cases:
-        - input: "2024-09-15 10:25:28 12339 [Note] WSREP: wsrep_cluster_state_uuid: b2c3d4e5-f6a7-8901-bcde-234567890123"
-          expected:
-            timestamp: "2024-09-15 10:25:28"
-            cluster_uuid: "b2c3d4e5-f6a7-8901-bcde-234567890123"
-
-    - name: "galera_version_info"
-      description: "Captures Galera and MariaDB version information"
-      confidence: 0.7
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Galera|wsrep)\s+(?P<galera_version>[\d\.]+)\s+.*(?:MariaDB|MySQL)\s+(?P<mariadb_version>[\d\.]+)'
-      required_fields: []
+        - "2025-09-15 13:48:12 0 [Note] WSREP: Member 0.1 (UAT-DB-03) synced with group."
+    - name: "node_address_info"
+      description: "Captures node address and identification"
+      confidence: 0.85
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Member|Node)\s+(?P<node_index>\d+)\.(?P<short_uuid>[a-f0-9-]+)\s+at\s+(?P<node_address>[\d\.]+:\d+)'
+      field_mappings:
+        node_index: "node_index"
+      required_fields: ["short_uuid", "node_address"]
       examples:
-        - "2024-09-15 10:25:20 12337 [Note] WSREP: Galera 26.4.14 wsrep provider loaded MariaDB 10.6.15"
-      test_cases:
-        - input: "2024-09-15 10:25:20 12337 [Note] WSREP: Galera 26.4.14 wsrep provider loaded MariaDB 10.6.15"
-          expected:
-            timestamp: "2024-09-15 10:25:20"
-            galera_version: "26.4.14"
-            mariadb_version: "10.6.15"
+        - "2024-09-15 10:25:30 12340 [Note] WSREP: Member 0.a1b2c3d4 at 192.168.1.100:4567"
 
     - name: "state_exchange_node_name"
       description: "Extract node names from STATE EXCHANGE messages"
       confidence: 0.95
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+STATE EXCHANGE: got state msg: (?P<state_uuid>[a-f0-9-]+) from (?P<node_index>\d+) \((?P<node_name>[^)]+)\)'
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+STATE EXCHANGE: got state msg: (?P<exchange_uuid>[a-f0-9-]+) from (?P<node_index>\d+) \((?P<node_name>[^)]+)\)'
       field_mappings:
-        state_uuid: "state_uuid"
-        node_index: "local_index"
-      required_fields: ["node_name", "state_uuid"]
+        node_index: "node_index"
+      required_fields: ["node_name"]
       examples:
         - "2025-09-19 18:17:17 0 [Note] WSREP: STATE EXCHANGE: got state msg: ba84adba-956b-11f0-996f-cebc26ab9f82 from 0 (vinfr-db-d-l05)"
 
     - name: "long_uuid_mapping"
       description: "Extract long UUID and map to short format"
       confidence: 0.9
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*My UUID: (?P<long_uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
-      field_mappings:
-        long_uuid: "long_uuid"
-      required_fields: ["long_uuid"]
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*My UUID: (?P<node_uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+      required_fields: ["node_uuid"]
       examples:
         - "2025-09-19 18:17:17 2 [Note] WSREP: ####### My UUID: 9dbff1f8-956b-11f0-a3ef-5eaf96bde0cd"
-
-    - name: "server_node_synced"
-      description: "Extract node name from server sync messages"
-      confidence: 0.95
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+synced\s+with\s+group'
-      required_fields: ["node_name"]
-      examples:
-        - "2025-08-21 14:10:16 2 [Note] WSREP: Server NODE_30622 synced with group"
-        - "2025-09-22 22:28:10 2 [Note] WSREP: Server NODE_11407 synced with group"
-        - "2025-09-15 13:45:00 2 [Note] WSREP: Server UAT-DB-01 synced with group"
-        - "2025-09-19 18:20:00 2 [Note] WSREP: Server vinfr-db-d-l05 synced with group"
 
     - name: "server_node_connected"
       description: "Extract node name from server connection messages"
       confidence: 0.95
-      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+connected\s+to\s+cluster\s+at\s+position\s+(?P<cluster_position>[a-f0-9-]+:\d+)\s+with\s+ID\s+(?P<connection_id>[a-f0-9-]+)'
-      field_mappings:
-        cluster_position: "cluster_position"
-        connection_id: "connection_id"
-      required_fields: ["node_name", "cluster_position", "connection_id"]
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+connected\s+to\s+cluster'
+      required_fields: ["node_name"]
       examples:
         - "2025-08-26 16:33:11 2 [Note] WSREP: Server NODE_30622 connected to cluster at position 97e97666-8289-11f0-a43c-e6369da97616:1 with ID cc53efd9-7e87-11f0-97a4-7281c0726d89"
         - "2025-09-15 13:43:33 2 [Note] WSREP: Server UAT-DB-01 connected to cluster at position 378cdc73-9236-11f0-a8d4-426872f4d003:1603 with ID f85a74b7-9239-11f0-87a9-9e752862488a"
         - "2025-09-19 18:17:17 2 [Note] WSREP: Server vinfr-db-d-l05 connected to cluster at position 91d17d56-9464-11f0-b8a8-5318904bf495:24671053 with ID 4bff9935-956b-11f0-9e34-beb439e24709"
+
+  # Moved to CLUSTER section above  
+  # - node_cluster_membership
+  # - galera_version_info

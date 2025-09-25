@@ -16,11 +16,19 @@ from .base import Entity, Event, Pattern, EntityRegistry, EntityType, Confidence
 
 # Import core entity implementations  
 from .core import (
-    NodeEntity, StateTransferEntity, ViewEntity, CommunicationEntity,
+    NodeEntity, StateTransferEntity, ViewEntity, WsrepViewEntity, CommunicationEntity,
     WarningEntity, ErrorEntity, PerformanceEntity, TransactionEntity,
     NodeState, StateTransferType, StateTransferMethod,
     register_core_entities
 )
+
+# Import enhanced node entities
+try:
+    from .enhanced_nodes import ClusterEntity, NodeEntity as EnhancedNodeEntity, NodeStateEntity
+except ImportError:
+    ClusterEntity = None
+    EnhancedNodeEntity = None
+    NodeStateEntity = None
 
 # Import hierarchical cluster entity
 from .cluster import ClusterEntity, ViewCollection, MemberCollection
@@ -64,11 +72,14 @@ __all__ = [
     'Entity', 'Event', 'Pattern', 'EntityRegistry', 'EntityType', 'ConfidenceLevel',
     
     # Core entities
-    'NodeEntity', 'StateTransferEntity', 'ViewEntity', 'CommunicationEntity',
+    'NodeEntity', 'StateTransferEntity', 'ViewEntity', 'WsrepViewEntity', 'CommunicationEntity',
     'WarningEntity', 'ErrorEntity', 'PerformanceEntity', 'TransactionEntity',
     
+    # Enhanced node entities
+    'ClusterEntity', 'EnhancedNodeEntity', 'NodeStateEntity',
+    
     # Hierarchical cluster entity
-    'ClusterEntity', 'ViewCollection', 'MemberCollection',
+    'ViewCollection', 'MemberCollection',
     
     # Enhanced parsing
     'MultiLogParser', 'create_enhanced_parser', 

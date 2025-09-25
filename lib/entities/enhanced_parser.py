@@ -176,9 +176,12 @@ class MultiLogParser:
         # Handle string entity types by mapping to EntityType enum
         entity_type_mapping = {
             'NODE': EntityType.NODE,
+            'NODE_STATE': EntityType.NODE_STATE,
+            'CLUSTER': EntityType.CLUSTER,
             'SST': EntityType.STATE_TRANSFER,
             'STATE_TRANSFER': EntityType.STATE_TRANSFER,
             'VIEW': EntityType.VIEW,
+            'WSREP_VIEW': EntityType.WSREP_VIEW,
             'COMMUNICATION': EntityType.COMMUNICATION,
             'WARNING': EntityType.WARNING,
             'ERROR': EntityType.ERROR,
@@ -188,7 +191,7 @@ class MultiLogParser:
         
         entity_type = entity_type_mapping.get(entity_type_str, EntityType.NODE)
         
-        return Pattern(
+        pattern = Pattern(
             name=config['name'],
             entity_type=entity_type,
             version=config.get('version', '1.0'),
@@ -200,6 +203,12 @@ class MultiLogParser:
             confidence=config.get('confidence', 0.8),
             test_cases=config.get('test_cases', [])
         )
+        
+        # Store the original config for multiline and other special processing
+        # Using setattr to avoid type checker issues
+        setattr(pattern, '_config', config)
+        
+        return pattern
     
     def parse_multiple_logs(self, log_files: List[Union[str, TextIO]], 
                            cluster_name: Optional[str] = None) -> ClusterEntity:
@@ -269,13 +278,18 @@ class MultiLogParser:
                 except (AttributeError, OSError):
                     pass
             
-            # Parse each line
+            # First, try multiline patterns on the entire log content
+            full_text = ''.join(lines)
+            multiline_entities = self._extract_multiline_entities(full_text, log_source)
+            entities.extend(multiline_entities)
+            
+            # Then parse each line for single-line patterns
             for line_number, line in enumerate(lines, 1):
                 line = line.strip()
                 if not line:
                     continue
                 
-                # Try all patterns against this line
+                # Try all single-line patterns against this line
                 extracted_entities = self._extract_entities_from_line(
                     line, line_number, log_source
                 )
@@ -320,7 +334,198 @@ class MultiLogParser:
             except Exception as e:
                 logger.debug(f"Error applying pattern '{pattern_name}' to line {line_number}: {e}")
         
+        # Update NODE entities with UUID information from WSREP views
+        self._update_node_entities_with_uuids(entities)
+        
         return entities
+    
+    def _extract_multiline_entities(self, full_text: str, log_source: str) -> List:
+        """
+        Extract entities from multiline patterns that span across multiple lines
+        
+        Args:
+            full_text: Complete log file content as single string
+            log_source: Source identifier
+            
+        Returns:
+            List of extracted entities from multiline patterns
+        """
+        entities = []
+        
+        for pattern_name, pattern in self.patterns.items():
+            try:
+                # Check if this is a multiline pattern
+                pattern_config = getattr(pattern, '_config', {})
+                if not pattern_config.get('multiline', False):
+                    continue
+                
+                # Apply multiline pattern to the full text
+                regex_pattern = pattern_config.get('regex', '')
+                if not regex_pattern:
+                    continue
+                
+                # Use DOTALL flag to make . match newlines
+                matches = re.finditer(regex_pattern, full_text, re.DOTALL | re.MULTILINE)
+                
+                for match in matches:
+                    extracted_data = match.groupdict()
+                    
+                    # Find the line number for this match (approximate)
+                    match_start = match.start()
+                    lines_before = full_text[:match_start].count('\n') + 1
+                    
+                    # Create entity from extracted data
+                    entity = self._create_entity_from_extracted_data(
+                        pattern, extracted_data, match.group(0), lines_before, log_source
+                    )
+                    
+                    if entity:
+                        entities.append(entity)
+                        logger.debug(f"Multiline pattern '{pattern_name}' matched at line {lines_before}")
+                        
+                        # Special processing for WSREP_VIEW to extract member information
+                        if hasattr(entity, 'entity_type') and entity.entity_type.value == 'WSREP_VIEW':
+                            self._process_wsrep_view_members(entity, extracted_data)
+                    
+            except Exception as e:
+                logger.debug(f"Error applying multiline pattern '{pattern_name}': {e}")
+        
+        # Update NODE entities with UUID information from WSREP views
+        self._update_node_entities_with_uuids(entities)
+        
+        return entities
+    
+    def _extract_short_uuid(self, full_uuid: str) -> str:
+        """
+        Extract short UUID from full UUID (parts 1 and 4)
+        
+        Args:
+            full_uuid: Full UUID like "6d6256fd-9a23-11f0-b15e-83e09e5959f9"
+            
+        Returns:
+            str: Short UUID like "6d6256fd-b15e"
+        """
+        try:
+            # Split UUID by hyphens: ["6d6256fd", "9a23", "11f0", "b15e", "83e09e5959f9"]
+            parts = full_uuid.split('-')
+            if len(parts) >= 4:
+                # Take part 1 (index 0) and part 4 (index 3)
+                return f"{parts[0]}-{parts[3]}"
+            else:
+                # Fallback if UUID format is unexpected
+                return full_uuid[:8] + "-" + full_uuid[-4:] if len(full_uuid) >= 12 else full_uuid
+        except Exception:
+            return full_uuid
+
+    def _process_wsrep_view_members(self, entity, extracted_data: Dict[str, Any]):
+        """
+        Process WSREP view members section to extract individual member information
+        
+        Args:
+            entity: WSREP view entity to update
+            extracted_data: Raw extracted data containing members_section and other fields
+        """
+        try:
+            # Set protocol_version
+            protocol_version_raw = extracted_data.get('protocol_version', '')
+            if protocol_version_raw:
+                try:
+                    entity.protocol_version = int(protocol_version_raw)
+                except ValueError:
+                    pass
+            
+            # Set own_index
+            own_index_raw = extracted_data.get('own_index', '')
+            if own_index_raw:
+                try:
+                    entity.own_index = int(own_index_raw)
+                except ValueError:
+                    pass
+            
+            # Set member_count
+            member_count_raw = extracted_data.get('member_count', '')
+            if member_count_raw:
+                try:
+                    entity.member_count = int(member_count_raw)
+                except ValueError:
+                    pass
+            
+            # Process members section
+            members_section = extracted_data.get('members_section', '')
+            if not members_section:
+                return
+            
+            # Parse individual members and extract UUID information
+            members = []
+            member_uuids = []
+            member_lines = [line.strip() for line in members_section.split('\n') if line.strip()]
+
+            for line in member_lines:
+                # Match pattern like "0: 378c0ec7-9236-11f0-a3db-f6fdc24ecc7d, UAT-DB-03"
+                member_match = re.match(r'(\d+):\s+([a-f0-9-]+),\s+(.+)', line)
+                if member_match:
+                    index, full_uuid, name = member_match.groups()
+                    short_uuid = self._extract_short_uuid(full_uuid)
+                    
+                    member_info = {
+                        'index': index,
+                        'uuid': full_uuid,
+                        'short_uuid': short_uuid,
+                        'name': name.strip()
+                    }
+                    members.append(member_info)
+                    member_uuids.append(full_uuid)
+                    
+                    # Store UUID mapping for later NODE entity updates
+                    if not hasattr(self, '_node_uuid_mappings'):
+                        self._node_uuid_mappings = {}
+                    
+                    node_name = name.strip()
+                    self._node_uuid_mappings[node_name] = {
+                        'full_uuid': full_uuid,
+                        'short_uuid': short_uuid,
+                        'index': int(index) if index.isdigit() else None
+                    }
+
+            entity.members = members
+
+            # Store member UUIDs as a separate list for easy access
+            entity.member_uuids = member_uuids            # Update member_count if not already set from extracted data
+            if entity.member_count is None:
+                entity.member_count = len(members)
+                
+        except Exception as e:
+            logger.debug(f"Error processing WSREP view members: {e}")
+    
+    def _update_node_entities_with_uuids(self, entities: List) -> None:
+        """
+        Update NODE entities with UUID information collected from WSREP views
+        
+        Args:
+            entities: List of all entities extracted from the log
+        """
+        if not hasattr(self, '_node_uuid_mappings') or not self._node_uuid_mappings:
+            return
+            
+        # Find all NODE entities and update them with UUID information
+        for entity in entities:
+            if entity.entity_type.value == 'NODE' and hasattr(entity, 'node_name') and entity.node_name:
+                uuid_info = self._node_uuid_mappings.get(entity.node_name)
+                if uuid_info:
+                    # Update the node entity with UUID information
+                    entity.short_uuid = uuid_info['short_uuid']
+                    entity.node_uuid = uuid_info['full_uuid']
+                    if uuid_info['index'] is not None:
+                        entity.local_index = uuid_info['index']
+                    
+                    # Regenerate entity ID now that we have proper node identification
+                    old_id = entity.entity_id
+                    id_attrs = entity.get_id_attributes()
+                    entity.entity_id = entity.generate_entity_id()
+                    
+                    logger.debug(f"Updated NODE entity {entity.node_name}: {old_id} -> {entity.entity_id}")
+                    logger.debug(f"ID attributes: {id_attrs}")
+                    logger.debug(f"UUID info: {uuid_info}")
     
     def _map_pattern_params_to_entity(self, entity_type: EntityType, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -344,13 +549,27 @@ class MultiLogParser:
                 'state': 'cluster_state',      # state maps to cluster_state
             },
             EntityType.NODE: {
-                'cluster_position': 'position', # NodeEntity position parameter
-                'node_id': 'id',                # node_id maps to id
+                'cluster_position': None,       # Ignore cluster_position for now (no direct mapping)
+                'node_id': 'node_uuid',         # node_id maps to node_uuid
+                'level': None,                  # Ignore level field for NODE entities
+            },
+            EntityType.NODE_STATE: {
+                'from_state': 'from_state',     # Keep from_state as is
+                'to_state': 'to_state',         # Keep to_state as is
+                'level': None,                  # Ignore level field for NODE_STATE
             },
             EntityType.STATE_TRANSFER: {
-                'role': 'transfer_type',        # StateTransferEntity expects transfer_type
-                'level': 'log_level',           # level maps to log_level  
-                'completed': 'status',          # completed status
+                'role': None,                   # Ignore role field for now
+                'level': None,                  # Ignore level field for STATE_TRANSFER
+                'completed': None,              # Ignore completed field for now
+                'transfer_method': 'transfer_method',  # Keep transfer_method as is
+            },
+            EntityType.WSREP_VIEW: {
+                'capabilities_raw': None,       # Processed separately in _process_wsrep_view_members
+                'members_section': None,        # Processed separately in _process_wsrep_view_members
+                'final': None,                  # Processed separately in _process_wsrep_view_members
+                'own_index': None,              # Processed separately in _process_wsrep_view_members
+                'member_count': None,           # Processed separately in _process_wsrep_view_members
             }
         }
         
@@ -366,6 +585,10 @@ class MultiLogParser:
                 
             # Map parameter name if needed
             mapped_key = entity_mapping.get(key, key)
+            
+            # Skip if mapped to None (means ignore this field)
+            if mapped_key is None:
+                continue
             
             # Special handling for certain mappings
             if key in ['node_id', 'member_id'] and entity_type == EntityType.VIEW:
@@ -413,6 +636,33 @@ class MultiLogParser:
             
             # Add extracted fields
             entity_fields = {**base_fields, **mapped_data}
+            
+            # Special handling for NODE_STATE entities
+            if pattern.entity_type == EntityType.NODE_STATE:
+                # Provide default node reference if not present
+                if 'node_uuid' not in entity_fields and 'node_reference' not in entity_fields:
+                    # Use log source as default node reference for server status changes
+                    entity_fields['node_reference'] = f"server_{log_source}"
+                
+                # Convert state strings to NodeState enum
+                from .enhanced_nodes import NodeState
+                for state_field in ['from_state', 'to_state']:
+                    if state_field in entity_fields:
+                        state_str = entity_fields[state_field].upper()
+                        # Map common state strings to NodeState enum
+                        state_mapping = {
+                            'CONNECTED': NodeState.OPEN,
+                            'INITIALIZED': NodeState.JOINED,
+                            'DISCONNECTED': NodeState.CLOSED,
+                            'SYNCED': NodeState.SYNCED,
+                            'OPEN': NodeState.OPEN,
+                            'JOINED': NodeState.JOINED,
+                            'JOINER': NodeState.JOINER,
+                            'DONOR': NodeState.DONOR,
+                            'DESYNCED': NodeState.DESYNCED,
+                            'CLOSED': NodeState.CLOSED
+                        }
+                        entity_fields[state_field] = state_mapping.get(state_str, NodeState.UNKNOWN)
             
             # Clean up None values and empty strings
             entity_fields = {k: v for k, v in entity_fields.items() 

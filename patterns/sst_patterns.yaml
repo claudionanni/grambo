@@ -23,6 +23,19 @@ patterns:
         - "2025-09-19 18:17:17 0 [Note] WSREP: Member 0.4 (vinfr-db-d-l05) requested state transfer from *any*. Selected 1.1 (vinfr-db-d-d01)(SYNCED) as donor."
 
     # SST PROGRESS EVENTS - All these should update existing sessions, never create new ones
+    - name: "sst_running_command"
+      description: "SST command execution start (matches hardcoded pattern)"
+      confidence: 0.95
+      lifecycle_phase: "PROGRESS"
+      regex: "(?P<timestamp>\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+\\d+\\s+\\[(?P<level>\\w+)\\]\\s+WSREP:\\s+Running:\\s+'wsrep_sst_(?P<transfer_method>\\w+).*?--role\\s+'(?P<role>\\w+)'"
+      entity_type: "STATE_TRANSFER"
+      field_mappings:
+        transfer_status: "started"
+        transfer_type: "SST"
+      required_fields: ["transfer_method", "role"]
+      examples:
+        - "2025-09-15 13:45:56 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'donor' --address '10.0.1.192:4444/xtrabackup_sst//1'"
+
     - name: "wsrep_sst_script_started"
       description: "WSREP_SST script started message (PROGRESS event)"
       confidence: 0.9

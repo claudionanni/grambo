@@ -7,6 +7,15 @@ mariadb_versions: ["10.6", "10.7", "10.8", "10.9", "10.10", "10.11"]
 
 patterns:
   VIEW:
+    - name: "view_formation"
+      description: "View formation with view_id format (matches actual log format)"
+      confidence: 0.95
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+view\(view_id\((?P<cluster_state>\w+),(?P<view_id>[^,]+),(?P<view_seq>\d+)\)'
+      entity_type: "VIEW"
+      required_fields: ["cluster_state", "view_id", "view_seq"]
+      examples:
+        - "2025-09-15 13:45:55 0 [Note] WSREP: view(view_id(PRIM,378c0ec7-a3db,16) memb {"
+
     - name: "cluster_view_change"
       description: "New cluster view formation"
       confidence: 0.95
@@ -120,3 +129,14 @@ patterns:
           expected:
             timestamp: "2024-09-15 10:25:25"
             member_count: "1"
+
+  WSREP_VIEW:
+    - name: "wsrep_view_complete"
+      description: "Complete WSREP layer view with all required fields: id, status, protocol_version, own_index, members"
+      confidence: 0.95
+      entity_type: "WSREP_VIEW"
+      multiline: true
+      regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+=+.*?\nView:.*?\n\s*id:\s+(?P<wsrep_view_id>[a-f0-9-]+:\d+).*?\n\s*status:\s+(?P<status>\w+).*?\n\s*protocol_version:\s+(?P<protocol_version>\d+).*?\n.*?\s*own_index:\s+(?P<own_index>-?\d+).*?\n\s*members\((?P<member_count>\d+)\):.*?\n(?P<members_section>(?:\s+\d+:\s+[a-f0-9-]+,\s+\w+.*?\n)*).*?=+'
+      required_fields: ["wsrep_view_id", "status", "protocol_version", "own_index", "member_count"]
+      examples:
+        - "2025-09-15 13:48:19 2 [Note] WSREP: ================================================"
