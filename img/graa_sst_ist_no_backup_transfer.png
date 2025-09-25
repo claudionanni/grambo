@@ -1,0 +1,13 @@
+Terminal screenshot showing graa --sst-ist-tree output for SST Session [2] where no actual backup transfer occurs.
+
+Key features shown:
+- SST sst_1343 with "⚠️ Backup Transfer: NO (script only)" warning
+- Method: mariabackup but script-only execution
+- Time Range: 2025-09-25 13:54:32 → 2025-09-25 13:54:33
+- Extensive IST processing events with detailed progress tracking
+- IST events showing progress from 28.4% to 100.0% completion
+- Range: 41831→67338 for IST preparation and processing
+- Multiple IST processing phases with event counts (e.g., "Progress: 28.4% (13072/46040 events)")
+- Final completion: "Progress: 100.0% (303719/303719 events)"
+
+This demonstrates a scenario where SST is initiated but only script execution occurs without actual backup data transfer, followed by extensive IST processing to catch up the node.

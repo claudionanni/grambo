@@ -69,6 +69,12 @@ class SSTEntity(Entity):
     seqno_start: int = 0
     seqno_end: int = 0
     duration_seconds: float = 0.0
+    # Backup transfer tracking
+    backup_transfer_occurred: bool = False  # True if actual backup was transferred
+    sst_script_triggered: bool = False  # True if SST script was initiated
+    # Relationship tracking
+    installed_state_seqno: int = 0  # Final seqno when SST completes
+    related_ist_id: str = ""  # Link to follow-up IST entity
     
 @dataclass
 class ISTEntity(Entity):
@@ -82,6 +88,9 @@ class ISTEntity(Entity):
     events_total: int = 0
     events_processed: int = 0
     ist_status: str = ""  # preparing, receiving, applying, complete
+    # Relationship tracking
+    follows_sst_id: str = ""  # Link to preceding SST entity
+    applying_from_seqno: int = 0  # Starting seqno for IST application
     
 @dataclass
 class ErrorEntity(Entity):
@@ -277,6 +286,7 @@ class GaleraLogParser:
                 log_source=log_source,
                 sst_method=method,
                 sst_status="started",
+                sst_script_triggered=True,  # SST script was initiated
                 joiner_node=role if role == 'joiner' else '',
                 donor_node=role if role == 'donor' else '',
                 entity_id=session_key
@@ -349,6 +359,37 @@ class GaleraLogParser:
                 sst_status="donor_selected",
                 donor_node=match.group(2),
                 entity_id=f"sst_donor_{line_num}"
+            )
+            self.entities.append(entity)
+            return
+            
+        # SST backup transfer proceeding: WSREP_SST: [INFO] Proceeding with SST
+        if "Proceeding with SST" in line:
+            # Find the most recent SST session to update
+            for session_key in reversed(list(self.sst_sessions.keys())):
+                session = self.sst_sessions[session_key]
+                # Update existing entities to mark backup transfer
+                for entity in reversed(self.entities):
+                    if (isinstance(entity, SSTEntity) and 
+                        entity.entity_id == session_key and 
+                        entity.sst_status == "started"):
+                        entity.sst_status = "backup_transfer_started"
+                        entity.backup_transfer_occurred = True
+                        entity.sst_script_triggered = True
+                        break
+                break
+            
+            # Also create a specific entity for this event
+            entity = SSTEntity(
+                entity_type="sst",
+                timestamp=timestamp,
+                line_number=line_num,
+                raw_line=line,
+                log_source=log_source,
+                sst_status="proceeding_with_backup",
+                backup_transfer_occurred=True,
+                sst_script_triggered=True,
+                entity_id=f"sst_proceeding_{line_num}"
             )
             self.entities.append(entity)
             return
@@ -770,7 +811,11 @@ class GrapOutputFormatter:
                 'sst_status': entity.sst_status,
                 'seqno_start': entity.seqno_start,
                 'seqno_end': entity.seqno_end,
-                'duration_seconds': entity.duration_seconds
+                'duration_seconds': entity.duration_seconds,
+                'backup_transfer_occurred': entity.backup_transfer_occurred,
+                'sst_script_triggered': entity.sst_script_triggered,
+                'installed_state_seqno': entity.installed_state_seqno,
+                'related_ist_id': entity.related_ist_id
             })
         elif isinstance(entity, ISTEntity):
             result.update({
@@ -778,7 +823,13 @@ class GrapOutputFormatter:
                 'ist_first': entity.ist_first,
                 'ist_last': entity.ist_last,
                 'donor_node': entity.donor_node,
-                'receiver_address': entity.receiver_address
+                'receiver_address': entity.receiver_address,
+                'progress_percent': entity.progress_percent,
+                'events_total': entity.events_total,
+                'events_processed': entity.events_processed,
+                'ist_status': entity.ist_status,
+                'follows_sst_id': entity.follows_sst_id,
+                'applying_from_seqno': entity.applying_from_seqno
             })
         elif isinstance(entity, ErrorEntity):
             result.update({
@@ -949,8 +1000,26 @@ Examples:
             # Load from cache and apply filters
             all_entities = []
             for entity_data in analysis_data['entities']:
-                # Reconstruct entities from cache
-                entity = Entity()
+                # Reconstruct entities from cache with correct types
+                entity_type = entity_data.get('entity_type', '').lower()
+                
+                # Create entity of correct type
+                if entity_type == 'node':
+                    entity = NodeEntity()
+                elif entity_type == 'view':
+                    entity = ViewEntity()
+                elif entity_type == 'sst':
+                    entity = SSTEntity()
+                elif entity_type == 'ist':
+                    entity = ISTEntity()
+                elif entity_type == 'error':
+                    entity = ErrorEntity()
+                elif entity_type == 'transaction':
+                    entity = TransactionEntity()
+                else:
+                    entity = Entity()
+                
+                # Set all attributes
                 for key, value in entity_data.items():
                     if key == 'timestamp' and value:
                         try:

@@ -1,0 +1,11 @@
+This appears to be a binary image file. The image shows a terminal screenshot of the graa --sst-ist-tree output displaying:
+
+- Command: ./grap unittest/error.31407.log --entities=SST,IST --format=json | python3 graa --stdin --sst-ist-tree
+- Output shows hierarchical SST → IST relationship tree
+- Found 8 SST entities and 44 IST entities
+- Shows [1] SST SESSION with time range and multiple SST events
+- Visual tree structure with icons (🚀 for SST events, 📥 for IST events)  
+- Related IST events section showing progress percentages like "Progress: 100.0% (11/11 events)"
+- Demonstrates the complete hierarchical visualization with proper indentation
+
+This is an excellent reference image showing the graa SST+IST tree functionality in action.

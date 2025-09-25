@@ -1339,6 +1339,238 @@ def print_sst_sessions_timeline(analyzer: GraAnalyzer):
     print("\n" + "="*80)
 
 
+def print_sst_ist_tree(analyzer):
+    """Print hierarchical SST+IST relationship tree from grap JSON data"""
+    print("\n" + "="*80)
+    print("SST → IST RELATIONSHIP TREE")
+    print("="*80)
+    
+    # Get entities from the analyzer (JSON data, no classes needed)
+    entities = analyzer.entities
+    
+    if not entities:
+        print("No entities found in the analysis.")
+        return
+    
+    # Separate SST and IST entities (pure JSON processing)
+    sst_entities = [e for e in entities if e.get('entity_type') == 'sst']
+    ist_entities = [e for e in entities if e.get('entity_type') == 'ist']
+    
+    if not sst_entities and not ist_entities:
+        print("No SST or IST entities found in the log.")
+        return
+    
+    print(f"\nFound {len(sst_entities)} SST entities and {len(ist_entities)} IST entities")
+    print("-" * 60)
+    
+    # Group SST entities by logical sessions (based on timestamp proximity and status)
+    sst_sessions = _group_sst_entities_by_session(sst_entities)
+    
+    # Process each SST session and find related IST entities
+    session_count = 0
+    for session_ssts in sst_sessions:
+        session_count += 1
+        _print_sst_session_with_ists(session_count, session_ssts, ist_entities)
+    
+    # Show any orphaned IST entities (not linked to SST)
+    _print_orphaned_ist_entities(ist_entities, sst_entities)
+
+
+def _group_sst_entities_by_session(sst_entities):
+    """Group SST entities into logical sessions based on timestamps and IDs"""
+    if not sst_entities:
+        return []
+    
+    # Sort by timestamp
+    sorted_ssts = sorted(sst_entities, key=lambda e: e.get('timestamp', ''))
+    
+    sessions = []
+    current_session = []
+    
+    for sst in sorted_ssts:
+        # Group SSTs that are close in time or have related IDs
+        entity_id = sst.get('entity_id', '')
+        timestamp = sst.get('timestamp', '')
+        
+        # Start new session if this looks like a fresh SST start
+        if (sst.get('sst_status') == 'started' and 
+            not entity_id.startswith('sst_proceeding_') and
+            current_session):
+            sessions.append(current_session)
+            current_session = [sst]
+        else:
+            current_session.append(sst)
+    
+    if current_session:
+        sessions.append(current_session)
+    
+    return sessions
+
+
+def _print_sst_session_with_ists(session_num, sst_entities, all_ist_entities):
+    """Print a single SST session with its related IST entities"""
+    if not sst_entities:
+        return
+    
+    # Get session timeframe
+    timestamps = [e.get('timestamp', '') for e in sst_entities if e.get('timestamp')]
+    start_time = min(timestamps) if timestamps else 'Unknown'
+    end_time = max(timestamps) if timestamps else 'Unknown'
+    
+    print(f"\n[{session_num}] SST SESSION")
+    print(f"    Time Range: {_format_timestamp(start_time)} → {_format_timestamp(end_time)}")
+    
+    # Print SST events in chronological order
+    sst_entities.sort(key=lambda e: e.get('timestamp', ''))
+    
+    for i, sst in enumerate(sst_entities):
+        is_last_sst = (i == len(sst_entities) - 1)
+        _print_sst_entity(sst, is_last_sst)
+    
+    # Find and print related IST entities
+    related_ists = _find_related_ist_entities(sst_entities, all_ist_entities)
+    if related_ists:
+        print("    │")
+        print("    ├─ 🔄 RELATED IST EVENTS:")
+        
+        related_ists.sort(key=lambda e: e.get('timestamp', ''))
+        for i, ist in enumerate(related_ists):
+            is_last_ist = (i == len(related_ists) - 1)
+            _print_ist_entity(ist, is_last_ist, indent="    │      ")
+
+
+def _print_sst_entity(sst_entity, is_last=False):
+    """Print a single SST entity with appropriate formatting"""
+    connector = "└─" if is_last else "├─"
+    
+    entity_id = sst_entity.get('entity_id', 'Unknown')
+    timestamp = _format_timestamp(sst_entity.get('timestamp', ''))
+    status = sst_entity.get('sst_status', 'unknown')
+    method = sst_entity.get('sst_method', '')
+    
+    # Add status indicators
+    backup_occurred = sst_entity.get('backup_transfer_occurred', False)
+    script_triggered = sst_entity.get('sst_script_triggered', False)
+    
+    status_icon = "🚀" if backup_occurred else ("📋" if script_triggered else "❓")
+    
+    print(f"    {connector} {status_icon} SST {entity_id}")
+    print(f"    {'   ' if is_last else '│  '}   Time: {timestamp}")
+    print(f"    {'   ' if is_last else '│  '}   Status: {status}")
+    if method:
+        print(f"    {'   ' if is_last else '│  '}   Method: {method}")
+    
+    # Show backup transfer details
+    if backup_occurred:
+        print(f"    {'   ' if is_last else '│  '}   ✅ Backup Transfer: YES")
+    elif script_triggered:
+        print(f"    {'   ' if is_last else '│  '}   ⚠️  Backup Transfer: NO (script only)")
+
+
+def _print_ist_entity(ist_entity, is_last=False, indent=""):
+    """Print a single IST entity with appropriate formatting - concise one-line format"""
+    connector = "└─" if is_last else "├─"
+    
+    entity_id = ist_entity.get('entity_id', 'Unknown')
+    timestamp = _format_timestamp(ist_entity.get('timestamp', ''))
+    status = ist_entity.get('ist_status', 'unknown')
+    
+    # Build concise info string
+    info_parts = [f"📥 IST {entity_id}", f"Status: {status}", f"Time: {timestamp}"]
+    
+    # Add IST range if available
+    ist_first = ist_entity.get('ist_first', 0)
+    ist_last = ist_entity.get('ist_last', 0)
+    if ist_first or ist_last:
+        info_parts.append(f"Range: {ist_first}→{ist_last}")
+    
+    # Add progress information if available
+    progress_percent = ist_entity.get('progress_percent', 0)
+    events_processed = ist_entity.get('events_processed', 0)
+    events_total = ist_entity.get('events_total', 0)
+    
+    if progress_percent > 0:
+        # Format progress percentage
+        if events_processed > 0 and events_total > 0:
+            info_parts.append(f"Progress: {progress_percent}% ({events_processed}/{events_total} events)")
+        else:
+            info_parts.append(f"Progress: {progress_percent}%")
+    elif events_processed > 0 and events_total > 0:
+        # Show event counts even without percentage
+        info_parts.append(f"Events: {events_processed}/{events_total}")
+    
+    # Print as single line with separators
+    info_line = " │ ".join(info_parts)
+    print(f"{indent}{connector} {info_line}")
+
+
+def _find_related_ist_entities(sst_entities, all_ist_entities):
+    """Find IST entities related to the given SST entities based on timing and relationships"""
+    if not sst_entities or not all_ist_entities:
+        return []
+    
+    # Get timeframe of SST session
+    sst_timestamps = [e.get('timestamp', '') for e in sst_entities if e.get('timestamp')]
+    if not sst_timestamps:
+        return []
+    
+    sst_start = min(sst_timestamps)
+    sst_end = max(sst_timestamps)
+    
+    related_ists = []
+    
+    for ist in all_ist_entities:
+        # Check explicit relationship fields first
+        follows_sst_id = ist.get('follows_sst_id', '')
+        if follows_sst_id:
+            # Direct relationship exists
+            sst_ids = [sst.get('entity_id', '') for sst in sst_entities]
+            if follows_sst_id in sst_ids:
+                related_ists.append(ist)
+                continue
+        
+        # Check temporal relationship (IST shortly after SST completion)
+        ist_timestamp = ist.get('timestamp', '')
+        if ist_timestamp:
+            # IST within reasonable time window after SST session
+            if sst_start <= ist_timestamp <= _add_time_buffer(sst_end):
+                related_ists.append(ist)
+    
+    return related_ists
+
+
+def _print_orphaned_ist_entities(all_ist_entities, all_sst_entities):
+    """Print IST entities that are not clearly related to any SST"""
+    # This is a placeholder for now - could be enhanced to find truly orphaned ISTs
+    pass
+
+
+def _format_timestamp(timestamp_str):
+    """Format timestamp string for display"""
+    if not timestamp_str or timestamp_str == 'Unknown':
+        return 'Unknown'
+    
+    # Trim to readable format: "2025-06-10 19:44:55"
+    if 'T' in timestamp_str:
+        return timestamp_str.replace('T', ' ')[:19]
+    
+    return timestamp_str
+
+
+def _add_time_buffer(timestamp_str, minutes=10):
+    """Add time buffer to timestamp for IST relationship detection"""
+    if not timestamp_str:
+        return timestamp_str
+    
+    try:
+        from datetime import datetime, timedelta
+        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        buffered = dt + timedelta(minutes=minutes)
+        return buffered.isoformat()
+    except:
+        return timestamp_str
+
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
@@ -1350,6 +1582,7 @@ def main():
     parser.add_argument('logfile', nargs='?', help='Galera log file to analyze')
     parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap)')
     parser.add_argument('--sst-sessions', action='store_true', help='Show detailed SST session timeline (like gra format)')
+    parser.add_argument('--sst-ist-tree', action='store_true', help='Show hierarchical SST+IST relationship tree')
     parser.add_argument('--version', action='version', version=f'gra-analyzer {__version__}')
     
     args = parser.parse_args()
@@ -1383,6 +1616,8 @@ def main():
     # Print results
     if args.sst_sessions:
         print_sst_sessions_timeline(analyzer)
+    elif args.sst_ist_tree:
+        print_sst_ist_tree(analyzer)
     else:
         print_analysis(analysis)
 
