@@ -28,6 +28,9 @@ from pathlib import Path
 import argparse
 import logging
 
+# Bumpable version for cache invalidation and outputs
+GRAP_VERSION = "2.3.1"
+
 # Import ClusterEntity from core libraries (import directly from module to avoid __init__ side-effects)
 try:
     from lib.entities.cluster import ClusterEntity
@@ -129,6 +132,11 @@ class GaleraLogParser:
         self._in_view_block: bool = False
         self._pending_view: Optional[ViewEntity] = None
         self._view_section: Optional[str] = None  # memb|joined|left|partitioned
+        # Node name normalization maps
+        # Map of log source base name -> canonical node name (learned from explicit log lines)
+        self._node_canonical_by_source: Dict[str, str] = {}
+        # Set of canonical names observed directly in logs
+        self._known_canonical_names: Set[str] = set()
         
     def parse_log(self, log_file: Union[str, Path]) -> List[Entity]:
         """Parse a Galera log file and extract all entities"""
@@ -141,6 +149,7 @@ class GaleraLogParser:
                     continue
                     
                 # Try all entity patterns
+                self._learn_local_node_name(line, str(log_file))
                 self._parse_node_events(line, line_num, str(log_file))
                 self._parse_view_events(line, line_num, str(log_file))
                 self._parse_sst_events(line, line_num, str(log_file))
@@ -151,6 +160,9 @@ class GaleraLogParser:
         # Post-process SST sessions to calculate durations
         self._finalize_sst_sessions()
         
+        # Normalize node names consistently across entities
+        self._normalize_node_entities()
+
         # Assign cluster references to entities
         self._assign_cluster_references()
         
@@ -163,9 +175,35 @@ class GaleraLogParser:
             # Strip common extensions
             if '.' in base:
                 base = base.split('.')[0]
-            return base
+            # Normalize common suffixes (e.g., -mysql24) and domains
+            return self._normalize_node_name(base)
         except Exception:
             return "unknown"
+
+    def _normalize_node_name(self, raw: str) -> str:
+        """Normalize node name heuristically to avoid duplicates.
+        Rules:
+        - Drop domain part after first dot.
+        - Strip service/version suffixes like -mysqlXX, -mariadbXX.
+        - Keep base token before such suffixes.
+        """
+        if not raw:
+            return raw
+        name = raw.strip()
+        # Drop domain part
+        if '.' in name:
+            name = name.split('.', 1)[0]
+        # Strip common service suffixes
+        name = re.sub(r'-(mysql|mariadb)[0-9.-]*$', '', name, flags=re.IGNORECASE)
+        # Strip site/role short suffixes like -ffm, -fra, -prd
+        name = re.sub(r'-([a-z]{2,4})$', '', name)
+        # If hyphen remains and left part is a known canonical, reduce to left
+        if '-' in name:
+            left = name.split('-', 1)[0]
+            if left in self._known_canonical_names:
+                name = left
+        # If we learned a canonical for this source alias, return it later in _normalize_node_entities
+        return name
     
     def filter_entities(self, entities: List[Entity], 
                        entity_types: Optional[Set[str]] = None,
@@ -209,6 +247,27 @@ class GaleraLogParser:
                 pass
                 
         return None
+
+    def _learn_local_node_name(self, line: str, log_source: str) -> None:
+        """Learn the local node's canonical name from configuration or wsrep logs.
+        This is more reliable than inferring from the filename.
+        """
+        try:
+            src_base = Path(log_source).stem
+        except Exception:
+            src_base = log_source
+
+        # wsrep_node_name in config or runtime settings
+        m = re.search(r"wsrep_node_name\s*=\s*([\w.-]+)", line, re.IGNORECASE)
+        if not m:
+            m = re.search(r"WSREP:\s+Setting wsrep_node_name to ['\"]([^'\"]+)['\"]", line)
+        if not m:
+            m = re.search(r"Node name:\s*([\w.-]+)", line, re.IGNORECASE)
+        if m:
+            name = self._normalize_node_name(m.group(1))
+            if name:
+                self._node_canonical_by_source[src_base] = name
+                self._known_canonical_names.add(name)
     
     def _parse_node_events(self, line: str, line_num: int, log_source: str):
         """Parse node-related events"""
@@ -217,12 +276,13 @@ class GaleraLogParser:
         # Node state changes: Server status change joined -> synced
         match = re.search(r'Server status change (\w+) -> (\w+)', line)
         if match:
+            inferred = self._infer_node_name(log_source)
             entity = NodeEntity(
                 timestamp=timestamp,
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
-                node_name=self._infer_node_name(log_source),
+                node_name=inferred,
                 node_state=f"{match.group(1)} -> {match.group(2)}",
                 entity_id=f"node_state_{line_num}"
             )
@@ -232,13 +292,22 @@ class GaleraLogParser:
         # Node sync status: Member 1.0 (NODE_50000) synced with group
         match = re.search(r'Member (\d+\.\d+) \(([^)]+)\) synced with group', line)
         if match:
+            # Learn canonical name from explicit member line
+            canonical = self._normalize_node_name(match.group(2))
+            try:
+                src_base = Path(log_source).stem
+            except Exception:
+                src_base = log_source
+            if canonical:
+                self._node_canonical_by_source[src_base] = canonical
+                self._known_canonical_names.add(canonical)
             entity = NodeEntity(
                 timestamp=timestamp,
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
                 cluster_position=match.group(1),
-                node_name=match.group(2),
+                node_name=canonical or match.group(2),
                 node_state="synced",
                 entity_id=f"node_sync_{line_num}"
             )
@@ -248,17 +317,71 @@ class GaleraLogParser:
         # Node state shifting: Shifting PRIMARY -> JOINER (TO: 3)
         match = re.search(r'Shifting (\S+) -> (\w+)(?:\s+\(TO:\s+(\d+)\))?', line)
         if match:
+            inferred = self._infer_node_name(log_source)
             entity = NodeEntity(
                 timestamp=timestamp,
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
-                node_name=self._infer_node_name(log_source),
+                node_name=inferred,
                 node_state=f"{match.group(1)} -> {match.group(2)}",
                 entity_id=f"node_shift_{line_num}"
             )
             self.entities.append(entity)
             return
+    
+    def _normalize_node_entities(self):
+        """Apply learned canonical names and heuristics to all NodeEntity instances."""
+        if not self.entities:
+            return
+        # Build alias mapping by source base -> canonical
+        for entity in self.entities:
+            if isinstance(entity, NodeEntity):
+                try:
+                    src_base = Path(entity.log_source).stem
+                except Exception:
+                    src_base = entity.log_source
+                # Do not override explicitly named remote member events (cluster_position set)
+                if getattr(entity, 'cluster_position', None):
+                    # Still normalize basic formatting
+                    entity.node_name = self._normalize_node_name(entity.node_name or "")
+                    continue
+                # For local-node state transitions (no cluster_position), prefer learned local canonical
+                if src_base in self._node_canonical_by_source:
+                    entity.node_name = self._node_canonical_by_source[src_base]
+                else:
+                    # Fallback to heuristic normalization of existing/inferred name
+                    inferred = entity.node_name or self._infer_node_name(entity.log_source)
+                    entity.node_name = self._normalize_node_name(inferred)
+
+    def _canon_member_token(self, token: str) -> Optional[str]:
+        """Canonicalize a member token for view membership lists.
+        - Return None for UUID-like tokens (we don't want these as 'nodes').
+        - Normalize names: strip domain, service suffixes, and collapse site suffixes like '-ffm'.
+        - If token matches a known canonical with a prefix, reduce to canonical base.
+        """
+        if not token:
+            return None
+        t = token.strip()
+        # Drop placeholders
+        if t.lower() in {"unknown", "joiner", "donor", "cluster", "n/a"}:
+            return None
+        # If it's a UUID-ish value, skip
+        if re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){0,2}", t, flags=re.IGNORECASE):
+            return None
+        # Strip domain
+        if '.' in t:
+            t = t.split('.', 1)[0]
+        # Strip service/version suffixes
+        t = re.sub(r'-(mysql|mariadb)[0-9.-]*$', '', t, flags=re.IGNORECASE)
+        # Collapse site/role suffixes like '-ffm', '-fra', '-prd'
+        t = re.sub(r'-([a-z]{2,4})$', '', t)
+        # If t contains a hyphen and its left part is a known canonical, reduce to left part
+        if '-' in t:
+            left = t.split('-', 1)[0]
+            if left in self._known_canonical_names:
+                t = left
+        return t or None
     
     def _parse_view_events(self, line: str, line_num: int, log_source: str):
         """Parse cluster view events"""
@@ -297,26 +420,26 @@ class GaleraLogParser:
             added = False
             if m_uuid:
                 tok = m_uuid.group(1).strip()
-                if tok and tok.lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
-                    if tok not in self._pending_view.members:
-                        self._pending_view.members.append(tok)
-                        added = True
+                canon = self._canon_member_token(tok)
+                if canon and canon not in self._pending_view.members:
+                    self._pending_view.members.append(canon)
+                    added = True
             if not added and collect:
                 m_name_idx = re.search(r'\b([^,()]+)\s*,\s*\d+', line)
                 if m_name_idx:
                     name = m_name_idx.group(1).strip()
-                    if name and name.lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
-                        if name not in self._pending_view.members:
-                            self._pending_view.members.append(name)
-                            added = True
+                    canon = self._canon_member_token(name)
+                    if canon and canon not in self._pending_view.members:
+                        self._pending_view.members.append(canon)
+                        added = True
             if not added and collect:
                 paren = re.search(r'\(([^)]+)\)', line)
                 if paren:
                     inside = paren.group(1).strip()
                     name = inside.split(',')[0].strip()
-                    if name and name.lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
-                        if name not in self._pending_view.members:
-                            self._pending_view.members.append(name)
+                    canon = self._canon_member_token(name)
+                    if canon and canon not in self._pending_view.members:
+                        self._pending_view.members.append(canon)
             return
 
         # Start of a new view block: view(view_id(PRIM,14e...,1206) memb {
@@ -370,12 +493,13 @@ class GaleraLogParser:
         match = re.search(r'Member (\d+\.\d+) \(([^)]+)\) requested state transfer', line)
         if match:
             # This creates a view-like event about state transfer need (keep as ViewEntity for backward compatibility)
+            canon = self._canon_member_token(match.group(2))
             entity = ViewEntity(
                 timestamp=timestamp,
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
-                members=[match.group(2)],
+                members=[canon] if canon else [],
                 cluster_state="state_transfer_requested",
                 entity_id=f"view_sst_req_{line_num}"
             )
@@ -954,7 +1078,7 @@ class GrapCacheManager:
                 'file_mtime': stat.st_mtime,
                 'file_modified_time': datetime.fromtimestamp(stat.st_mtime).isoformat(),
                 'cache_created': datetime.now().isoformat(),
-                'grap_version': '2.2.0',
+                'grap_version': GRAP_VERSION,
                 'cache_format_version': '1.0'
             },
             'analysis_data': analysis_data
@@ -975,7 +1099,7 @@ class GrapOutputFormatter:
         output = []
         output.append("GRAP Complete Entity Extraction Results")
         output.append("=" * 50)
-        output.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        output.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (v{GRAP_VERSION})")
         output.append(f"Total entities: {len(entities)}")
         output.append("")
         
@@ -1109,15 +1233,6 @@ class GrapOutputFormatter:
             })
             
         return result
-        
-        data = {
-            'grap_version': '2.2.0',
-            'extraction_time': datetime.now().isoformat(),
-            'total_entities': len(entities),
-            'entities': [entity_to_dict(e) for e in entities]
-        }
-        
-        return json.dumps(data, indent=2)
     
     @staticmethod
     def format_json(entities: List[Entity]) -> str:
@@ -1125,7 +1240,7 @@ class GrapOutputFormatter:
         formatter = GrapOutputFormatter()
         
         data = {
-            'grap_version': '2.2.0',
+            'grap_version': GRAP_VERSION,
             'extraction_time': datetime.now().isoformat(),
             'total_entities': len(entities),
             'entities': [formatter.entity_to_dict(e) for e in entities]
@@ -1137,7 +1252,7 @@ class GrapOutputFormatter:
     def format_yaml(entities: List[Entity]) -> str:
         """Format entities as YAML"""
         data = {
-            'grap_version': '2.3.0-enhanced',
+            'grap_version': GRAP_VERSION,
             'extraction_time': datetime.now().isoformat(),
             'total_entities': len(entities),
             'entities': []
@@ -1242,7 +1357,7 @@ Examples:
             # Create analysis data structure (use filtered entities)
             formatter = GrapOutputFormatter()
             analysis_data = {
-                'grap_version': '2.3.0-enhanced',
+                    'grap_version': GRAP_VERSION,
                 'extraction_time': datetime.now().isoformat(),
                 'total_entities': len(filtered_entities),
                 'entities': [formatter.entity_to_dict(e) for e in filtered_entities]
@@ -1251,7 +1366,7 @@ Examples:
             # Save to cache unless disabled (cache all entities, not filtered)
             if not args.no_cache:
                 cache_data = {
-                    'grap_version': '2.3.0-enhanced',
+                    'grap_version': GRAP_VERSION,
                     'extraction_time': datetime.now().isoformat(),
                     'total_entities': len(entities),
                     'entities': [formatter.entity_to_dict(e) for e in entities]
