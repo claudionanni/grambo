@@ -28,9 +28,9 @@ from pathlib import Path
 import argparse
 import logging
 
-# Import ClusterEntity from core libraries
+# Import ClusterEntity from core libraries (import directly from module to avoid __init__ side-effects)
 try:
-    from lib.entities import ClusterEntity
+    from lib.entities.cluster import ClusterEntity
 except ImportError:
     # Fallback if core library is not available
     ClusterEntity = None
@@ -122,8 +122,13 @@ class GaleraLogParser:
     """Complete Galera log parser that extracts ALL entities"""
     
     def __init__(self):
-        self.entities: List[Entity] = []
+        # Use a permissive list type to accommodate core library entities like ClusterEntity
+        self.entities: List[Any] = []
         self.sst_sessions: Dict[str, Dict] = {}  # Track ongoing SST sessions
+        # Track ongoing wsrep view member blocks
+        self._in_view_block: bool = False
+        self._pending_view: Optional[ViewEntity] = None
+        self._view_section: Optional[str] = None  # memb|joined|left|partitioned
         
     def parse_log(self, log_file: Union[str, Path]) -> List[Entity]:
         """Parse a Galera log file and extract all entities"""
@@ -150,6 +155,17 @@ class GaleraLogParser:
         self._assign_cluster_references()
         
         return sorted(self.entities, key=lambda e: e.timestamp or datetime.min)
+
+    def _infer_node_name(self, log_source: str) -> str:
+        """Infer a stable node name from the log source path (filename without extension)."""
+        try:
+            base = Path(log_source).name
+            # Strip common extensions
+            if '.' in base:
+                base = base.split('.')[0]
+            return base
+        except Exception:
+            return "unknown"
     
     def filter_entities(self, entities: List[Entity], 
                        entity_types: Optional[Set[str]] = None,
@@ -170,11 +186,17 @@ class GaleraLogParser:
     
     def _parse_timestamp(self, line: str) -> Optional[datetime]:
         """Extract timestamp from log line"""
-        # MariaDB format: 2025-09-19 11:10:37
-        match = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
-        if match:
+        # MariaDB format variants:
+        #  - "2025-09-19 11:10:37" (standard)
+        #  - "2025-09-19  2:10:37" (single-digit hour with double space before time)
+        # Use a regex that tolerates one or more spaces and 1-2 digit hour, then normalize.
+        m = re.search(r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
+        if m:
             try:
-                return datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')
+                date_part, h, mi, s = m.groups()
+                # Zero-pad hour to 2 digits before parsing
+                norm = f"{date_part} {int(h):02d}:{mi}:{s}"
+                return datetime.strptime(norm, '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 pass
                 
@@ -200,6 +222,7 @@ class GaleraLogParser:
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
+                node_name=self._infer_node_name(log_source),
                 node_state=f"{match.group(1)} -> {match.group(2)}",
                 entity_id=f"node_state_{line_num}"
             )
@@ -230,6 +253,7 @@ class GaleraLogParser:
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
+                node_name=self._infer_node_name(log_source),
                 node_state=f"{match.group(1)} -> {match.group(2)}",
                 entity_id=f"node_shift_{line_num}"
             )
@@ -239,27 +263,113 @@ class GaleraLogParser:
     def _parse_view_events(self, line: str, line_num: int, log_source: str):
         """Parse cluster view events"""
         timestamp = self._parse_timestamp(line)
-        
-        # View formation: view(view_id(PRIM,378c0ec7-a3db,16) memb {
-        match = re.search(r'view\(view_id\((\w+),([^,]+),(\d+)\)', line)
-        if match:
+
+        # If currently collecting a wsrep view member block, accumulate members until closing brace
+        if getattr(self, "_in_view_block", False) and self._pending_view:
+            # Detect block termination
+            # Handle transitions like "} joined {" / "} left {" / "} partitioned {"
+            trans = re.search(r'}\s*(memb|joined|left|partitioned)\s*\{', line)
+            if trans:
+                self._view_section = trans.group(1).lower()
+                return
+
+            # Handle final close ")" after finishing sections
+            if re.search(r'}\s*\)\s*$', line):
+                # Finalize and append the pending view entity
+                self._pending_view.line_number = self._pending_view.line_number or line_num
+                self.entities.append(self._pending_view)
+                # Reset state
+                self._in_view_block = False
+                self._pending_view = None
+                self._view_section = None
+                return
+
+            # Try to extract member entries inside parentheses: (node_name[, uuid]?)
+            # Example formats:
+            #   "\t14e3444b-9273,0"  (uuid,idx)
+            #   "  node_name,0"       (name,idx)
+            #   or legacy: "1.0 (node_name)"
+            # Prefer capturing tokens before comma, else try parentheses pattern
+            # Only register members for sections 'memb' or 'joined'
+            current_section = (self._view_section or '').lower()
+            collect = current_section in {"memb", "joined"}
+            m_uuid = re.search(r'\b([a-f0-9\-]{8,})\s*,\s*\d+', line, re.IGNORECASE) if collect else None
+            added = False
+            if m_uuid:
+                tok = m_uuid.group(1).strip()
+                if tok and tok.lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
+                    if tok not in self._pending_view.members:
+                        self._pending_view.members.append(tok)
+                        added = True
+            if not added and collect:
+                m_name_idx = re.search(r'\b([^,()]+)\s*,\s*\d+', line)
+                if m_name_idx:
+                    name = m_name_idx.group(1).strip()
+                    if name and name.lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
+                        if name not in self._pending_view.members:
+                            self._pending_view.members.append(name)
+                            added = True
+            if not added and collect:
+                paren = re.search(r'\(([^)]+)\)', line)
+                if paren:
+                    inside = paren.group(1).strip()
+                    name = inside.split(',')[0].strip()
+                    if name and name.lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
+                        if name not in self._pending_view.members:
+                            self._pending_view.members.append(name)
+            return
+
+        # Start of a new view block: view(view_id(PRIM,14e...,1206) memb {
+        mstart = re.search(r'view\(view_id\((\w+),([^,]+),(\d+)\)\s+memb\s*\{', line)
+        if mstart:
+            state, cuuid, seq = mstart.groups()
+            ve = ViewEntity(
+                timestamp=timestamp,
+                line_number=line_num,
+                raw_line=line,
+                log_source=log_source,
+                cluster_state=state,
+                view_id=f"{cuuid}:{seq}",
+                view_seq=int(seq),
+                cluster_uuid=cuuid,
+                members=[],
+                entity_id=f"view_{cuuid}_{seq}"
+            )
+            self._pending_view = ve
+            self._in_view_block = True
+            self._view_section = 'memb'
+            # If the block is immediately closed on same line, finalize
+            if re.search(r'\}', line):
+                # If also final close ")" present, finalize; otherwise switch sections handled above
+                if re.search(r'}\s*\)\s*$', line):
+                    self.entities.append(self._pending_view)
+                    self._in_view_block = False
+                    self._pending_view = None
+                    self._view_section = None
+            return
+
+        # Fallback: view(view_id(...)) line without explicit memb block (rare)
+        mfallback = re.search(r'view\(view_id\((\w+),([^,]+),(\d+)\)\)', line)
+        if mfallback:
+            state, cuuid, seq = mfallback.groups()
             entity = ViewEntity(
                 timestamp=timestamp,
                 line_number=line_num,
                 raw_line=line,
                 log_source=log_source,
-                cluster_state=match.group(1),
-                view_id=match.group(2),
-                view_seq=int(match.group(3)),
-                entity_id=f"view_{match.group(2)}_{match.group(3)}"
+                cluster_state=state,
+                view_id=f"{cuuid}:{seq}",
+                view_seq=int(seq),
+                cluster_uuid=cuuid,
+                entity_id=f"view_{cuuid}_{seq}"
             )
             self.entities.append(entity)
             return
-            
+
         # State transfer request: Member 1.0 (NODE_50000) requested state transfer from '*any*'
         match = re.search(r'Member (\d+\.\d+) \(([^)]+)\) requested state transfer', line)
         if match:
-            # This creates a view event about state transfer need
+            # This creates a view-like event about state transfer need (keep as ViewEntity for backward compatibility)
             entity = ViewEntity(
                 timestamp=timestamp,
                 line_number=line_num,
@@ -664,7 +774,7 @@ class GaleraLogParser:
             from lib.entities.enhanced_parser import extract_cluster_uuid_from_raw_line
         except ImportError:
             # Fallback if core library is not available
-            return
+            extract_cluster_uuid_from_raw_line = None
         
         # Step 1: Detect cluster UUID by scanning the entire log file
         cluster_uuid = None
@@ -677,7 +787,7 @@ class GaleraLogParser:
                 log_source = entity.log_source
                 break
         
-        if log_source:
+        if log_source and extract_cluster_uuid_from_raw_line:
             try:
                 with open(log_source, 'r', encoding='utf-8', errors='replace') as f:
                     for line in f:
@@ -687,13 +797,27 @@ class GaleraLogParser:
                             break
             except Exception as e:
                 pass
-        
+
+        # Fallback: derive from parsed view entities if scan failed
         if not cluster_uuid:
-            return  # No cluster UUID found, skip assignment
+            for e in self.entities:
+                if isinstance(e, ViewEntity) and e.cluster_uuid:
+                    cluster_uuid = e.cluster_uuid
+                    break
+
+        # Last resort: try to extract from view_id if available
+        if not cluster_uuid:
+            for e in self.entities:
+                if isinstance(e, ViewEntity) and e.view_id and ':' in e.view_id:
+                    maybe_uuid = e.view_id.split(':', 1)[0].strip()
+                    if maybe_uuid and re.match(r'^[0-9a-fA-F\-]{8,}$', maybe_uuid):
+                        cluster_uuid = maybe_uuid
+                        break
+        
+        # Create cluster reference name (use unknown bucket if UUID still missing)
+        cluster_ref = f"cluster_{cluster_uuid[:8]}" if cluster_uuid else "_unknown_cluster"
         
         # Create cluster reference name
-        cluster_ref = f"cluster_{cluster_uuid[:8]}"
-        
         # Step 2: Add cluster_ref field to base Entity class if not present
         for entity in self.entities:
             if not hasattr(entity, 'cluster_ref'):
@@ -728,10 +852,20 @@ class GaleraLogParser:
                 entity.cluster_ref = cluster_ref
         
         # Step 4: Create and add a CLUSTER entity using core library
-        if ClusterEntity:
+        if ClusterEntity and cluster_uuid:
+            # Determine a reasonable timestamp: earliest available among parsed entities
+            earliest_ts = None
+            for e in self.entities:
+                ts = getattr(e, 'timestamp', None)
+                if ts is None:
+                    continue
+                if earliest_ts is None:
+                    earliest_ts = ts
+                elif ts < earliest_ts:
+                    earliest_ts = ts
             cluster_entity = ClusterEntity(
                 entity_id=f"cluster_{cluster_uuid[:8]}",
-                timestamp=None,
+                timestamp=earliest_ts,
                 line_number=0,
                 log_source="cluster_detection",
                 confidence=1.0,
@@ -887,16 +1021,16 @@ class GrapOutputFormatter:
         entity_type = type(entity).__name__.replace('Entity', '').lower()
         
         # Handle core library entities with EntityType enum
-        if hasattr(entity, 'entity_type') and entity.entity_type:
-            try:
-                # Try to get enum value first
-                if hasattr(entity.entity_type, 'value'):
-                    entity_type = entity.entity_type.value.lower()
-                elif isinstance(entity.entity_type, str) and entity.entity_type.strip():
-                    entity_type = entity.entity_type.lower()
-            except:
-                # Fallback to class name derivation - already set above
-                pass
+        et_attr = getattr(entity, 'entity_type', None)
+        if et_attr:
+            # If already a non-empty string, use it
+            if isinstance(et_attr, str) and et_attr.strip():
+                entity_type = et_attr.lower()
+            else:
+                # Attempt to read enum-like .value attribute
+                val = getattr(et_attr, 'value', None)
+                if isinstance(val, str) and val.strip():
+                    entity_type = val.lower()
         
         result = {
             'entity_type': entity_type,

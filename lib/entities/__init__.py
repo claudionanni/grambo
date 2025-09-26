@@ -25,6 +25,12 @@ from .core import (
 # Import hierarchical cluster entity
 from .cluster import ClusterEntity, ViewCollection, MemberCollection
 
+# Import simple cluster entity for reference architecture (optional)
+try:
+    from .simple_cluster import SimpleClusterEntity
+except ImportError:
+    SimpleClusterEntity = None
+
 # Import enhanced parser
 from .enhanced_parser import (
     MultiLogParser, create_enhanced_parser, 
@@ -69,6 +75,9 @@ __all__ = [
     
     # Hierarchical cluster entity
     'ClusterEntity', 'ViewCollection', 'MemberCollection',
+    
+    # Simple cluster entity for reference architecture
+    'SimpleClusterEntity',
     
     # Enhanced parsing
     'MultiLogParser', 'create_enhanced_parser', 

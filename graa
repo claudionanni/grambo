@@ -20,6 +20,7 @@ from collections import defaultdict, Counter
 from typing import Dict, List, Any, Optional
 import subprocess
 import re
+from collections import defaultdict
 
 __version__ = "1.0.0-alpha1"
 __author__ = "Claudio Nanni"
@@ -602,12 +603,15 @@ class GraAnalyzer:
             'nodes': self._analyze_nodes(),
             'cluster_views': self._analyze_cluster_views(),
             'sst_sessions': self._analyze_sst_sessions(),
+            'sst_pairs': self._analyze_sst_pairs(),
+            'ist_sessions': self._analyze_ist(),
             'timeline': self._analyze_timeline(),
             'errors': self._analyze_errors(),
-            'cluster_state': self._analyze_cluster_state(),
+            'cluster_stability': self._analyze_cluster_stability(),
             'performance': self._analyze_performance(),
             'warnings': self._analyze_warnings(),
-            'connectivity': self._analyze_connectivity()
+            'connectivity': self._analyze_connectivity(),
+            'incidents': self._analyze_incidents(),
         }
         return analysis
     
@@ -624,15 +628,19 @@ class GraAnalyzer:
         }
         return overview
     
+    def _etype(self, e: Dict[str, Any]) -> str:
+        return (e.get('entity_type') or '').lower()
+
     def _analyze_sst_sessions(self) -> Dict[str, Any]:
         """Analyze SST sessions in detail"""
-        sst_entities = [e for e in self.entities if e.get('entity_type') == 'STATE_TRANSFER']
+        # GRAP emits lowercase 'sst' events; treat each 'transfer_complete' as a completed session proxy
+        sst_entities = [e for e in self.entities if self._etype(e) == 'sst']
         
         if not sst_entities:
             return {'total_sessions': 0, 'summary': 'No SST sessions found'}
         
         sessions = {
-            'total_sessions': len(sst_entities),
+            'total_sessions': len([e for e in sst_entities if (e.get('sst_status') or '').lower() in ('transfer_complete', 'completed')]) or len(sst_entities),
             'by_status': self._group_ssts_by_status(sst_entities),
             'by_method': self._group_ssts_by_method(sst_entities),
             'duration_stats': self._calculate_duration_stats(sst_entities),
@@ -681,26 +689,45 @@ class GraAnalyzer:
         warnings = []
         
         for entity in self.entities:
-            # Check for error status
-            status = entity.get('current_transfer_status', '')
-            if 'fail' in status.lower() or 'error' in status.lower():
-                errors.append({
-                    'entity_id': entity.get('entity_id'),
-                    'type': entity.get('entity_type'),
-                    'status': status,
-                    'error_message': entity.get('current_error_message', ''),
-                    'timestamp': entity.get('start_timestamp') or entity.get('timestamp')
-                })
-            
-            # Check for interrupted or auto-completed sessions
-            if 'auto_completed' in status or 'interrupted' in status:
-                warnings.append({
-                    'entity_id': entity.get('entity_id'),
-                    'type': entity.get('entity_type'),
-                    'status': status,
-                    'message': f"Session was {status}",
-                    'timestamp': entity.get('start_timestamp') or entity.get('timestamp')
-                })
+            et = self._etype(entity)
+            # Collect explicit error entities (GRAP emits entity_type='error')
+            if et == 'error':
+                level = (entity.get('error_level') or '').lower()
+                if level == 'warning' or level == 'warn':
+                    warnings.append({
+                        'entity_id': entity.get('entity_id'),
+                        'type': 'warning',
+                        'status': level,
+                        'error_message': entity.get('error_message', ''),
+                        'timestamp': entity.get('timestamp')
+                    })
+                else:
+                    errors.append({
+                        'entity_id': entity.get('entity_id'),
+                        'type': 'error',
+                        'status': level or 'error',
+                        'error_message': entity.get('error_message', '') or entity.get('raw_line', ''),
+                        'timestamp': entity.get('timestamp')
+                    })
+            # Derive failures from SST events
+            if et == 'sst':
+                status = (entity.get('sst_status') or '').lower()
+                if any(k in status for k in ('fail', 'error')):
+                    errors.append({
+                        'entity_id': entity.get('entity_id'),
+                        'type': 'sst',
+                        'status': status,
+                        'error_message': entity.get('raw_line', ''),
+                        'timestamp': entity.get('timestamp')
+                    })
+                elif any(k in status for k in ('auto_completed', 'interrupted')):
+                    warnings.append({
+                        'entity_id': entity.get('entity_id'),
+                        'type': 'sst',
+                        'status': status,
+                        'message': f"Session was {status}",
+                        'timestamp': entity.get('timestamp')
+                    })
         
         return {
             'errors': errors,
@@ -709,18 +736,46 @@ class GraAnalyzer:
             'warning_count': len(warnings)
         }
     
-    def _analyze_cluster_state(self) -> Dict[str, Any]:
-        """Analyze cluster state information"""
-        cluster_info = {
-            'node_roles': self._identify_node_roles(),
-            'cluster_membership': self._analyze_cluster_membership(),
-            'state_changes': self._track_state_changes()
+    def _analyze_cluster_stability(self) -> Dict[str, Any]:
+        """Analyze PRIM/NON_PRIM periods from view events"""
+        views = [e for e in self.entities if self._etype(e) == 'view']
+        if not views:
+            return {'periods': [], 'non_primary_count': 0, 'non_primary_total_seconds': 0}
+        # Sort by time
+        views.sort(key=safe_timestamp_key)
+        periods = []
+        current = None
+        for v in views:
+            state = (v.get('cluster_state') or '').upper()
+            ts = v.get('timestamp')
+            if current is None:
+                current = {'state': state, 'start': ts, 'end': None}
+            elif state != current['state']:
+                # close current
+                current['end'] = ts
+                periods.append(current)
+                current = {'state': state, 'start': ts, 'end': None}
+        if current:
+            periods.append(current)
+        # Compute total non-primary duration where possible
+        total_nonprim = 0
+        for p in periods:
+            if p['state'] in ('NON_PRIM', 'NON_PRIMARY', 'NON-PRIMARY') and p['start'] and p.get('end'):
+                try:
+                    s = datetime.fromisoformat(p['start'].replace('Z', '+00:00'))
+                    e = datetime.fromisoformat(p['end'].replace('Z', '+00:00'))
+                    total_nonprim += max(0, (e - s).total_seconds())
+                except Exception:
+                    pass
+        return {
+            'periods': periods,
+            'non_primary_count': sum(1 for p in periods if p['state'] in ('NON_PRIM', 'NON_PRIMARY', 'NON-PRIMARY')),
+            'non_primary_total_seconds': total_nonprim,
         }
-        return cluster_info
     
     def _analyze_performance(self) -> Dict[str, Any]:
         """Analyze performance metrics"""
-        sst_entities = [e for e in self.entities if e.get('entity_type') == 'STATE_TRANSFER']
+        sst_entities = [e for e in self.entities if self._etype(e) == 'sst']
         
         performance = {
             'sst_success_rate': self._calculate_success_rate(sst_entities),
@@ -731,14 +786,14 @@ class GraAnalyzer:
     
     def _analyze_nodes(self) -> Dict[str, Any]:
         """Analyze node information and state"""
-        node_entities = [e for e in self.entities if e.get('entity_type') == 'NODE']
+        node_entities = [e for e in self.entities if self._etype(e) == 'node']
         
         nodes = {}
         node_names = set()
         node_ids = set()
         
         for entity in node_entities:
-            node_id = entity.get('node_id', '')
+            node_id = entity.get('node_id', '') or entity.get('node_uuid', '')
             node_name = entity.get('node_name', '')
             
             if node_id:
@@ -763,11 +818,21 @@ class GraAnalyzer:
             node_info = nodes[key]
             
             # Update node information
-            if entity.get('current_state'):
+            # Derive states from GRAP's node_state (e.g., "Shifting A -> B" or "synced")
+            ns = entity.get('node_state')
+            if ns:
+                prev_state = None
+                cur_state = None
+                m = re.search(r'(?:Shifting|Server status change)\s+([^>-]+)->\s*([^\s]+)', ns)
+                if m:
+                    prev_state = m.group(1).strip()
+                    cur_state = m.group(2).strip()
+                elif ns.strip():
+                    cur_state = ns.strip()
                 node_info['states'].append({
                     'timestamp': entity.get('timestamp'),
-                    'state': entity.get('current_state'),
-                    'previous_state': entity.get('previous_state')
+                    'state': cur_state or ns,
+                    'previous_state': prev_state
                 })
             
             if entity.get('node_address'):
@@ -796,7 +861,7 @@ class GraAnalyzer:
     
     def _analyze_cluster_views(self) -> Dict[str, Any]:
         """Analyze cluster view changes and membership"""
-        view_entities = [e for e in self.entities if e.get('entity_type') == 'VIEW']
+        view_entities = [e for e in self.entities if self._etype(e) == 'view']
         
         if not view_entities:
             return {'total_views': 0, 'message': 'No cluster view changes found'}
@@ -839,7 +904,8 @@ class GraAnalyzer:
     
     def _analyze_warnings(self) -> Dict[str, Any]:
         """Analyze warning messages"""
-        warning_entities = [e for e in self.entities if e.get('entity_type') == 'WARNING']
+        # GRAP emits warnings as entity_type='error' with error_level='warning'
+        warning_entities = [e for e in self.entities if self._etype(e) == 'error' and (e.get('error_level') or '').lower() in ('warning', 'warn')]
         
         warnings = []
         warning_types = Counter()
@@ -875,18 +941,18 @@ class GraAnalyzer:
             if any(keyword in raw_line for keyword in ['connection', 'network', 'timeout', 'unreachable', 'refused']):
                 connectivity_issues.append({
                     'timestamp': entity.get('timestamp'),
-                    'entity_type': entity.get('entity_type'),
+                    'entity_type': self._etype(entity),
                     'issue_type': 'connection',
                     'description': entity.get('raw_line', ''),
                     'pattern_name': entity.get('pattern_name')
                 })
             
             # Check for SST communication failures
-            if entity.get('entity_type') == 'STATE_TRANSFER':
-                error_msg = entity.get('current_error_message', '').lower()
+            if self._etype(entity) == 'sst':
+                error_msg = (entity.get('current_error_message') or entity.get('raw_line') or '').lower()
                 if any(keyword in error_msg for keyword in ['communication', 'network', 'connection', 'timeout']):
                     connectivity_issues.append({
-                        'timestamp': entity.get('start_timestamp') or entity.get('timestamp'),
+                        'timestamp': entity.get('timestamp'),
                         'entity_type': 'SST_COMMUNICATION',
                         'issue_type': 'sst_communication',
                         'description': entity.get('current_error_message', ''),
@@ -901,6 +967,149 @@ class GraAnalyzer:
             'issue_details': connectivity_issues,
             'has_connectivity_problems': len(connectivity_issues) > 0,
             'issue_types': Counter(issue['issue_type'] for issue in connectivity_issues)
+        }
+
+    # --- Incident detection (experimental) ---
+    def _parse_dt(self, ts: Optional[str]) -> Optional[datetime]:
+        if not ts:
+            return None
+        try:
+            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        except Exception:
+            return None
+
+    def _extract_peer(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        m = re.search(r"tcp://([^\s]+?)(?:\)|\s|$)", text)
+        return m.group(1) if m else None
+
+    def _is_nonprim_signal(self, e: Dict[str, Any]) -> bool:
+        et = self._etype(e)
+        if et == 'view':
+            st = (e.get('cluster_state') or '').upper()
+            return st in ('NON_PRIM', 'NON_PRIMARY', 'OPEN', 'NON-PRIMARY')
+        if et == 'node':
+            ns = e.get('node_state') or ''
+            return bool(re.search(r"(Shifting\s+SYNCED\s*->\s*OPEN|status change\s+synced\s*->\s*connected)", ns, re.IGNORECASE))
+        if et == 'error':
+            rl = (e.get('raw_line') or '').lower()
+            return ('received non-primary' in rl)
+        return False
+
+    def _is_recovery_signal(self, e: Dict[str, Any]) -> bool:
+        et = self._etype(e)
+        if et == 'view':
+            st = (e.get('cluster_state') or '').upper()
+            return st in ('PRIM', 'PRIMARY')
+        if et == 'node':
+            ns = e.get('node_state') or ''
+            return bool(re.search(r"(Shifting\s+JOINED\s*->\s*SYNCED|synced with group)", ns, re.IGNORECASE))
+        return False
+
+    def _incident_reason_tags(self, e: Dict[str, Any]) -> List[str]:
+        tags = []
+        if self._etype(e) == 'error':
+            rl = (e.get('raw_line') or '').lower()
+            if 'timed out, no messages seen' in rl:
+                tags.append('peer_timeout')
+            if 'reconnecting to' in rl:
+                tags.append('reconnect')
+            if 'connection established' in rl:
+                tags.append('reconnect_success')
+            if 'transport endpoint is not connected' in rl or 'gcs_caused() returned -107' in rl:
+                tags.append('transport_error')
+            if 'message relay requesting on' in rl:
+                tags.append('relay_on')
+            if 'message relay requesting off' in rl:
+                tags.append('relay_off')
+        return tags
+
+    def _analyze_incidents(self) -> Dict[str, Any]:
+        # Build a time-ordered signal stream
+        signals = []
+        for e in self.entities:
+            ts = e.get('timestamp')
+            if not ts:
+                continue
+            if self._is_nonprim_signal(e):
+                signals.append({'ts': ts, 'kind': 'loss', 'e': e})
+            if self._is_recovery_signal(e):
+                signals.append({'ts': ts, 'kind': 'recovery', 'e': e})
+            # Network indicators enrich context
+            if self._etype(e) == 'error':
+                tags = self._incident_reason_tags(e)
+                if tags:
+                    peer = self._extract_peer(e.get('raw_line', ''))
+                    signals.append({'ts': ts, 'kind': 'net', 'tags': tags, 'peer': peer, 'e': e})
+
+        signals.sort(key=lambda s: safe_timestamp_key(s['ts']))
+
+        incidents = []
+        open_incident = None
+        for s in signals:
+            k = s['kind']
+            if k == 'loss':
+                if open_incident is None:
+                    open_incident = {
+                        'start': s['ts'],
+                        'end': None,
+                        'loss_signals': 1,
+                        'recovery_signals': 0,
+                        'net_indicators': Counter(),
+                        'peers': Counter(),
+                    }
+                else:
+                    open_incident['loss_signals'] += 1
+            elif k == 'recovery':
+                if open_incident is not None and open_incident['end'] is None:
+                    open_incident['recovery_signals'] += 1
+                    open_incident['end'] = s['ts']
+                    incidents.append(open_incident)
+                    open_incident = None
+            elif k == 'net' and open_incident is not None:
+                for t in s.get('tags', []):
+                    open_incident['net_indicators'][t] += 1
+                if s.get('peer'):
+                    open_incident['peers'][s['peer']] += 1
+
+        # If an incident is still open, close it at the last signal time (best effort)
+        if open_incident is not None and open_incident.get('start'):
+            open_incident['end'] = open_incident.get('end') or (signals[-1]['ts'] if signals else open_incident['start'])
+            incidents.append(open_incident)
+
+        # Compute durations and hourly histogram
+        hourly = Counter()
+        for inc in incidents:
+            sdt = self._parse_dt(inc['start'])
+            edt = self._parse_dt(inc.get('end'))
+            if sdt and edt:
+                inc['duration_seconds'] = max(0, (edt - sdt).total_seconds())
+                inc['hour_of_day'] = sdt.hour
+                hourly[sdt.hour] += 1
+            else:
+                inc['duration_seconds'] = None
+        # Summarize peers and indicators
+        for inc in incidents:
+            inc['net_indicators'] = dict(inc['net_indicators'])
+            inc['peers'] = dict(inc['peers'])
+
+        summary = {
+            'total_incidents': len(incidents),
+            'hourly_distribution': dict(sorted(hourly.items())),
+        }
+        # Detect recurring window (e.g., 5:00–6:00)
+        if hourly:
+            top_hour, count = max(hourly.items(), key=lambda kv: kv[1])
+            summary['recurring_window'] = {
+                'hour': top_hour,
+                'count': count,
+                'note': f"Most incidents occur around {top_hour:02d}:00"
+            }
+
+        return {
+            'summary': summary,
+            'incidents': incidents,
         }
     
     # Helper methods
@@ -931,7 +1140,7 @@ class GraAnalyzer:
         """Group SST sessions by their final status"""
         status_counts = Counter()
         for entity in sst_entities:
-            status = entity.get('current_transfer_status', 'unknown')
+            status = entity.get('current_transfer_status') or entity.get('sst_status') or 'unknown'
             status_counts[status] += 1
         return dict(status_counts)
     
@@ -939,7 +1148,7 @@ class GraAnalyzer:
         """Group SST sessions by transfer method"""
         method_counts = Counter()
         for entity in sst_entities:
-            method = entity.get('transfer_method', 'unknown')
+            method = entity.get('transfer_method') or entity.get('sst_method') or 'unknown'
             method_counts[method] += 1
         return dict(method_counts)
     
@@ -970,16 +1179,16 @@ class GraAnalyzer:
         for entity in sst_entities:
             session = {
                 'id': entity.get('entity_id'),
-                'method': entity.get('transfer_method', 'unknown'),
-                'status': entity.get('current_transfer_status', 'unknown'),
-                'start_time': entity.get('start_timestamp'),
+                'method': entity.get('transfer_method') or entity.get('sst_method') or 'unknown',
+                'status': entity.get('current_transfer_status') or entity.get('sst_status') or 'unknown',
+                'start_time': entity.get('start_timestamp') or entity.get('timestamp'),
                 'end_time': entity.get('end_timestamp'),
                 'duration_seconds': entity.get('duration_seconds'),
-                'donor': entity.get('donor_node', 'unknown'),
-                'joiner': entity.get('joiner_node', 'unknown'),
+                'donor': entity.get('donor_node', 'unknown') or entity.get('donor_address', ''),
+                'joiner': entity.get('joiner_node', 'unknown') or entity.get('joiner_address', ''),
                 'donor_address': entity.get('donor_address', ''),
                 'joiner_address': entity.get('joiner_address', ''),
-                'error_message': entity.get('current_error_message', ''),
+                'error_message': entity.get('current_error_message', '') or entity.get('raw_line', ''),
                 'bytes_transferred': entity.get('current_transferred_bytes', 0),
                 'progress_percentage': entity.get('current_progress_percentage', 0),
                 'seqno_start': entity.get('current_seqno_start'),
@@ -1011,7 +1220,7 @@ class GraAnalyzer:
         joiners = set()
         
         for entity in self.entities:
-            if entity.get('entity_type') == 'STATE_TRANSFER':
+            if self._etype(entity) == 'sst':
                 donor = entity.get('donor_node')
                 joiner = entity.get('joiner_node')
                 if donor and donor != 'unknown_donor':
@@ -1045,8 +1254,8 @@ class GraAnalyzer:
         failed = 0
         
         for entity in sst_entities:
-            status = entity.get('current_transfer_status', '').lower()
-            if 'complete' in status or 'success' in status:
+            status = (entity.get('current_transfer_status') or entity.get('sst_status') or '').lower()
+            if any(k in status for k in ('complete', 'completed', 'success')):
                 successful += 1
             elif 'fail' in status or 'error' in status:
                 failed += 1
@@ -1071,6 +1280,57 @@ class GraAnalyzer:
         """Analyze throughput statistics"""
         # This would be expanded when we have transfer rate data
         return {'status': 'Not implemented - requires transfer rate data'}
+
+    def _analyze_ist(self) -> Dict[str, Any]:
+        """Summarize IST events from GRAP"""
+        ist_entities = [e for e in self.entities if self._etype(e) == 'ist']
+        if not ist_entities:
+            return {'total_ist_events': 0, 'summary': 'No IST events found'}
+        # Counters
+        by_status = Counter((e.get('ist_status') or 'unknown') for e in ist_entities)
+        by_receiver = Counter()
+        for e in ist_entities:
+            node = e.get('receiver_address') or e.get('donor_node') or 'unknown'
+            by_receiver[node] += 1
+        # Recent concise details
+        details = []
+        for e in sorted(ist_entities, key=safe_timestamp_key)[-10:]:
+            details.append({
+                'id': e.get('entity_id'),
+                'time': e.get('timestamp'),
+                'status': e.get('ist_status'),
+                'first': e.get('ist_first'),
+                'last': e.get('ist_last'),
+                'progress': e.get('progress_percent'),
+                'events': (e.get('events_processed'), e.get('events_total')),
+            })
+        return {
+            'total_ist_events': len(ist_entities),
+            'by_status': dict(by_status),
+            'by_receiver': dict(by_receiver.most_common(10)),
+            'recent': details,
+        }
+
+    def _analyze_sst_pairs(self) -> Dict[str, Any]:
+        """Build donor→joiner pair matrix from SST events"""
+        ssts = [e for e in self.entities if self._etype(e) == 'sst']
+        if not ssts:
+            return {'pairs': {}, 'top_pairs': []}
+        pairs = Counter()
+        for e in ssts:
+            donor = (e.get('donor_node') or 'unknown').strip()
+            joiner = (e.get('joiner_node') or 'unknown').strip()
+            if donor or joiner:
+                pairs[(donor, joiner)] += 1
+        top = [
+            {'donor': d, 'joiner': j, 'count': c}
+            for (d, j), c in pairs.most_common(10)
+        ]
+        # Convert to nested dict donor->{joiner: count}
+        matrix: Dict[str, Dict[str, int]] = {}
+        for (d, j), c in pairs.items():
+            matrix.setdefault(d, {})[j] = c
+        return {'pairs': matrix, 'top_pairs': top}
 
 
 def print_analysis(analysis: Dict[str, Any]):
@@ -1179,6 +1439,14 @@ def print_analysis(analysis: Dict[str, Any]):
                 error_str = f" - {error}" if error else ""
                 
                 print(f"     {session.get('start_time', 'Unknown')}: {donor} → {joiner} ({method}) {status}{duration_str}{error_str}")
+
+    # SST Donor→Joiner pairs (who helps whom most)
+    sst_pairs = analysis.get('sst_pairs') or {}
+    top_pairs = sst_pairs.get('top_pairs') or []
+    if top_pairs:
+        print(f"\nSST DONOR→JOINER PAIRS (top)")
+        for p in top_pairs[:10]:
+            print(f"   {p['donor']} → {p['joiner']}: {p['count']}")
     
     # Performance
     performance = analysis['performance']
@@ -1207,6 +1475,59 @@ def print_analysis(analysis: Dict[str, Any]):
         recent_issues = connectivity.get('issue_details', [])[-3:]
         for issue in recent_issues:
             print(f"     {issue.get('timestamp', 'Unknown')}: {issue.get('issue_type', 'unknown')} - {issue.get('description', 'No description')[:100]}...")
+
+    # IST Summary
+    ist = analysis.get('ist_sessions') or {}
+    if ist.get('total_ist_events', 0) > 0:
+        print(f"\nIST SUMMARY")
+        print(f"   Total IST events: {ist.get('total_ist_events', 0)}")
+        by_status = ist.get('by_status', {})
+        if by_status:
+            print("   By status:")
+            for s, c in by_status.items():
+                print(f"     {s}: {c}")
+        recent = ist.get('recent', [])
+        if recent:
+            print("   Recent IST events:")
+            for r in recent:
+                rng = f" Range {r.get('first')}→{r.get('last')}" if (r.get('first') or r.get('last')) else ""
+                prog = f" Progress {r.get('progress')}%" if r.get('progress') else ""
+                print(f"     {r.get('time','Unknown')}: {r.get('status','')} {rng}{prog}")
+
+    # Cluster stability (PRIM/NON_PRIM periods)
+    stability = analysis.get('cluster_stability') or {}
+    periods = stability.get('periods') or []
+    if periods:
+        print("\nCLUSTER STABILITY (view state periods)")
+        np_total = stability.get('non_primary_total_seconds') or 0
+        if np_total:
+            print(f"   Total NON_PRIMARY time: {format_duration(np_total)}")
+        for p in periods[-5:]:
+            st = p.get('state', 'UNKNOWN')
+            s = p.get('start', 'Unknown')
+            e = p.get('end', '…') or '…'
+            print(f"   {st}: {s} → {e}")
+
+    # INCIDENTS (inferred)
+    incidents = analysis.get('incidents') or {}
+    if incidents:
+        summary = incidents.get('summary') or {}
+        lst = incidents.get('incidents') or []
+        print("\nINCIDENTS (inferred)")
+        print(f"   Total incidents: {summary.get('total_incidents', 0)}")
+        if summary.get('recurring_window'):
+            rw = summary['recurring_window']
+            print(f"   Recurring time window: around {rw['hour']:02d}:00 (count {rw['count']})")
+        if lst:
+            print("   Recent incidents:")
+            for inc in lst[-5:]:
+                dur = inc.get('duration_seconds')
+                dur_s = format_duration(dur) if dur is not None else 'n/a'
+                start = inc.get('start', 'Unknown')
+                end = inc.get('end', 'Unknown')
+                indicators = ",".join(sorted(k for k,v in (inc.get('net_indicators') or {}).items() if v)) or "none"
+                peers = ",".join(sorted((inc.get('peers') or {}).keys())) or "n/a"
+                print(f"     {start} → {end}  dur {dur_s}  indicators[{indicators}] peers[{peers}]")
     
     # Warnings
     warnings = analysis['warnings']

@@ -92,8 +92,12 @@ class ClusterState:
 class WebClusterVisualizer:
     """Web-based cluster visualizer using Plotly/Dash"""
     
-    def __init__(self, cluster_data: Dict[str, Any], host: str = '127.0.0.1', port: int = 8050):
-        self.cluster_data = cluster_data
+    def __init__(self, cluster_data: Optional[Dict[str, Any]] = None, frames_data: Optional[List[Dict[str, Any]]] = None, host: str = '127.0.0.1', port: int = 8050):
+        # Two input modes:
+        # - cluster_data: legacy analysis JSON (with cluster_analysis key)
+        # - frames_data: list of frames from graf (either NDJSON loaded or frames array)
+        self.cluster_data = cluster_data or {}
+        self.frames_data = frames_data  # None unless frames mode
         self.host = host
         self.port = port
         self.states: List[ClusterState] = []
@@ -101,11 +105,204 @@ class WebClusterVisualizer:
         self.current_state_index = 0
         
         # Parse cluster data into states
-        self.parse_cluster_data()
+        if self.frames_data is not None:
+            self.parse_frames_data()
+        else:
+            self.parse_cluster_data()
+        
+        # Build a stable, global node ordering for consistent visuals across frames
+        self.all_nodes = []
+        try:
+            seen = set()
+            for st in self.states:
+                for n in st.nodes.keys():
+                    if n and str(n).strip().lower() not in {"unknown", "joiner", "donor", "cluster", "n/a"}:
+                        seen.add(n)
+            self.all_nodes = sorted(seen)
+        except Exception:
+            self.all_nodes = []
         
         # Setup the app
         self.setup_layout()
         self.setup_callbacks()
+
+    def parse_frames_data(self):
+        """Parse graf frames into internal ClusterState timeline.
+
+        Expected frame schema (per graf):
+          {
+            index: int,
+            event: { entity_type, entity_id, timestamp, line_number, cluster_ref },
+            clusters: { <cluster_ref>: { members, sst_sessions, ist_sessions, ... } },
+            counters: {...}
+          }
+        """
+        self.states = []
+        self.node_name_mapping = {}  # In frames mode, assume member keys are final names
+        # In frames mode, categorized events are not present; initialize empty
+        self.categorized_events = {
+            'state_transfer': [],
+            'service': [],
+            'warnings_errors': []
+        }
+
+        if not self.frames_data:
+            return
+
+        # Build states directly from frames, selecting the first cluster in each frame
+        for i, frame in enumerate(self.frames_data):
+            # Timestamp
+            ts_str = (frame.get('event') or {}).get('timestamp')
+            try:
+                ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00')) if ts_str else datetime.now()
+            except Exception:
+                ts = datetime.now()
+
+            st = ClusterState(ts, i)
+
+            clusters = frame.get('clusters') or {}
+            # Pick first cluster snapshot if present
+            cluster_snap = None
+            if clusters:
+                first_key = next(iter(clusters.keys()))
+                cluster_snap = clusters.get(first_key) or {}
+            else:
+                cluster_snap = {}
+
+            # Members -> nodes
+            members = (cluster_snap.get('members') or {})
+            # Helper: normalize raw member state strings to canonical ladder states
+            def _canon_state(raw: Any) -> str:
+                if raw is None:
+                    return 'UNKNOWN'
+                s = str(raw).strip()
+                if not s:
+                    return 'UNKNOWN'
+                s_up = s.upper()
+                # If it's a transition like "PRIMARY -> JOINER", take the RHS
+                if '->' in s_up:
+                    s_up = s_up.split('->')[-1].strip()
+                # Common synonyms and simplifications
+                synonyms = {
+                    'JOIN': 'JOINER',
+                    'JOINING': 'JOINER',
+                    'JOINER': 'JOINER',
+                    'JOINED': 'JOINED',
+                    'SYNC': 'SYNCED',
+                    'SYNCED': 'SYNCED',
+                    'PRIMARY': 'PRIMARY',
+                    'OPEN': 'OPEN',
+                    'NON_PRIMARY': 'NON_PRIMARY',
+                    'CONNECTED': 'CONNECTED',
+                    'DESYNCED': 'DESYNCED',
+                    'DONOR': 'DONOR',
+                    'DONOR/DESYNCED': 'DONOR/DESYNCED',
+                    'CLOSED': 'CLOSED',
+                    'UNKNOWN': 'UNKNOWN',
+                }
+                # Handle phrases like "SYNCED WITH GROUP" or lowercase variants
+                if 'SYNCED' in s_up:
+                    return 'SYNCED'
+                if 'JOINED' in s_up and 'SYNCED' not in s_up:
+                    return 'JOINED'
+                if 'JOINER' in s_up:
+                    return 'JOINER'
+                if 'DONOR' in s_up and 'DESYNCED' in s_up:
+                    return 'DONOR/DESYNCED'
+                if s_up in synonyms:
+                    return synonyms[s_up]
+                return s_up  # fallback to upper value
+            # Ensure deterministic ordering
+            def _is_placeholder(n: str) -> bool:
+                if not n:
+                    return True
+                nlow = str(n).strip().lower()
+                return nlow in {"unknown", "joiner", "donor", "cluster", "n/a"}
+
+            for name in sorted(members.keys()):
+                if _is_placeholder(name):
+                    continue
+                m = members[name] or {}
+                # Record mapping for display (identity mapping)
+                self.node_name_mapping[name] = name
+                st.add_node(name, _canon_state(m.get('state')), seqno=None)
+
+            # Derive transfers from SST sessions
+            sst_sessions = (cluster_snap.get('sst_sessions') or {})
+            # Helper to detect placeholder names
+            def _is_placeholder_name(n: Optional[str]) -> bool:
+                if not n:
+                    return True
+                nlow = str(n).strip().lower()
+                return nlow in {"unknown", "joiner", "donor", "cluster", "n/a"}
+            # Get previous state's node set to detect new joiners
+            prev_nodes = set(self.states[-1].nodes.keys()) if self.states else set()
+            for sid, sess in sst_sessions.items():
+                joiner = sess.get('joiner') or ''
+                donor = sess.get('donor') or ''
+                status = (sess.get('status') or '').lower()
+                method = sess.get('method') or 'unknown'
+                duration = sess.get('duration_seconds')
+
+                # Normalize status for arrow styling
+                status_map = {
+                    'requested': 'requested',
+                    'started': 'started',
+                    'proceeding_with_backup': 'started',
+                    'donor_selected': 'started',
+                    'transfer_complete': 'completed',
+                    'completed': 'completed',
+                    'failed': 'failed'
+                }
+                arrow_status = status_map.get(status, 'in_progress')
+                # Infer missing/placeholder joiner using members in this frame
+                if not joiner or _is_placeholder_name(joiner):
+                    # Candidates: nodes newly appearing this frame
+                    cur_nodes = set(st.nodes.keys())
+                    new_nodes = [n for n in cur_nodes if n not in prev_nodes]
+                    # Or nodes that are not fully synced/primary yet
+                    unstable = [
+                        n for n, d in st.nodes.items()
+                        if (d.get('state') or 'UNKNOWN') not in ('SYNCED', 'PRIMARY')
+                    ]
+                    candidate_pool = new_nodes or unstable
+                    if len(candidate_pool) == 1:
+                        joiner = candidate_pool[0]
+                # Also infer donor if missing and exactly one viable candidate exists
+                if (not donor or _is_placeholder_name(donor)) and joiner:
+                    candidates = [
+                        n for n, d in st.nodes.items()
+                        if n != joiner and (d.get('state') or 'UNKNOWN') in ('SYNCED', 'PRIMARY')
+                    ]
+                    if len(candidates) == 1:
+                        donor = candidates[0]
+                if joiner:
+                    st.add_transfer('SST', joiner=joiner, donor=donor or 'unknown', status=arrow_status, method=method)
+                    # encode optional extras on the last transfer added
+                    if st.transfers:
+                        st.transfers[-1]['duration_seconds'] = duration
+
+            # Derive overlays for IST sessions
+            ist_sessions = (cluster_snap.get('ist_sessions') or {})
+            for iid, sess in ist_sessions.items():
+                node = sess.get('node') or ''
+                status = (sess.get('status') or '').lower()
+                # Represent IST as inward arrow to the node (source unknown)
+                if node:
+                    status_map = {
+                        'preparing': 'started',
+                        'prepared': 'started',
+                        'receiving': 'started',
+                        'applying': 'in_progress',
+                        'received': 'completed',
+                        'processing': 'in_progress',
+                        'failed': 'failed'
+                    }
+                    arrow_status = status_map.get(status, 'in_progress')
+                    st.add_transfer('IST', joiner=node, donor='unknown', status=arrow_status, method='ist')
+
+            # Append state
+            self.states.append(st)
     
     def parse_cluster_data(self):
         """Parse cluster analysis JSON into timeline states"""
@@ -486,6 +683,25 @@ class WebClusterVisualizer:
                 mapped_node = node_name_mapping.get(original_node, original_node)
                 from_state = transition.get('from_state')
                 to_state = transition.get('to_state')
+                # Normalize transitional strings like "PRIMARY -> JOINER" if present
+                def _canon(s):
+                    if not s:
+                        return s
+                    s_up = str(s).upper()
+                    if '->' in s_up:
+                        s_up = s_up.split('->')[-1].strip()
+                    # Map small set; reuse ladder mapping implicitly elsewhere
+                    if 'SYNCED' in s_up:
+                        return 'SYNCED'
+                    if 'JOINED' in s_up and 'SYNCED' not in s_up:
+                        return 'JOINED'
+                    if 'JOINER' in s_up:
+                        return 'JOINER'
+                    if 'DONOR' in s_up and 'DESYNCED' in s_up:
+                        return 'DONOR/DESYNCED'
+                    return s_up
+                from_state = _canon(from_state)
+                to_state = _canon(to_state)
                 seqno = transition.get('seqno')
                 
                 if mapped_node and to_state:
@@ -998,13 +1214,70 @@ class WebClusterVisualizer:
             return True
         
         return False
+
+    # ------------------------------
+    # Shared helpers for consistency across views/panels
+    # ------------------------------
+    def _select_active_transfers(self, state: ClusterState) -> List[Dict[str, Any]]:
+        """Return at most one active SST transfer per joiner (deduped with priority)."""
+        transfers = []
+        for tr in getattr(state, 'transfers', []) or []:
+            if tr.get('type') != 'SST':
+                continue
+            st = (tr.get('status') or '').lower()
+            if st in {'completed', 'failed'}:
+                continue
+            transfers.append(tr)
+        status_rank = {'requested': 1, 'in_progress': 2, 'started': 3}
+        best_by_joiner = {}
+        for tr in transfers:
+            j = tr.get('joiner') or 'unknown'
+            d = tr.get('donor') or ''
+            rank = status_rank.get((tr.get('status') or '').lower(), 2)
+            has_donor = 1 if d and d != 'unknown' else 0
+            score = (rank, has_donor)
+            prev = best_by_joiner.get(j)
+            if prev is None or score >= prev[0]:
+                best_by_joiner[j] = (score, tr)
+        return [v[1] for v in best_by_joiner.values()]
+
+    def _effective_state_overlay(self, state: ClusterState, base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        """Overlay DONOR/JOINER roles from selected active SST transfers onto node states."""
+        effective = {}
+        # Build canonical uppercase base states for reliable comparisons
+        for n, d in state.nodes.items():
+            raw = (d.get('state') or 'UNKNOWN') if not base else (base.get(n) or d.get('state') or 'UNKNOWN')
+            effective[n] = str(raw).upper()
+        for tr in self._select_active_transfers(state):
+            donor = tr.get('donor')
+            joiner = tr.get('joiner')
+            if (not donor or donor not in effective) and joiner in effective:
+                cands = [n for n, s in effective.items() if n != joiner and s in ('SYNCED', 'PRIMARY')]
+                if len(cands) == 1:
+                    donor = cands[0]
+            # Only apply overlays if the base state hasn't already moved to JOINED or SYNCED
+            if donor in effective:
+                if effective[donor] not in ('JOINED', 'SYNCED'):
+                    effective[donor] = 'DONOR/DESYNCED'
+            if joiner in effective:
+                if effective[joiner] not in ('JOINED', 'SYNCED'):
+                    effective[joiner] = 'JOINER'
+        return effective
     
     def create_network_graph(self, state: ClusterState) -> go.Figure:
         """Create network diagram for the current state"""
         fig = go.Figure()
         
         # Calculate node positions in a circle
-        nodes = list(state.nodes.keys())
+        # Use global stable ordering for nodes present in this frame
+        nodes = [n for n in (self.all_nodes or list(state.nodes.keys())) if n in state.nodes]
+        # Filter out placeholder node keys like 'unknown', 'joiner', 'donor', 'cluster'
+        def _is_placeholder(n: str) -> bool:
+            if not n:
+                return True
+            nlow = str(n).strip().lower()
+            return nlow in {"unknown", "joiner", "donor", "cluster", "n/a"}
+        nodes = [n for n in nodes if not _is_placeholder(n)]
         n_nodes = len(nodes)
         
         if n_nodes == 0:
@@ -1015,8 +1288,14 @@ class WebClusterVisualizer:
         uncertain_nodes = []
         excluded_nodes = []
         
+        # Effective state overlay: use shared helper (deduped per joiner)
+        effective_state = self._effective_state_overlay(state)
+        selected_transfers = self._select_active_transfers(state)
+
         for node, node_data in state.nodes.items():
-            node_state = node_data['state']
+            if _is_placeholder(node):
+                continue
+            node_state = (effective_state.get(node) or node_data.get('state') or 'UNKNOWN')
             
             # First check if node should be completely excluded from topology
             if self.should_exclude_from_topology(node, node_state, state.timestamp):
@@ -1031,13 +1310,8 @@ class WebClusterVisualizer:
         # Use consistent positioning based on global node ordering to prevent swapping
         positions = {}
         
-        # Create a consistent ordering of all possible nodes
-        # Get all nodes that have appeared in the entire cluster analysis
-        analysis = self.cluster_data.get('cluster_analysis', {})
-        all_known_nodes = set(analysis.get('nodes', []))
-        
-        # Sort consistently (this ensures same order every time)
-        all_possible_nodes = sorted(all_known_nodes)
+        # Create a consistent ordering of all possible nodes using global ordering
+        all_possible_nodes = list(self.all_nodes) if self.all_nodes else sorted(state.nodes.keys())
         
         # Create a stable position assignment for each node based on its global ordering
         def get_consistent_position(node_name, category):
@@ -1046,7 +1320,11 @@ class WebClusterVisualizer:
             try:
                 global_index = all_possible_nodes.index(node_name)
             except ValueError:
-                global_index = hash(node_name) % len(all_possible_nodes)
+                # If list is empty, seed with node_name to avoid modulo by zero
+                if not all_possible_nodes:
+                    all_possible_nodes.append(node_name)
+                base = max(1, len(all_possible_nodes))
+                global_index = (hash(node_name) % base)
             
             # Create different radius zones for different categories
             # Increased radii for better spacing, especially with 2 nodes
@@ -1120,7 +1398,7 @@ class WebClusterVisualizer:
         
         for node, (x, y) in positions.items():
             node_data = state.nodes[node]
-            node_state = node_data['state']
+            node_state = (effective_state.get(node) or node_data.get('state') or 'UNKNOWN')
             
             # Get clean display name (remove NODE_ prefix if present)
             original_name = self.node_name_mapping.get(node, node)
@@ -1147,7 +1425,7 @@ class WebClusterVisualizer:
                 # Unknown/problematic
                 'UNKNOWN': 'lightgray'
             }
-            color = color_map.get(node_state, 'gray')
+            color = color_map.get(node_state or 'UNKNOWN', 'gray')
             
             # Check service availability - if service is down, show as gray regardless of state
             if not node_data.get('service_available', True):
@@ -1209,13 +1487,19 @@ class WebClusterVisualizer:
             name='nodes'
         ))
         
-        # Add transfer arrows
+        # Add transfer arrows (only for selected active transfers)
         print(f"DEBUG: Frame {state.frame_id} has {len(state.transfers)} transfers")
-        for i, transfer in enumerate(state.transfers):
+        drawn_pairs = set()
+        for i, transfer in enumerate(selected_transfers):
             joiner = transfer.get('joiner')
             donor = transfer.get('donor')
-            status = transfer.get('status')
+            status = (transfer.get('status') or '').lower()
             print(f"DEBUG: Transfer {i}: {joiner} ← {donor} (status: {status})")
+            # Only draw active SST transfers (already filtered)
+            pair = (donor, joiner)
+            if pair in drawn_pairs:
+                continue
+            drawn_pairs.add(pair)
             
             # Use transfer node names directly (they already have NODE_ prefix)
             mapped_joiner = joiner
@@ -1284,6 +1568,234 @@ class WebClusterVisualizer:
             height=500
         )
         
+        return fig
+
+    def create_state_ladder(self, state: ClusterState) -> go.Figure:
+        """Create vertical ladder mapping node states to levels.
+
+        Bottom = CLOSED; top = SYNCED. Nodes move up/down across frames via the slider.
+        """
+        fig = go.Figure()
+
+        # Define ordered levels from bottom to top
+        # Add a dedicated level for DONOR/DESYNCED between JOINED and SYNCED
+        levels = [
+            ('CLOSED', 0),
+            ('OPEN', 1),
+            ('PRIMARY', 2),
+            ('JOINER', 3),
+            ('JOINED', 4),
+            ('DONOR/DESYNCED', 4.5),
+            ('SYNCED', 5),
+        ]
+        level_index = {name: y for name, y in levels}
+
+        # Map additional/alias states commonly observed
+        alias_levels = {
+            'NON_PRIMARY': 2,
+            'JOINING': 3,
+            'DESYNCED': 4,               # slightly below SYNCED
+            'DONOR': 4.5,                # show donors on the dedicated step
+            'DONOR/DESYNCED': 4.5,       # donor but desynced
+            'CONNECTED': 1,
+            'UNKNOWN': 0,
+            'DESTROYED': 0,
+        }
+
+        def state_to_level(s: str) -> float:
+            if not s:
+                return 0
+            s_up = s.upper()
+            if s_up in level_index:
+                return float(level_index[s_up])
+            return float(alias_levels.get(s_up, 0))
+
+        # Prepare node positions: x by node index, y by level
+        # Start from global stable ordering, limited to nodes present in this frame
+        nodes = [n for n in (self.all_nodes or list(state.nodes.keys())) if n in state.nodes]
+        # Filter placeholder nodes and deduplicate by display label
+        def _is_placeholder(n: str) -> bool:
+            if not n:
+                return True
+            nlow = str(n).strip().lower()
+            return nlow in {"unknown", "joiner", "donor", "cluster", "n/a"}
+
+        # Build map from display name -> canonical node key (first occurrence)
+        display_to_key = {}
+        for key in nodes:
+            if _is_placeholder(key):
+                continue
+            display_name = self.node_name_mapping.get(key, key)
+            if isinstance(display_name, str) and display_name.startswith('NODE_'):
+                display_name = display_name[5:]
+            display_to_key.setdefault(display_name, key)
+
+        # Respect global stable ordering for x-axis
+        nodes_sorted = [n for n in self.all_nodes if n in display_to_key.values()] if self.all_nodes else sorted(display_to_key.values(), key=lambda k: (self.node_name_mapping.get(k, k)))
+        x_vals, y_vals, texts, colors = [], [], [], []
+
+        color_map = {
+            'SYNCED': 'green', 'JOINED': 'green',
+            'DONOR': 'blue', 'DONOR/DESYNCED': 'blue',
+            'PRIMARY': 'lightcoral', 'OPEN': 'lightcoral', 'NON_PRIMARY': 'lightcoral',
+            'JOINER': 'orange', 'JOINING': 'orange', 'DESYNCED': 'orange', 'CONNECTED': 'lightblue',
+            'CLOSED': 'gray', 'UNKNOWN': 'lightgray'
+        }
+
+        # Effective state overlay (donor/joiner) and selected transfers via shared helpers
+        effective_state = self._effective_state_overlay(state)
+        selected_transfers = self._select_active_transfers(state)
+
+        for i, node in enumerate(nodes_sorted):
+            nd = state.nodes[node]
+            ns = (effective_state.get(node) or nd.get('state') or 'UNKNOWN')
+            y = state_to_level(ns or 'UNKNOWN')
+            x_vals.append(i)
+            y_vals.append(y)
+            # Clean display label
+            display_name = self.node_name_mapping.get(node, node)
+            if isinstance(display_name, str) and display_name.startswith('NODE_'):
+                display_name = display_name[5:]
+            label = f"{display_name}\n{ns}"
+            texts.append(label)
+            colors.append(color_map.get(ns or 'UNKNOWN', 'gray'))
+
+        # Background bands for each level for readability
+        for name, y in levels:
+            fig.add_shape(
+                type="rect",
+                x0=-0.5, x1=max(0.5, len(nodes_sorted) - 0.5),
+                y0=y - 0.4, y1=y + 0.4,
+                line=dict(width=0),
+                fillcolor='rgba(0,0,0,0.03)' if int(y) % 2 == 0 else 'rgba(0,0,0,0.06)'
+            )
+            fig.add_annotation(x=-0.8, y=y, text=name, showarrow=False,
+                               xanchor='right', yanchor='middle',
+                               font=dict(size=12, color='#555'))
+
+        # Add node markers
+        fig.add_trace(go.Scatter(
+            x=x_vals, y=y_vals,
+            mode='markers+text',
+            marker=dict(size=20, color=colors, line=dict(width=2, color='white')),
+            text=[t.split('\n')[0] for t in texts],
+            textposition='bottom center',
+            hovertext=texts,
+            hoverinfo='text',
+            name='nodes'
+        ))
+
+        # X-axis labels as node names (cleaned)
+        x_labels = []
+        for node in nodes_sorted:
+            display_name = self.node_name_mapping.get(node, node)
+            if isinstance(display_name, str) and display_name.startswith('NODE_'):
+                display_name = display_name[5:]
+            x_labels.append(display_name)
+
+        fig.update_layout(
+            title={
+                'text': f"Node State Ladder - Frame {state.frame_id + 1}",
+                'font': {'size': 16}
+            },
+            showlegend=False,
+            margin=dict(b=40, l=70, r=20, t=50),
+            xaxis=dict(
+                tickmode='array',
+                tickvals=list(range(len(nodes_sorted))),
+                ticktext=x_labels,
+                showgrid=False,
+                zeroline=False,
+            ),
+            yaxis=dict(
+                range=[-0.5, 6.2],
+                tickmode='array',
+                tickvals=[lvl for _, lvl in levels],
+                ticktext=[name for name, _ in levels],
+                showgrid=False,
+                zeroline=False,
+            ),
+            plot_bgcolor='white',
+            height=350
+        )
+
+        # Overlay SST/IST transfers as arrows across the ladder
+        # Find x positions for donors and joiners
+        x_index = {node: idx for idx, node in enumerate(nodes_sorted)}
+        def level_of(node_name: str) -> float:
+            # Use effective state (DONOR/DESYNCED and JOINER overlays during active SST)
+            if not node_name:
+                return 0.0
+            nd = state.nodes.get(node_name) or {}
+            ns = (effective_state.get(node_name) or nd.get('state') or 'UNKNOWN')
+            return state_to_level(ns or 'UNKNOWN')
+
+        drawn_pairs = set()
+        for tr in selected_transfers:
+            ttype = tr.get('type', 'SST')
+            donor = tr.get('donor')
+            joiner = tr.get('joiner')
+            status = (tr.get('status') or 'in_progress').lower()
+            method = tr.get('method', '')
+            dur = tr.get('duration_seconds')
+
+            if not joiner or joiner not in x_index:
+                continue
+            if ttype != 'SST' and ttype != 'IST':
+                continue
+            # Only draw active transfers (already filtered)
+            pair = (donor or 'unknown', joiner)
+            if pair in drawn_pairs:
+                continue
+            drawn_pairs.add(pair)
+
+            # Determine colors by type/status
+            base_color = '#3498db' if ttype == 'SST' else '#9b59b6'
+            status_color = {
+                'requested': '#8e44ad',
+                'started': base_color,
+                'in_progress': base_color,
+                'completed': '#2ecc71',
+                'failed': '#e74c3c'
+            }.get(status, base_color)
+
+            x2 = x_index[joiner]
+            y2 = level_of(joiner)
+            if donor and donor in x_index:
+                x1 = x_index[donor]
+                y1 = level_of(donor)
+            else:
+                # Unknown donor/source: draw short arrow above the joiner pointing down
+                x1 = x2
+                y1 = min(5.2, y2 + 0.8)
+
+            label = f"{ttype}"
+            if method and ttype == 'SST':
+                label += f"/{method}"
+            if status:
+                label += f" [{status}]"
+            if dur:
+                label += f" ({int(dur)}s)"
+
+            fig.add_annotation(
+                x=x2, y=y2,
+                ax=x1, ay=y1,
+                xref='x', yref='y', axref='x', ayref='y',
+                arrowhead=3, arrowsize=1.5, arrowwidth=2,
+                arrowcolor=status_color,
+                text=label,
+                font=dict(size=10, color=status_color),
+                yshift=8
+            )
+
+        # If all nodes at SYNCED, show a subtle banner
+        if nodes_sorted and all(state_to_level(state.nodes[n]['state']) >= 5 for n in nodes_sorted):
+            fig.add_annotation(
+                xref='paper', yref='paper', x=0.5, y=1.08,
+                text='All nodes SYNCED', showarrow=False,
+                font=dict(size=14, color='#2ecc71')
+            )
+
         return fig
     
     def create_timeline_marks(self, gap_threshold_minutes=60):
@@ -1370,9 +1882,14 @@ class WebClusterVisualizer:
             html.Div([
                 # Left panel: Network diagram
                 html.Div([
+                    # Tabs for Network/Ladder views (Ladder default)
+                    dcc.Tabs(id='view-tabs', value='ladder', children=[
+                        dcc.Tab(label='Ladder', value='ladder'),
+                        dcc.Tab(label='Network', value='network'),
+                    ], style={'marginBottom': '8px'}),
                     dcc.Graph(
                         id='cluster-network',
-                        style={'height': '500px'},
+                        style={'height': '500px', 'display': 'none'},  # hidden by default (ladder first)
                         config={
                             'displayModeBar': True,
                             'displaylogo': False,
@@ -1381,6 +1898,23 @@ class WebClusterVisualizer:
                                 'format': 'png',
                                 'filename': 'cluster-state',
                                 'height': 800,
+                                'width': 1200,
+                                'scale': 2
+                            }
+                        }
+                    ),
+                    # Ladder view (node states stacked vertically)
+                    dcc.Graph(
+                        id='node-ladder',
+                        style={'height': '350px', 'marginTop': '10px'},
+                        config={
+                            'displayModeBar': True,
+                            'displaylogo': False,
+                            'modeBarButtonsToAdd': ['downloadSvg'],
+                            'toImageButtonOptions': {
+                                'format': 'png',
+                                'filename': 'cluster-ladder',
+                                'height': 700,
                                 'width': 1200,
                                 'scale': 2
                             }
@@ -1775,22 +2309,30 @@ class WebClusterVisualizer:
         
         @self.app.callback(
             [Output('cluster-network', 'figure'),
+             Output('node-ladder', 'figure'),
+             Output('cluster-network', 'style'),
+             Output('node-ladder', 'style'),
              Output('state-details', 'children'),
              Output('state-transfer-log', 'children'),
              Output('service-log', 'children'),
              Output('warnings-errors-log', 'children'),
              Output('frame-info', 'children'),
              Output('timeline-markers', 'children')],
-            [Input('timeline-slider', 'value')]
+            [Input('timeline-slider', 'value'), Input('view-tabs', 'value')]
         )
-        def update_visualization(frame_index):
+        def update_visualization(frame_index, tab_value):
             if frame_index is None or frame_index >= len(self.states):
                 frame_index = 0
             
             state = self.states[frame_index]
             
-            # Update network graph
+            # Update figures
             network_fig = self.create_network_graph(state)
+            ladder_fig = self.create_state_ladder(state)
+
+            # Style visibility based on selected tab
+            nw_style = {'height': '500px'} if tab_value == 'network' else {'height': '500px', 'display': 'none'}
+            ld_style = {'height': '350px', 'marginTop': '10px'} if tab_value == 'ladder' else {'height': '350px', 'marginTop': '10px', 'display': 'none'}
             
             # Update state details
             details = [
@@ -1887,12 +2429,15 @@ class WebClusterVisualizer:
                 'UNKNOWN': 'lightgray'
             }
             
+            # Compute effective state overlay for the right panel using shared helper
+            effective_state_panel = self._effective_state_overlay(state)
+
             # Separate nodes into primary group vs non-synchronized using refined criteria
             established_nodes = []  # SYNCED, DONOR, DONOR/DESYNCED, JOINED - Primary Group
             transitional_nodes = []  # All other states - Non-Synchronized Nodes
             
             for node_name, node_data in state.nodes.items():
-                node_state = node_data['state']
+                node_state = effective_state_panel.get(node_name, node_data['state'])
                 # Primary segment members: fully synchronized and operational
                 if node_state in ['SYNCED', 'DONOR', 'DONOR/DESYNCED', 'JOINED']:
                     established_nodes.append((node_name, node_state))
@@ -1964,7 +2509,9 @@ class WebClusterVisualizer:
                 )
             
             if state.transfers:
-                details.append(html.P(f"📡 Active Transfers: {len(state.transfers)}", style={'margin': '5px 0', 'color': 'orange'}))
+                # Count active SST transfers using deduped selection helper
+                active_sst = [t for t in self._select_active_transfers(state) if t.get('type') == 'SST']
+                details.append(html.P(f"📡 Active Transfers: {len(active_sst)}", style={'margin': '5px 0', 'color': 'orange'}))
             
             if state.issues:
                 details.append(html.P(f"⚠️ Issues: {len(state.issues)}", style={'margin': '5px 0', 'color': 'red'}))
@@ -1982,7 +2529,7 @@ class WebClusterVisualizer:
             # Generate timeline markers
             timeline_markers = self.generate_timeline_markers(frame_index)
             
-            return network_fig, details, state_transfer_events, service_events, warnings_errors, frame_info_text, timeline_markers
+            return network_fig, ladder_fig, nw_style, ld_style, details, state_transfer_events, service_events, warnings_errors, frame_info_text, timeline_markers
         
         @self.app.callback(
             [Output('timeline-slider', 'value'),
@@ -2091,11 +2638,20 @@ Examples:
   %(prog)s --port 8080 cluster-analysis.json  
   %(prog)s --host 0.0.0.0 --port 8080 cluster-analysis.json
   %(prog)s --no-browser cluster-analysis.json
+    # Frames mode (from graf):
+    %(prog)s --frames frames.json
+    %(prog)s --frames-ndjson frames.ndjson
         """
     )
-    
-    parser.add_argument('cluster_file', 
-                       help='JSON file from grambo-cluster.py output')
+
+    parser.add_argument('cluster_file', nargs='?',
+                        help='JSON file from grambo-cluster.py output (legacy mode)')
+    parser.add_argument('--frames', dest='frames_file',
+                        help='Frames JSON output from graf (contains frames array)')
+    parser.add_argument('--frames-ndjson', dest='frames_ndjson',
+                        help='Frames NDJSON from graf (one frame per line)')
+    parser.add_argument('--frames-stdin', action='store_true',
+                        help='Read frames as NDJSON from stdin (pipe from graf --ndjson)')
     
     parser.add_argument('--host', default='127.0.0.1',
                        help='Host to bind web server (default: 127.0.0.1)')
@@ -2115,15 +2671,48 @@ def main():
     """Main entry point"""
     args = parse_arguments()
     
+    cluster_data = None
+    frames_data = None
+
     try:
-        with open(args.cluster_file, 'r') as f:
-            cluster_data = json.load(f)
+        if args.frames_stdin:
+            # Read NDJSON frames from stdin
+            frames_data = []
+            for line in sys.stdin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    frames_data.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        elif args.frames_file:
+            with open(args.frames_file, 'r') as f:
+                jf = json.load(f)
+                # Support both {frames:[...]} and raw list
+                frames_data = jf.get('frames') if isinstance(jf, dict) else jf
+        elif args.frames_ndjson:
+            frames_data = []
+            with open(args.frames_ndjson, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        frames_data.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        # ignore malformed lines
+                        pass
+        else:
+            with open(args.cluster_file, 'r') as f:
+                cluster_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Error loading cluster file: {e}", file=sys.stderr)
+        print(f"Error loading input: {e}", file=sys.stderr)
         sys.exit(1)
-    
+
     visualizer = WebClusterVisualizer(
-        cluster_data, 
+        cluster_data=cluster_data,
+        frames_data=frames_data,
         host=args.host, 
         port=args.port
     )
