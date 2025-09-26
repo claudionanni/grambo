@@ -1,6 +1,6 @@
 # GRAA - Galera Log Analysis Summary Tool
 
-`graa.py` is a structured log analysis tool that processes `grap.py` output to provide clean, comprehensive summaries of Galera cluster logs.
+`graa.py` is a structured log analysis tool that processes `grap.py` output to provide comprehensive summaries of Galera cluster logs.
 
 ## Usage
 
@@ -34,11 +34,11 @@ The `--sst-ist-tree` option provides a comprehensive hierarchical view of SST (S
 ```
 
 ### Tree Visualization Features
-- **📊 Session Grouping**: SST events grouped into logical sessions with time ranges
-- **🔗 Relationship Mapping**: IST events clearly linked to their corresponding SST sessions
-- **📈 Progress Tracking**: IST progress percentages and event counts displayed
-- **🎯 Visual Hierarchy**: Tree structure with proper indentation and visual indicators
-- **⚡ Status Indicators**: Icons showing SST types (🚀 active, 📋 script-only, ❓ status changes) and IST events (📥)
+- **Session Grouping**: Groups SST events into logical sessions with time ranges
+- **Relationship Mapping**: Links IST events to their corresponding SST sessions
+- **Progress Tracking**: Displays IST progress percentages and event counts
+- **Hierarchical Structure**: Tree format with proper indentation and visual indicators
+- **Status Indicators**: Text labels showing SST types (active, script-only, status changes) and IST events
 
 ### Example Output
 
@@ -46,96 +46,96 @@ The `--sst-ist-tree` option provides a comprehensive hierarchical view of SST (S
 ```
 [1] SST SESSION
     Time Range: 2025-09-23 17:56:51 → 2025-09-23 17:57:07
-    ├─ 🚀 SST sst_94
+    ├─ [ACTIVE] SST sst_94
     │     Time: 2025-09-23 17:56:51
     │     Status: backup_transfer_started
     │     Method: mariabackup
-    │     ✅ Backup Transfer: YES
-    ├─ ❓ SST sst_donor_106
+    │     [OK] Backup Transfer: YES
+    ├─ [STATUS] SST sst_donor_106
     │     Time: 2025-09-23 17:56:51
     │     Status: donor_selected
-    ├─ 🚀 SST sst_proceeding_111
+    ├─ [ACTIVE] SST sst_proceeding_111
     │     Time: 2025-09-23 17:56:51
     │     Status: proceeding_with_backup
-    │     ✅ Backup Transfer: YES
-    ├─ ❓ SST sst_xfer_complete_117
+    │     [OK] Backup Transfer: YES
+    ├─ [STATUS] SST sst_xfer_complete_117
     │     Time: 2025-09-23 17:57:07
     │     Status: transfer_complete
-    └─ ❓ SST sst_94
+    └─ [STATUS] SST sst_94
           Time: 2025-09-23 17:57:07
           Status: completed
           Method: mariabackup
     │
-    ├─ 🔄 RELATED IST EVENTS:
-    │      ├─ 📥 IST ist_00000000 │ Status: preparing │ Time: 2025-09-23 17:56:51 │ Range: 0→17
-    │      ├─ 📥 IST ist_receiver_104 │ Status: receiver_ready │ Time: 2025-09-23 17:56:51
-    │      ├─ 📥 IST ist_prepared_105 │ Status: prepared │ Time: 2025-09-23 17:56:51 │ Range: 0→17
-    │      ├─ 📥 IST ist_applying_182 │ Status: applying │ Time: 2025-09-23 17:57:12 │ Range: 18→0
-    │      ├─ 📥 IST ist_seqno_init_183 │ Status: seqno_initialized │ Time: 2025-09-23 17:57:12 │ Range: 7→0
-    │      ├─ 📥 IST ist_progress_184 │ Status: receiving │ Time: 2025-09-23 17:57:12
-    │      ├─ 📥 IST ist_preload_185 │ Status: preloading │ Time: 2025-09-23 17:57:12 │ Range: 7→0
-    │      ├─ 📥 IST ist_progress_233 │ Status: receiving │ Time: 2025-09-23 17:57:12 │ Progress: 100.0% (11/11 events)
-    │      ├─ 📥 IST ist_received_234 │ Status: received │ Time: 2025-09-23 17:57:12 │ Range: 0→17
-    │      └─ 📥 IST ist_processing_241 │ Status: processing │ Time: 2025-09-23 17:57:12 │ Progress: 100.0% (1/1 events)
+    ├─ RELATED IST EVENTS:
+    │      ├─ [IST] IST ist_00000000 │ Status: preparing │ Time: 2025-09-23 17:56:51 │ Range: 0→17
+    │      ├─ [IST] IST ist_receiver_104 │ Status: receiver_ready │ Time: 2025-09-23 17:56:51
+    │      ├─ [IST] IST ist_prepared_105 │ Status: prepared │ Time: 2025-09-23 17:56:51 │ Range: 0→17
+    │      ├─ [IST] IST ist_applying_182 │ Status: applying │ Time: 2025-09-23 17:57:12 │ Range: 18→0
+    │      ├─ [IST] IST ist_seqno_init_183 │ Status: seqno_initialized │ Time: 2025-09-23 17:57:12 │ Range: 7→0
+    │      ├─ [IST] IST ist_progress_184 │ Status: receiving │ Time: 2025-09-23 17:57:12
+    │      ├─ [IST] IST ist_preload_185 │ Status: preloading │ Time: 2025-09-23 17:57:12 │ Range: 7→0
+    │      ├─ [IST] IST ist_progress_233 │ Status: receiving │ Time: 2025-09-23 17:57:12 │ Progress: 100.0% (11/11 events)
+    │      ├─ [IST] IST ist_received_234 │ Status: received │ Time: 2025-09-23 17:57:12 │ Range: 0→17
+    │      └─ [IST] IST ist_processing_241 │ Status: processing │ Time: 2025-09-23 17:57:12 │ Progress: 100.0% (1/1 events)
 ```
 
-This shows a typical scenario where SST completes with actual backup transfer, followed by minimal IST processing.
+This example shows a standard scenario where SST completes with backup transfer, followed by minimal IST processing.
 
 #### SST Without Backup Transfer, Only IST needed
 ```
 [2] SST SESSION
     Time Range: 2025-09-25 13:54:32 → 2025-09-25 13:54:33
-    ├─ 📋 SST sst_1343
+    ├─ [SCRIPT] SST sst_1343
     │     Time: 2025-09-25 13:54:32
     │     Status: started
     │     Method: mariabackup
-    │     ⚠️  Backup Transfer: NO (script only)
-    ├─ ❓ SST sst_donor_1357
+    │     [WARNING] Backup Transfer: NO (script only)
+    ├─ [STATUS] SST sst_donor_1357
     │     Time: 2025-09-25 13:54:32
     │     Status: donor_selected
-    └─ ❓ SST sst_xfer_complete_1360
+    └─ [STATUS] SST sst_xfer_complete_1360
           Time: 2025-09-25 13:54:33
           Status: transfer_complete
     │
-    ├─ 🔄 RELATED IST EVENTS:
-    │      ├─ 📥 IST ist_a572a681 │ Status: preparing │ Time: 2025-09-25 13:54:32 │ Range: 41831→67338
-    │      ├─ 📥 IST ist_receiver_1355 │ Status: receiver_ready │ Time: 2025-09-25 13:54:32
-    │      ├─ 📥 IST ist_prepared_1356 │ Status: prepared │ Time: 2025-09-25 13:54:32 │ Range: 41831→67338
-    │      ├─ 📥 IST ist_applying_1415 │ Status: applying │ Time: 2025-09-25 13:54:36 │ Range: 41831→0
-    │      ├─ 📥 IST ist_seqno_init_1416 │ Status: seqno_initialized │ Time: 2025-09-25 13:54:36 │ Range: 41831→0
-    │      ├─ 📥 IST ist_progress_1417 │ Status: receiving │ Time: 2025-09-25 13:54:36
-    │      ├─ 📥 IST ist_preload_1439 │ Status: preloading │ Time: 2025-09-25 13:54:36 │ Range: 67209→0
-    │      ├─ 📥 IST ist_progress_1445 │ Status: receiving │ Time: 2025-09-25 13:54:56 │ Progress: 100.0% (25508/25508 events)
-    │      ├─ 📥 IST ist_received_1462 │ Status: received │ Time: 2025-09-25 13:54:56 │ Range: 0→67338
-    │      ├─ 📥 IST ist_processing_1467 │ Status: processing │ Time: 2025-09-25 13:54:56
-    │      ├─ 📥 IST ist_processing_1469 │ Status: processing │ Time: 2025-09-25 13:55:06 │ Progress: 28.4% (13072/46040 events)
-    │      ├─ 📥 IST ist_processing_1470 │ Status: processing │ Time: 2025-09-25 13:55:16 │ Progress: 44.2% (25968/58732 events)
-    │      ├─ 📥 IST ist_processing_1471 │ Status: processing │ Time: 2025-09-25 13:55:26 │ Progress: 54.5% (38864/71371 events)
-    │      ├─ 📥 IST ist_processing_1472 │ Status: processing │ Time: 2025-09-25 13:55:36 │ Progress: 61.7% (51920/84099 events)
-    │      ├─ 📥 IST ist_processing_1473 │ Status: processing │ Time: 2025-09-25 13:55:46 │ Progress: 67.0% (64800/96704 events)
-    │      ├─ 📥 IST ist_processing_1474 │ Status: processing │ Time: 2025-09-25 13:55:56 │ Progress: 70.9% (77280/108983 events)
-    │      ├─ 📥 IST ist_processing_1475 │ Status: processing │ Time: 2025-09-25 13:56:06 │ Progress: 74.0% (89632/121120 events)
-    │      ├─ 📥 IST ist_processing_1476 │ Status: processing │ Time: 2025-09-25 13:56:16 │ Progress: 76.3% (101024/132337 events)
-    │      ├─ 📥 IST ist_processing_1477 │ Status: processing │ Time: 2025-09-25 13:56:26 │ Progress: 78.4% (113600/144811 events)
-    │      ├─ 📥 IST ist_processing_1478 │ Status: processing │ Time: 2025-09-25 13:56:36 │ Progress: 80.2% (126160/157298 events)
-    │      ├─ 📥 IST ist_processing_1479 │ Status: processing │ Time: 2025-09-25 13:56:46 │ Progress: 81.8% (138576/169494 events)
-    │      ├─ 📥 IST ist_processing_1480 │ Status: processing │ Time: 2025-09-25 13:56:56 │ Progress: 83.0% (150912/181721 events)
-    │      ├─ 📥 IST ist_processing_1481 │ Status: processing │ Time: 2025-09-25 13:57:06 │ Progress: 84.2% (163104/193760 events)
-    │      ├─ 📥 IST ist_processing_1482 │ Status: processing │ Time: 2025-09-25 13:57:16 │ Progress: 85.2% (175056/205461 events)
-    │      ├─ 📥 IST ist_processing_1483 │ Status: processing │ Time: 2025-09-25 13:57:26 │ Progress: 86.1% (186864/217124 events)
-    │      ├─ 📥 IST ist_processing_1484 │ Status: processing │ Time: 2025-09-25 13:57:36 │ Progress: 86.9% (199376/229527 events)
-    │      ├─ 📥 IST ist_processing_1485 │ Status: processing │ Time: 2025-09-25 13:57:46 │ Progress: 87.6% (211744/241794 events)
-    │      ├─ 📥 IST ist_processing_1486 │ Status: processing │ Time: 2025-09-25 13:57:56 │ Progress: 88.2% (224288/254219 events)
-    │      ├─ 📥 IST ist_processing_1487 │ Status: processing │ Time: 2025-09-25 13:58:06 │ Progress: 88.8% (236512/266290 events)
-    │      ├─ 📥 IST ist_processing_1488 │ Status: processing │ Time: 2025-09-25 13:58:16 │ Progress: 89.4% (248896/278516 events)
-    │      ├─ 📥 IST ist_processing_1489 │ Status: processing │ Time: 2025-09-25 13:58:26 │ Progress: 89.9% (261408/290864 events)
-    │      ├─ 📥 IST ist_processing_1490 │ Status: processing │ Time: 2025-09-25 13:58:36 │ Progress: 90.3% (273872/303247 events)
-    │      ├─ 📥 IST ist_processing_1491 │ Status: processing │ Time: 2025-09-25 13:58:46 │ Progress: 95.3% (289328/303719 events)
-    │      └─ 📥 IST ist_processing_1493 │ Status: processing │ Time: 2025-09-25 13:58:55 │ Progress: 100.0% (303719/303719 events)
+    ├─ RELATED IST EVENTS:
+    │      ├─ [IST] IST ist_a572a681 │ Status: preparing │ Time: 2025-09-25 13:54:32 │ Range: 41831→67338
+    │      ├─ [IST] IST ist_receiver_1355 │ Status: receiver_ready │ Time: 2025-09-25 13:54:32
+    │      ├─ [IST] IST ist_prepared_1356 │ Status: prepared │ Time: 2025-09-25 13:54:32 │ Range: 41831→67338
+    │      ├─ [IST] IST ist_applying_1415 │ Status: applying │ Time: 2025-09-25 13:54:36 │ Range: 41831→0
+    │      ├─ [IST] IST ist_seqno_init_1416 │ Status: seqno_initialized │ Time: 2025-09-25 13:54:36 │ Range: 41831→0
+    │      ├─ [IST] IST ist_progress_1417 │ Status: receiving │ Time: 2025-09-25 13:54:36
+    │      ├─ [IST] IST ist_preload_1439 │ Status: preloading │ Time: 2025-09-25 13:54:36 │ Range: 67209→0
+    │      ├─ [IST] IST ist_progress_1445 │ Status: receiving │ Time: 2025-09-25 13:54:56 │ Progress: 100.0% (25508/25508 events)
+    │      ├─ [IST] IST ist_received_1462 │ Status: received │ Time: 2025-09-25 13:54:56 │ Range: 0→67338
+    │      ├─ [IST] IST ist_processing_1467 │ Status: processing │ Time: 2025-09-25 13:54:56
+    │      ├─ [IST] IST ist_processing_1469 │ Status: processing │ Time: 2025-09-25 13:55:06 │ Progress: 28.4% (13072/46040 events)
+    │      ├─ [IST] IST ist_processing_1470 │ Status: processing │ Time: 2025-09-25 13:55:16 │ Progress: 44.2% (25968/58732 events)
+    │      ├─ [IST] IST ist_processing_1471 │ Status: processing │ Time: 2025-09-25 13:55:26 │ Progress: 54.5% (38864/71371 events)
+    │      ├─ [IST] IST ist_processing_1472 │ Status: processing │ Time: 2025-09-25 13:55:36 │ Progress: 61.7% (51920/84099 events)
+    │      ├─ [IST] IST ist_processing_1473 │ Status: processing │ Time: 2025-09-25 13:55:46 │ Progress: 67.0% (64800/96704 events)
+    │      ├─ [IST] IST ist_processing_1474 │ Status: processing │ Time: 2025-09-25 13:55:56 │ Progress: 70.9% (77280/108983 events)
+    │      ├─ [IST] IST ist_processing_1475 │ Status: processing │ Time: 2025-09-25 13:56:06 │ Progress: 74.0% (89632/121120 events)
+    │      ├─ [IST] IST ist_processing_1476 │ Status: processing │ Time: 2025-09-25 13:56:16 │ Progress: 76.3% (101024/132337 events)
+    │      ├─ [IST] IST ist_processing_1477 │ Status: processing │ Time: 2025-09-25 13:56:26 │ Progress: 78.4% (113600/144811 events)
+    │      ├─ [IST] IST ist_processing_1478 │ Status: processing │ Time: 2025-09-25 13:56:36 │ Progress: 80.2% (126160/157298 events)
+    │      ├─ [IST] IST ist_processing_1479 │ Status: processing │ Time: 2025-09-25 13:56:46 │ Progress: 81.8% (138576/169494 events)
+    │      ├─ [IST] IST ist_processing_1480 │ Status: processing │ Time: 2025-09-25 13:56:56 │ Progress: 83.0% (150912/181721 events)
+    │      ├─ [IST] IST ist_processing_1481 │ Status: processing │ Time: 2025-09-25 13:57:06 │ Progress: 84.2% (163104/193760 events)
+    │      ├─ [IST] IST ist_processing_1482 │ Status: processing │ Time: 2025-09-25 13:57:16 │ Progress: 85.2% (175056/205461 events)
+    │      ├─ [IST] IST ist_processing_1483 │ Status: processing │ Time: 2025-09-25 13:57:26 │ Progress: 86.1% (186864/217124 events)
+    │      ├─ [IST] IST ist_processing_1484 │ Status: processing │ Time: 2025-09-25 13:57:36 │ Progress: 86.9% (199376/229527 events)
+    │      ├─ [IST] IST ist_processing_1485 │ Status: processing │ Time: 2025-09-25 13:57:46 │ Progress: 87.6% (211744/241794 events)
+    │      ├─ [IST] IST ist_processing_1486 │ Status: processing │ Time: 2025-09-25 13:57:56 │ Progress: 88.2% (224288/254219 events)
+    │      ├─ [IST] IST ist_processing_1487 │ Status: processing │ Time: 2025-09-25 13:58:06 │ Progress: 88.8% (236512/266290 events)
+    │      ├─ [IST] IST ist_processing_1488 │ Status: processing │ Time: 2025-09-25 13:58:16 │ Progress: 89.4% (248896/278516 events)
+    │      ├─ [IST] IST ist_processing_1489 │ Status: processing │ Time: 2025-09-25 13:58:26 │ Progress: 89.9% (261408/290864 events)
+    │      ├─ [IST] IST ist_processing_1490 │ Status: processing │ Time: 2025-09-25 13:58:36 │ Progress: 90.3% (273872/303247 events)
+    │      ├─ [IST] IST ist_processing_1491 │ Status: processing │ Time: 2025-09-25 13:58:46 │ Progress: 95.3% (289328/303719 events)
+    │      └─ [IST] IST ist_processing_1493 │ Status: processing │ Time: 2025-09-25 13:58:55 │ Progress: 100.0% (303719/303719 events)
 ```
 
 This demonstrates a scenario where SST initiates without backup transfer (script-only mode), requiring extensive IST processing to synchronize the node. Key features shown:
-- **⚠️ Warning**: "Backup Transfer: NO (script only)"
+- **Warning**: "Backup Transfer: NO (script only)"
 - **Extensive IST Processing**: Multiple progress updates from 28.4% to 100.0%
 - **Large Event Counts**: Processing hundreds of thousands of events (303,719 total)
 - **Performance Insights**: Timeline showing IST processing duration and throughput
@@ -144,19 +144,19 @@ This demonstrates a scenario where SST initiates without backup transfer (script
 ```
 [SESSION_NUMBER] SST SESSION
     Time Range: start_time → end_time
-    ├─ 🚀 SST entity_name │ Status │ Method │ Backup Transfer status
-    └─ 📋 SST entity_name │ Status │ Transfer complete
+    ├─ [SST] SST entity_name │ Status │ Method │ Backup Transfer status
+    └─ [STATUS] SST entity_name │ Status │ Transfer complete
     │
-    ├─ 🔄 RELATED IST EVENTS:
-    │      ├─ 📥 IST entity_name │ Status │ Time │ Range │ Progress: X% (events)
-    │      └─ 📥 IST entity_name │ Status │ Time │ Progress: 100.0% (final_count)
+    ├─ RELATED IST EVENTS:
+    │      ├─ [IST] IST entity_name │ Status │ Time │ Range │ Progress: X% (events)
+    │      └─ [IST] IST entity_name │ Status │ Time │ Progress: 100.0% (final_count)
 ```
 
 ### Benefits
-- **Troubleshooting**: Quickly identify SST/IST workflow issues
-- **Performance Analysis**: Monitor state transfer duration and progress
-- **Operational Insight**: Understand backup transfer vs IST processing patterns
-- **Documentation**: Clear visual representation for cluster behavior analysis
+- **Troubleshooting**: Identifies SST/IST workflow issues
+- **Performance Analysis**: Monitors state transfer duration and progress
+- **Operational Analysis**: Provides insight into backup transfer vs IST processing patterns
+- **Documentation**: Visual representation for cluster behavior analysis
 
 ## SST Sessions Timeline
 
@@ -168,11 +168,11 @@ python3 graa.py --sst-sessions galera-node.log
 ```
 
 ### Features
-- **Real Node Names**: Extracts actual node names from log patterns (e.g., UAT-DB-01, NODE_11407)
-- **Accurate Timing**: Calculates precise durations (e.g., 2m 15s, 16m 31s) 
-- **Session Status**: Shows COMPLETED, FAILED, ONGOING, or INTERRUPTED status
+- **Node Name Extraction**: Extracts actual node names from log patterns (e.g., UAT-DB-01, NODE_11407)
+- **Duration Calculation**: Calculates precise durations (e.g., 2m 15s, 16m 31s) 
+- **Session Status**: Reports COMPLETED, FAILED, ONGOING, or INTERRUPTED status
 - **Error Details**: Displays specific error messages and exit codes
-- **No Duplicates**: Filters out artificial auto-completed sessions from grap.py
+- **Duplicate Filtering**: Filters out artificial auto-completed sessions from grap.py
 - **Direct Log Parsing**: Bypasses grap.py limitations by reading raw log files
 
 ### Timeline Output Format
@@ -215,28 +215,28 @@ Total SST Sessions: 4
 
 The tool provides a structured summary including:
 
-### 📊 Overview
+### Overview
 - Analysis timestamp
 - Total entities extracted
 - Log timespan and duration
 - Entity type breakdown
 
-### 🔄 SST Sessions
+### SST Sessions
 - Total SST sessions count
 - Sessions grouped by status (failed, completed, interrupted, etc.)
 - Sessions grouped by method (mariabackup, rsync, etc.)
 - Duration statistics (min, max, average, total)
 
-### 📈 Performance Metrics
+### Performance Metrics
 - SST success rate percentage
 - Failed session count
 - Average SST duration
 
-### ⚠️ Issues Summary
+### Issues Summary
 - Error count and details
 - Warning count (interrupted sessions, etc.)
 
-### 🕒 Timeline
+### Timeline
 - Chronological view of recent events
 - Property changes for temporal entities
 - SST session state transitions
@@ -251,7 +251,7 @@ $ python3 graa.py healthy-cluster.log
 GALERA LOG ANALYSIS SUMMARY
 ================================================================================
 
-📊 OVERVIEW
+OVERVIEW
    Analysis Time: 2025-09-22T13:32:31.477831
    Total Entities: 5
    Log Timespan: 2025-09-19T10:15:00 to 2025-09-19T10:45:00
@@ -260,7 +260,7 @@ GALERA LOG ANALYSIS SUMMARY
      STATE_TRANSFER: 3
      CLUSTER_VIEW: 2
 
-🔄 SST SESSIONS
+SST SESSIONS
    Total Sessions: 3
    By Status:
      completed: 3
@@ -273,7 +273,7 @@ GALERA LOG ANALYSIS SUMMARY
      Max: 8.5m
      Total: 15.6m
 
-📈 PERFORMANCE
+PERFORMANCE
    SST Success Rate: 100.0% (3/3)
    Average SST Duration: 5.2m
 ```
@@ -286,7 +286,7 @@ $ python3 graa.py problematic-cluster.log
 GALERA LOG ANALYSIS SUMMARY
 ================================================================================
 
-📊 OVERVIEW
+OVERVIEW
    Analysis Time: 2025-09-22T13:32:44.662926
    Total Entities: 12
    Log Timespan: 2025-09-15T13:45:56 to 2025-09-22T13:32:44
@@ -294,7 +294,7 @@ GALERA LOG ANALYSIS SUMMARY
    Entity Types:
      STATE_TRANSFER: 12
 
-🔄 SST SESSIONS
+SST SESSIONS
    Total Sessions: 12
    By Status:
      auto_completed_interrupted_by_new_sst: 8
@@ -303,12 +303,12 @@ GALERA LOG ANALYSIS SUMMARY
      mariabackup: 8
      None: 4
 
-📈 PERFORMANCE
+PERFORMANCE
    SST Success Rate: 66.7% (8/12)
    Failed Sessions: 4
    Average SST Duration: 74.5h
 
-⚠️  ISSUES
+ISSUES
    Warnings: 8
      sst_1: Session was auto_completed_interrupted_by_new_sst
      sst_2: Session was auto_completed_interrupted_by_new_sst
@@ -342,9 +342,9 @@ python3 graa.py galera-node.log | grep "Failed Sessions"
 ## Features
 
 - **Temporal Entity Analysis**: Leverages the temporal SST session management system
-- **SST Timeline**: Detailed chronological view of SST sessions with real node names and accurate timing
-- **Multi-version Support**: Works with MariaDB 10.6, 11.4, and other Galera versions
-- **Pipeline Friendly**: Can be used in command pipelines
-- **Human Readable**: Clean, structured output with emojis and formatting
-- **Performance Focused**: Provides actionable metrics for cluster health assessment
+- **SST Timeline**: Chronological view of SST sessions with node names and timing information
+- **Multi-version Support**: Compatible with MariaDB 10.6, 11.4, and other Galera versions
+- **Pipeline Integration**: Supports use in command pipelines
+- **Structured Output**: Clean, organized output with text-based formatting
+- **Performance Metrics**: Provides actionable metrics for cluster health assessment
 - **Direct Log Parsing**: Bypasses grap.py limitations for accurate SST session analysis

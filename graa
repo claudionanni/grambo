@@ -1081,7 +1081,7 @@ def print_analysis(analysis: Dict[str, Any]):
     
     # Overview
     overview = analysis['overview']
-    print(f"\n📊 OVERVIEW")
+    print(f"\nOVERVIEW")
     print(f"   Analysis Time: {overview.get('analysis_time', 'Unknown')}")
     print(f"   Total Entities: {overview.get('total_entities', 0)}")
     
@@ -1097,7 +1097,7 @@ def print_analysis(analysis: Dict[str, Any]):
     
     # Node Analysis
     nodes = analysis['nodes']
-    print(f"\n🖥️  CLUSTER NODES")
+    print(f"\nCLUSTER NODES")
     print(f"   Total Nodes Detected: {nodes.get('total_nodes', 0)}")
     print(f"   Nodes with Names: {nodes.get('nodes_with_names', 0)}")
     print(f"   Nodes with IDs: {nodes.get('nodes_with_ids', 0)}")
@@ -1120,7 +1120,7 @@ def print_analysis(analysis: Dict[str, Any]):
     
     # Cluster Views
     views = analysis['cluster_views']
-    print(f"\n🔗 CLUSTER VIEWS")
+    print(f"\nCLUSTER VIEWS")
     if views.get('total_views', 0) == 0:
         print(f"   {views.get('message', 'No cluster view changes found')}")
     else:
@@ -1138,7 +1138,7 @@ def print_analysis(analysis: Dict[str, Any]):
     
     # SST Sessions
     sst = analysis['sst_sessions']
-    print(f"\n🔄 SST SESSIONS")
+    print(f"\nSST SESSIONS")
     if sst.get('total_sessions', 0) == 0:
         print(f"   {sst.get('summary', 'No SST sessions found')}")
     else:
@@ -1182,7 +1182,7 @@ def print_analysis(analysis: Dict[str, Any]):
     
     # Performance
     performance = analysis['performance']
-    print(f"\n📈 PERFORMANCE")
+    print(f"\nPERFORMANCE")
     success_rate = performance.get('sst_success_rate', {})
     if success_rate.get('total', 0) > 0:
         print(f"   SST Success Rate: {success_rate['rate']}% ({success_rate['successful']}/{success_rate['total']})")
@@ -1196,7 +1196,7 @@ def print_analysis(analysis: Dict[str, Any]):
     # Connectivity Issues
     connectivity = analysis['connectivity']
     if connectivity.get('has_connectivity_problems', False):
-        print(f"\n🌐 CONNECTIVITY")
+        print(f"\nCONNECTIVITY")
         print(f"   Total Issues: {connectivity['total_issues']}")
         
         issue_types = connectivity.get('issue_types', {})
@@ -1211,7 +1211,7 @@ def print_analysis(analysis: Dict[str, Any]):
     # Warnings
     warnings = analysis['warnings']
     if warnings.get('total_warnings', 0) > 0:
-        print(f"\n⚠️  WARNINGS")
+        print(f"\nWARNINGS")
         print(f"   Total Warnings: {warnings['total_warnings']}")
         
         warning_types = warnings.get('warning_types', {})
@@ -1226,7 +1226,7 @@ def print_analysis(analysis: Dict[str, Any]):
     # Errors
     errors = analysis['errors']
     if errors.get('error_count', 0) > 0:
-        print(f"\n❌ ERRORS")
+        print(f"\nERRORS")
         print(f"   Total Errors: {errors['error_count']}")
         
         for error in errors['errors'][:5]:  # Show first 5
@@ -1235,7 +1235,7 @@ def print_analysis(analysis: Dict[str, Any]):
     # Recent Timeline (last 15 events)
     timeline = analysis['timeline']
     if timeline:
-        print(f"\n🕒 RECENT TIMELINE (last 15 events)")
+        print(f"\nRECENT TIMELINE (last 15 events)")
         for event in timeline[-15:]:
             timestamp = event.get('timestamp', 'Unknown')
             if len(timestamp) > 19:  # Trim microseconds for readability
@@ -1356,24 +1356,137 @@ def print_sst_ist_tree(analyzer):
     sst_entities = [e for e in entities if e.get('entity_type') == 'sst']
     ist_entities = [e for e in entities if e.get('entity_type') == 'ist']
     
+    # Collect SST failure error entities
+    sst_failure_errors = _collect_sst_failure_errors(entities)
+    
     if not sst_entities and not ist_entities:
         print("No SST or IST entities found in the log.")
         return
     
-    print(f"\nFound {len(sst_entities)} SST entities and {len(ist_entities)} IST entities")
+    failure_count = len(sst_failure_errors)
+    failure_msg = f" and {failure_count} SST failures" if failure_count > 0 else ""
+    print(f"\nFound {len(sst_entities)} SST entities and {len(ist_entities)} IST entities{failure_msg}")
     print("-" * 60)
     
     # Group SST entities by logical sessions (based on timestamp proximity and status)
     sst_sessions = _group_sst_entities_by_session(sst_entities)
     
-    # Process each SST session and find related IST entities
+    # Process each SST session and find related IST entities and failures
     session_count = 0
     for session_ssts in sst_sessions:
         session_count += 1
-        _print_sst_session_with_ists(session_count, session_ssts, ist_entities)
+        _print_sst_session_with_ists(session_count, session_ssts, ist_entities, sst_failure_errors, sst_sessions)
     
     # Show any orphaned IST entities (not linked to SST)
     _print_orphaned_ist_entities(ist_entities, sst_entities)
+
+
+def _collect_sst_failure_errors(entities):
+    """Collect error entities that indicate SST failures"""
+    sst_failure_errors = []
+    
+    for entity in entities:
+        if entity.get('entity_type') != 'error':
+            continue
+            
+        raw_line = entity.get('raw_line', '')
+        
+        # Check for SST failure patterns
+        if ('State transfer' in raw_line and 'failed:' in raw_line) or \
+           'Application state transfer failed' in raw_line:
+            sst_failure_errors.append(entity)
+    
+    return sst_failure_errors
+
+
+def _get_next_session_start_time(current_session_num, all_sessions):
+    """Get the start time of the next session"""
+    if current_session_num >= len(all_sessions):
+        return None
+    
+    # Get next session (sessions are 1-indexed, list is 0-indexed)
+    next_session_entities = all_sessions[current_session_num]  # current_session_num is next index
+    if not next_session_entities:
+        return None
+    
+    next_timestamps = [e.get('timestamp', '') for e in next_session_entities if e.get('timestamp')]
+    return min(next_timestamps) if next_timestamps else None
+
+
+def _find_session_bounded_failures(sst_entities, sst_failure_errors, start_time, end_time, next_session_start):
+    """Find SST failure errors that belong specifically to this session"""
+    if not sst_failure_errors:
+        return []
+    
+    session_failures = []
+    
+    # Determine the upper bound for this session
+    # Use next session start or extend by 30 minutes, whichever is earlier
+    try:
+        from datetime import datetime, timedelta
+        if end_time and end_time != 'Unknown':
+            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            # Default extension: 30 minutes
+            extended_end_dt = end_dt + timedelta(minutes=30)
+            
+            # But don't go past the next session start
+            if next_session_start:
+                next_start_dt = datetime.fromisoformat(next_session_start.replace('Z', '+00:00'))
+                if extended_end_dt > next_start_dt:
+                    extended_end_dt = next_start_dt
+            
+            upper_bound = extended_end_dt.isoformat()
+        else:
+            upper_bound = next_session_start
+    except:
+        upper_bound = next_session_start
+    
+    # Find failures within this session's time bounds
+    for failure in sst_failure_errors:
+        failure_time = failure.get('timestamp', '')
+        
+        if failure_time and start_time:
+            # Check if failure is within this session's bounds
+            if start_time <= failure_time:
+                if upper_bound is None or failure_time < upper_bound:
+                    session_failures.append(failure)
+    
+    return session_failures
+
+
+def _print_sst_failure(failure_entity, is_last=False):
+    """Print a single SST failure entity"""
+    connector = "└─" if is_last else "├─"
+    
+    timestamp = _format_timestamp(failure_entity.get('timestamp', ''))
+    error_message = failure_entity.get('error_message', '')
+    raw_line = failure_entity.get('raw_line', '')
+    
+    # Extract failure reason from the error message
+    failure_reason = "Unknown error"
+    if 'failed:' in raw_line:
+        # Extract the part after "failed:"
+        parts = raw_line.split('failed:', 1)
+        if len(parts) > 1:
+            failure_reason = parts[1].strip()
+    elif 'Application state transfer failed' in raw_line:
+        failure_reason = "Application state transfer failed - unrecoverable condition"
+    
+    print(f"    {connector} [FAILED] SST Failure")
+    print(f"    {'   ' if is_last else '│  '}   Time: {timestamp}")
+    print(f"    {'   ' if is_last else '│  '}   Error: {failure_reason}")
+
+
+def _print_sst_completion(completion_entity, is_last=False):
+    """Print a single SST completion entity"""
+    connector = "└─" if is_last else "├─"
+    
+    timestamp = _format_timestamp(completion_entity.get('timestamp', ''))
+    status = completion_entity.get('sst_status', 'transfer_complete')
+    
+    print(f"    {connector} [COMPLETE] SST Completion")
+    print(f"    {'   ' if is_last else '│  '}   Time: {timestamp}")
+    print(f"    {'   ' if is_last else '│  '}   Status: {status}")
 
 
 def _group_sst_entities_by_session(sst_entities):
@@ -1393,8 +1506,9 @@ def _group_sst_entities_by_session(sst_entities):
         timestamp = sst.get('timestamp', '')
         
         # Start new session if this looks like a fresh SST start
-        if (sst.get('sst_status') == 'started' and 
+        if (sst.get('sst_status') in ['started', 'backup_transfer_started'] and 
             not entity_id.startswith('sst_proceeding_') and
+            not entity_id.startswith('sst_donor_') and
             current_session):
             sessions.append(current_session)
             current_session = [sst]
@@ -1407,8 +1521,8 @@ def _group_sst_entities_by_session(sst_entities):
     return sessions
 
 
-def _print_sst_session_with_ists(session_num, sst_entities, all_ist_entities):
-    """Print a single SST session with its related IST entities"""
+def _print_sst_session_with_ists(session_num, sst_entities, all_ist_entities, sst_failure_errors, all_sessions):
+    """Print a single SST session with its related IST entities and failures"""
     if not sst_entities:
         return
     
@@ -1417,21 +1531,60 @@ def _print_sst_session_with_ists(session_num, sst_entities, all_ist_entities):
     start_time = min(timestamps) if timestamps else 'Unknown'
     end_time = max(timestamps) if timestamps else 'Unknown'
     
-    print(f"\n[{session_num}] SST SESSION")
+    # Find the next session start time to properly bound this session
+    next_session_start = _get_next_session_start_time(session_num, all_sessions)
+    
+    # Check for failures related to this specific session
+    session_failures = _find_session_bounded_failures(sst_entities, sst_failure_errors, start_time, end_time, next_session_start)
+    
+    # Update end time if we have a failure that closes this session
+    if session_failures:
+        # Use the earliest failure as the session end time
+        failure_times = [f.get('timestamp', '') for f in session_failures if f.get('timestamp')]
+        if failure_times:
+            earliest_failure = min(failure_times)
+            # Only update end time if failure is after our last SST event
+            if earliest_failure > end_time:
+                end_time = earliest_failure
+    
+    # Check if session completed successfully
+    has_completion = any(sst.get('sst_status') == 'transfer_complete' for sst in sst_entities)
+    
+    session_status = "FAILED" if session_failures else ("COMPLETE" if has_completion else "ONGOING")
+    status_display = f" - {session_status}" if (session_failures or has_completion) else ""
+    
+    print(f"\n[{session_num}] SST SESSION{status_display}")
     print(f"    Time Range: {_format_timestamp(start_time)} → {_format_timestamp(end_time)}")
     
     # Print SST events in chronological order
     sst_entities.sort(key=lambda e: e.get('timestamp', ''))
     
+    # Find completion entity if exists
+    completion_entity = None
+    if has_completion:
+        completion_entity = next((sst for sst in sst_entities if sst.get('sst_status') == 'transfer_complete'), None)
+    
     for i, sst in enumerate(sst_entities):
-        is_last_sst = (i == len(sst_entities) - 1)
+        # Don't treat completion entity as last if we'll print it separately
+        is_last_sst = (i == len(sst_entities) - 1 and not session_failures and not has_completion)
         _print_sst_entity(sst, is_last_sst)
+    
+    # Print completion information for successful sessions
+    if has_completion and completion_entity and not session_failures:
+        _print_sst_completion(completion_entity, True)  # Always last item in successful session
+    
+    # Print failure information if any - limit to one failure per session
+    elif session_failures:
+        # Sort failures by timestamp and take only the first one for this session
+        session_failures.sort(key=lambda f: f.get('timestamp', ''))
+        failure = session_failures[0]  # First failure closes the session
+        _print_sst_failure(failure, True)  # Always last item in session
     
     # Find and print related IST entities
     related_ists = _find_related_ist_entities(sst_entities, all_ist_entities)
     if related_ists:
         print("    │")
-        print("    ├─ 🔄 RELATED IST EVENTS:")
+        print("    ├─ RELATED IST EVENTS:")
         
         related_ists.sort(key=lambda e: e.get('timestamp', ''))
         for i, ist in enumerate(related_ists):
@@ -1452,7 +1605,7 @@ def _print_sst_entity(sst_entity, is_last=False):
     backup_occurred = sst_entity.get('backup_transfer_occurred', False)
     script_triggered = sst_entity.get('sst_script_triggered', False)
     
-    status_icon = "🚀" if backup_occurred else ("📋" if script_triggered else "❓")
+    status_icon = "[ACTIVE]" if backup_occurred else ("[SCRIPT]" if script_triggered else "[STATUS]")
     
     print(f"    {connector} {status_icon} SST {entity_id}")
     print(f"    {'   ' if is_last else '│  '}   Time: {timestamp}")
@@ -1462,9 +1615,9 @@ def _print_sst_entity(sst_entity, is_last=False):
     
     # Show backup transfer details
     if backup_occurred:
-        print(f"    {'   ' if is_last else '│  '}   ✅ Backup Transfer: YES")
+        print(f"    {'   ' if is_last else '│  '}   [OK] Backup Transfer: YES")
     elif script_triggered:
-        print(f"    {'   ' if is_last else '│  '}   ⚠️  Backup Transfer: NO (script only)")
+        print(f"    {'   ' if is_last else '│  '}   [WARNING] Backup Transfer: NO (script only)")
 
 
 def _print_ist_entity(ist_entity, is_last=False, indent=""):
@@ -1476,7 +1629,7 @@ def _print_ist_entity(ist_entity, is_last=False, indent=""):
     status = ist_entity.get('ist_status', 'unknown')
     
     # Build concise info string
-    info_parts = [f"📥 IST {entity_id}", f"Status: {status}", f"Time: {timestamp}"]
+    info_parts = [f"[IST] IST {entity_id}", f"Status: {status}", f"Time: {timestamp}"]
     
     # Add IST range if available
     ist_first = ist_entity.get('ist_first', 0)
