@@ -28,6 +28,13 @@ from pathlib import Path
 import argparse
 import logging
 
+# Import ClusterEntity from core libraries
+try:
+    from lib.entities import ClusterEntity
+except ImportError:
+    # Fallback if core library is not available
+    ClusterEntity = None
+
 # Entity Classes
 # Entity Classes
 @dataclass
@@ -40,6 +47,7 @@ class Entity:
     log_source: str = ""
     confidence: float = 1.0
     raw_line: str = ""
+    cluster_ref: Optional[str] = None
 
 @dataclass  
 class NodeEntity(Entity):
@@ -58,6 +66,8 @@ class ViewEntity(Entity):
     cluster_state: str = ""
     cluster_uuid: str = ""
     members: List[str] = field(default_factory=list)
+
+
     
 @dataclass
 class SSTEntity(Entity):
@@ -100,14 +110,13 @@ class ErrorEntity(Entity):
     error_message: str = ""
     component: str = ""
     
-@dataclass
+@dataclass  
 class TransactionEntity(Entity):
     """Database transaction"""
     transaction_id: str = ""
     operation_type: str = ""
     affected_rows: int = 0
     status: str = ""
-
 
 class GaleraLogParser:
     """Complete Galera log parser that extracts ALL entities"""
@@ -136,6 +145,9 @@ class GaleraLogParser:
         
         # Post-process SST sessions to calculate durations
         self._finalize_sst_sessions()
+        
+        # Assign cluster references to entities
+        self._assign_cluster_references()
         
         return sorted(self.entities, key=lambda e: e.timestamp or datetime.min)
     
@@ -637,6 +649,101 @@ class GaleraLogParser:
         """Post-process SST sessions to link start/end events"""
         # This would link related SST events and calculate accurate durations
         pass
+    
+    def _assign_cluster_references(self):
+        """
+        Assign cluster references to entities based on relationship design:
+        - VIEW → CLUSTER
+        - NODE → CLUSTER  
+        - SST → CLUSTER
+        - IST → NODE
+        - ERROR → NODE+CLUSTER (smart classification)
+        """
+        try:
+            # Import cluster UUID extraction function from core library
+            from lib.entities.enhanced_parser import extract_cluster_uuid_from_raw_line
+        except ImportError:
+            # Fallback if core library is not available
+            return
+        
+        # Step 1: Detect cluster UUID by scanning the entire log file
+        cluster_uuid = None
+        
+        # We need to scan the original log file, not just entity lines
+        # The cluster UUID patterns might be in lines that aren't extracted as entities
+        log_source = None
+        for entity in self.entities:
+            if hasattr(entity, 'log_source') and entity.log_source:
+                log_source = entity.log_source
+                break
+        
+        if log_source:
+            try:
+                with open(log_source, 'r', encoding='utf-8', errors='replace') as f:
+                    for line in f:
+                        detected_uuid = extract_cluster_uuid_from_raw_line(line)
+                        if detected_uuid:
+                            cluster_uuid = detected_uuid
+                            break
+            except Exception as e:
+                pass
+        
+        if not cluster_uuid:
+            return  # No cluster UUID found, skip assignment
+        
+        # Create cluster reference name
+        cluster_ref = f"cluster_{cluster_uuid[:8]}"
+        
+        # Step 2: Add cluster_ref field to base Entity class if not present
+        for entity in self.entities:
+            if not hasattr(entity, 'cluster_ref'):
+                entity.cluster_ref = None
+        
+        # Step 3: Assign cluster references based on entity types
+        for entity in self.entities:
+            # Use class type like entity_to_dict does
+            entity_type = type(entity).__name__.replace('Entity', '').lower()
+            
+            if entity_type == 'view':
+                # VIEW → CLUSTER
+                entity.cluster_ref = cluster_ref
+                
+            elif entity_type == 'node':
+                # NODE → CLUSTER
+                entity.cluster_ref = cluster_ref
+                
+            elif entity_type == 'sst':
+                # SST → CLUSTER (cluster-wide operation)
+                entity.cluster_ref = cluster_ref
+                
+            elif entity_type == 'ist':
+                # IST → NODE (node-specific, but could also reference cluster via node)
+                # For now, assign cluster_ref since we don't have node_ref field
+                entity.cluster_ref = cluster_ref
+                
+            elif entity_type == 'error':
+                # ERROR → NODE+CLUSTER (smart classification)
+                # For simplicity, assign cluster_ref to all errors
+                # More sophisticated logic could determine node vs cluster scope
+                entity.cluster_ref = cluster_ref
+        
+        # Step 4: Create and add a CLUSTER entity using core library
+        if ClusterEntity:
+            cluster_entity = ClusterEntity(
+                entity_id=f"cluster_{cluster_uuid[:8]}",
+                timestamp=None,
+                line_number=0,
+                log_source="cluster_detection",
+                confidence=1.0,
+                raw_line=f"Cluster UUID: {cluster_uuid}",
+                cluster_name=cluster_ref,
+                cluster_uuid=cluster_uuid
+            )
+            # Set cluster_ref to itself
+            cluster_entity.cluster_ref = cluster_ref
+            self.entities.append(cluster_entity)
+        
+
 
 class GrapCacheManager:
     """Manages GRAP analysis cache for performance optimization"""
@@ -776,14 +883,30 @@ class GrapOutputFormatter:
     @staticmethod
     def entity_to_dict(entity: Entity) -> Dict[str, Any]:
         """Convert entity to dictionary representation"""
+        # Handle entity_type from both string and enum sources
+        entity_type = type(entity).__name__.replace('Entity', '').lower()
+        
+        # Handle core library entities with EntityType enum
+        if hasattr(entity, 'entity_type') and entity.entity_type:
+            try:
+                # Try to get enum value first
+                if hasattr(entity.entity_type, 'value'):
+                    entity_type = entity.entity_type.value.lower()
+                elif isinstance(entity.entity_type, str) and entity.entity_type.strip():
+                    entity_type = entity.entity_type.lower()
+            except:
+                # Fallback to class name derivation - already set above
+                pass
+        
         result = {
-            'entity_type': type(entity).__name__.replace('Entity', '').lower(),
+            'entity_type': entity_type,
             'entity_id': entity.entity_id,
             'timestamp': entity.timestamp.isoformat() if entity.timestamp else None,
             'line_number': entity.line_number,
             'log_source': entity.log_source,
             'confidence': entity.confidence,
-            'raw_line': entity.raw_line
+            'raw_line': entity.raw_line,
+            'cluster_ref': entity.cluster_ref
         }
         
         # Add entity-specific fields
@@ -841,8 +964,14 @@ class GrapOutputFormatter:
         elif isinstance(entity, TransactionEntity):
             result.update({
                 'transaction_id': entity.transaction_id,
-                'transaction_id': entity.transaction_id,
                 'operation_type': entity.operation_type
+            })
+        elif ClusterEntity and isinstance(entity, ClusterEntity):
+            result.update({
+                'cluster_name': entity.cluster_name,
+                'cluster_uuid': entity.cluster_uuid,
+                'cluster_health_score': entity.cluster_health_score,
+                'split_brain_detected': entity.split_brain_detected
             })
             
         return result

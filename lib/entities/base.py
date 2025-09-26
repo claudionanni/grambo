@@ -25,6 +25,7 @@ class EntityType(Enum):
     NODE = "NODE"
     STATE_TRANSFER = "STATE_TRANSFER"
     VIEW = "VIEW"
+    CLUSTER = "CLUSTER"
     COMMUNICATION = "COMMUNICATION"
     ERROR = "ERROR"
     WARNING = "WARNING"
@@ -65,6 +66,9 @@ class Entity(ABC):
     confidence: float = 1.0
     pattern_name: str = ""
     extraction_method: str = "manual"
+    
+    # Cluster relationship
+    cluster_ref: Optional[str] = None
     
     # Validation status
     validated: bool = False

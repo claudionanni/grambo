@@ -556,6 +556,46 @@ class MultiLogParser:
         }
 
 
+def extract_cluster_uuid_from_raw_line(raw_line: str) -> Optional[str]:
+    """
+    Extract cluster UUID from raw log line using group UUID patterns
+    
+    This function implements the primary cluster UUID extraction logic
+    based on the most abundant pattern: 'group UUID = <uuid>'
+    
+    Args:
+        raw_line: Raw log line to scan for cluster UUID
+        
+    Returns:
+        Cluster UUID string if found, None otherwise
+    """
+    if not raw_line:
+        return None
+    
+    import re
+    
+    # Primary pattern: group UUID = a572a681-97f2-11f0-9f63-c7c3a72b2527
+    # Also matches: Group UUID   : a572a681-97f2-11f0-9f63-c7c3a72b2527
+    pattern = r'(?i)group\s+uuid\s*[=:]\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
+    match = re.search(pattern, raw_line)
+    if match:
+        return match.group(1)
+    
+    # Secondary pattern: Group state: a572a681-97f2-11f0-9f63-c7c3a72b2527:17
+    pattern = r'(?i)group\s+state:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):'
+    match = re.search(pattern, raw_line)
+    if match:
+        return match.group(1)
+    
+    # Tertiary pattern: id: a572a681-97f2-11f0-9f63-c7c3a72b2527:17 (WSREP view)
+    pattern = r'id:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):'
+    match = re.search(pattern, raw_line)
+    if match:
+        return match.group(1)
+    
+    return None
+
+
 def create_enhanced_parser(pattern_dirs: Optional[List[str]] = None) -> MultiLogParser:
     """
     Factory function to create a configured MultiLogParser

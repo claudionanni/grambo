@@ -250,7 +250,7 @@ class ClusterEntity(Entity):
     entities and provides comprehensive cluster analysis capabilities.
     """
     
-    entity_type: EntityType = field(default=EntityType.NODE, init=False)  # Will be overridden
+    entity_type: EntityType = field(default=EntityType.CLUSTER, init=False)
     
     # Cluster identification
     cluster_name: str = ""
@@ -281,7 +281,7 @@ class ClusterEntity(Entity):
     def __post_init__(self):
         """Initialize cluster entity"""
         # Override entity_type for cluster
-        object.__setattr__(self, 'entity_type', 'CLUSTER')
+        object.__setattr__(self, 'entity_type', EntityType.CLUSTER)
         # Skip validation during initialization - will be called manually after adding entities
         self.validated = False
     
