@@ -1,1442 +1,889 @@
 #!/usr/bin/env python3
+# filepath: grap
 """
-GRAP - Galera Real-time Analysis Parser (Enhanced Production Implementation)
-
-A comprehensive Galera cluster log parser with advanced entity extraction and filtering.
-Supports IST (Incremental State Transfer) tracking, entity filtering, YAML output, and more.
-
-FEATURES:
-- Complete entity extraction (SST, IST, Views, Nodes, Errors, Transactions)
-- Entity filtering by type (--entities=SST,NODE,VIEW)
-- Multiple output formats (text, json, yaml)
-- Confidence threshold filtering
-- Intelligent caching system
-- Multi-node cluster analysis
-- IST workflow tracking with progress monitoring
+GRAP - Galera Raw Analysis Parser
+Next-generation entity-based parser for Galera cluster logs
 """
 
 import re
-import json
 import sys
-import os
+import json
 import hashlib
-import yaml
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Union, Tuple, Set
-from dataclasses import dataclass, field, asdict
-from pathlib import Path
 import argparse
-import logging
+from typing import Dict, List, Optional, Tuple, Set, Any
+from datetime import datetime
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from pathlib import Path
+import pickle
+import os
 
-# Bumpable version for cache invalidation and outputs
-GRAP_VERSION = "2.3.1"
+# Version for cache invalidation
+GRAP_VERSION = "v2.4.4"  # Disable filename-based node inference
 
-# Import ClusterEntity from core libraries (import directly from module to avoid __init__ side-effects)
-try:
-    from lib.entities.cluster import ClusterEntity
-except ImportError:
-    # Fallback if core library is not available
-    ClusterEntity = None
+# Cache directory
+CACHE_DIR = Path.home() / ".cache" / "grap"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Entity Classes
-# Entity Classes
+# Entity Types
+class EntityType(Enum):
+    """Types of entities found in Galera logs"""
+    CLUSTER = "cluster"
+    NODE = "node"
+    VIEW = "view"
+    SST = "sst"
+    IST = "ist"
+    ERROR = "error"
+    FLOW_CONTROL = "flow_control"
+    CERTIFICATION = "certification"
+    REPLICATION = "replication"
+    COMMUNICATION = "communication"
+    SERVICE = "service"
+    TRANSACTION = "transaction"
+    CLIENT_CONNECTION = "client_connection"
+    LOCK = "lock"
+    SQL = "sql"
+
+# Base Entity
 @dataclass
 class Entity:
-    """Base entity class"""
-    entity_type: str = ""
-    entity_id: str = ""
+    """Base class for all entities"""
     timestamp: Optional[datetime] = None
     line_number: int = 0
-    log_source: str = ""
-    confidence: float = 1.0
     raw_line: str = ""
+    log_source: str = ""
+    entity_id: str = ""
+    entity_type: Optional[EntityType] = None
     cluster_ref: Optional[str] = None
-
-@dataclass  
-class NodeEntity(Entity):
-    """Galera cluster node"""
-    node_uuid: str = ""
-    node_name: str = ""
-    node_address: str = ""
-    node_state: str = ""
-    cluster_position: str = ""
     
+    def __post_init__(self):
+        """Generate entity_id if not provided"""
+        if not self.entity_id:
+            # Create unique ID from content hash
+            content = f"{self.entity_type}_{self.line_number}_{self.raw_line[:50]}"
+            self.entity_id = hashlib.md5(content.encode()).hexdigest()[:12]
+
+# Cluster Entity
+@dataclass 
+class ClusterEntity(Entity):
+    """Represents a Galera cluster"""
+    cluster_uuid: Optional[str] = None
+    cluster_name: Optional[str] = None
+    cluster_size: Optional[int] = None
+    primary_state: Optional[bool] = None
+    protocol_version: Optional[int] = None
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.entity_type = EntityType.CLUSTER
+
+# Node Entity
+@dataclass
+class NodeEntity(Entity):
+    """Represents a node in the cluster"""
+    node_name: Optional[str] = None
+    node_uuid: Optional[str] = None
+    node_state: Optional[str] = None
+    node_index: Optional[int] = None
+    node_address: Optional[str] = None
+    wsrep_last_committed: Optional[int] = None
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.entity_type = EntityType.NODE
+
+# View Entity with improved structure based on Galera source
 @dataclass
 class ViewEntity(Entity):
-    """Cluster view change"""
-    view_id: str = ""
-    view_seq: int = 0
-    cluster_state: str = ""
-    cluster_uuid: str = ""
-    members: List[str] = field(default_factory=list)
-
-
+    """Represents a Galera cluster view change"""
+    view_id: Optional[str] = None
+    cluster_uuid: Optional[str] = None
+    view_seq: Optional[int] = None
+    cluster_state: Optional[str] = None  # PRIM or NON-PRIM
+    my_uuid: Optional[str] = None
+    protocol_version: Optional[int] = None
     
+    # Member lists - based on Galera source code structure
+    members: List[str] = field(default_factory=list)  # Current members
+    joined_members: List[str] = field(default_factory=list)  # Newly joined
+    left_members: List[str] = field(default_factory=list)  # Members that left
+    partitioned_members: List[str] = field(default_factory=list)  # Partitioned
+    
+    # Additional member information
+    member_segments: Dict[str, int] = field(default_factory=dict)  # member -> segment mapping
+    member_uuid_map: Dict[str, str] = field(default_factory=dict)  # canonical name -> uuid/identifier mapping
+    
+    # Derived fields
+    member_count: Optional[int] = None
+    is_primary: Optional[bool] = None
+    
+    def __post_init__(self):
+        """Calculate derived fields after initialization"""
+        super().__post_init__()
+        self.entity_type = EntityType.VIEW
+        if self.members:
+            self.member_count = len(self.members)
+        if self.cluster_state:
+            self.is_primary = self.cluster_state == "PRIM"
+
+# SST Entity
 @dataclass
 class SSTEntity(Entity):
-    """State Snapshot Transfer"""
-    sst_method: str = ""
-    donor_node: str = ""
-    joiner_node: str = ""
-    sst_status: str = ""
-    seqno_start: int = 0
-    seqno_end: int = 0
-    duration_seconds: float = 0.0
-    # Backup transfer tracking
-    backup_transfer_occurred: bool = False  # True if actual backup was transferred
-    sst_script_triggered: bool = False  # True if SST script was initiated
-    # Relationship tracking
-    installed_state_seqno: int = 0  # Final seqno when SST completes
-    related_ist_id: str = ""  # Link to follow-up IST entity
+    """Represents a State Snapshot Transfer"""
+    sst_status: Optional[str] = None
+    sst_method: Optional[str] = None
+    donor_node: Optional[str] = None
+    joiner_node: Optional[str] = None
+    transfer_size: Optional[int] = None
+    transfer_duration: Optional[float] = None
     
+    def __post_init__(self):
+        super().__post_init__()
+        self.entity_type = EntityType.SST
+
+# IST Entity
 @dataclass
 class ISTEntity(Entity):
-    """Incremental State Transfer"""
-    ist_uuid: str = ""
-    ist_first: int = 0
-    ist_last: int = 0
-    donor_node: str = ""
-    receiver_address: str = ""
-    progress_percent: float = 0.0
-    events_total: int = 0
-    events_processed: int = 0
-    ist_status: str = ""  # preparing, receiving, applying, complete
-    # Relationship tracking
-    follows_sst_id: str = ""  # Link to preceding SST entity
-    applying_from_seqno: int = 0  # Starting seqno for IST application
+    """Represents an Incremental State Transfer"""
+    ist_status: Optional[str] = None
+    sender_node: Optional[str] = None
+    receiver_node: Optional[str] = None
+    seqno_start: Optional[int] = None
+    seqno_end: Optional[int] = None
+    transfer_count: Optional[int] = None
     
+    def __post_init__(self):
+        super().__post_init__()
+        self.entity_type = EntityType.IST
+
+# Error Entity
 @dataclass
 class ErrorEntity(Entity):
-    """Error or warning event"""
-    error_level: str = ""
-    error_code: str = ""
-    error_message: str = ""
-    component: str = ""
+    """Represents an error or warning"""
+    error_level: Optional[str] = None  # ERROR, WARNING, etc
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    affected_node: Optional[str] = None
     
-@dataclass  
-class TransactionEntity(Entity):
-    """Database transaction"""
-    transaction_id: str = ""
-    operation_type: str = ""
-    affected_rows: int = 0
-    status: str = ""
+    def __post_init__(self):
+        super().__post_init__()
+        self.entity_type = EntityType.ERROR
 
+# Parser class
 class GaleraLogParser:
-    """Complete Galera log parser that extracts ALL entities"""
+    """Parse Galera logs and extract entities"""
     
     def __init__(self):
-        # Use a permissive list type to accommodate core library entities like ClusterEntity
-        self.entities: List[Any] = []
-        self.sst_sessions: Dict[str, Dict] = {}  # Track ongoing SST sessions
-        # Track ongoing wsrep view member blocks
-        self._in_view_block: bool = False
-        self._pending_view: Optional[ViewEntity] = None
-        self._view_section: Optional[str] = None  # memb|joined|left|partitioned
-        # Node name normalization maps
-        # Map of log source base name -> canonical node name (learned from explicit log lines)
-        self._node_canonical_by_source: Dict[str, str] = {}
-        # Set of canonical names observed directly in logs
-        self._known_canonical_names: Set[str] = set()
+        self.entities: List[Entity] = []
+        self.current_node_name: Optional[str] = None
+        self.cluster_uuid: Optional[str] = None
+        self.cluster_ref: Optional[str] = None
+        self._state_exchange_names: Dict[int, str] = {}
+        self._uuid_name_map: Dict[str, str] = {}
+        self._name_uuid_map: Dict[str, str] = {}
         
-    def parse_log(self, log_file: Union[str, Path]) -> List[Entity]:
-        """Parse a Galera log file and extract all entities"""
-        self.entities = []
-        
-        with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                # Try all entity patterns
-                self._learn_local_node_name(line, str(log_file))
-                self._parse_node_events(line, line_num, str(log_file))
-                self._parse_view_events(line, line_num, str(log_file))
-                self._parse_sst_events(line, line_num, str(log_file))
-                self._parse_ist_events(line, line_num, str(log_file))
-                self._parse_error_events(line, line_num, str(log_file))
-                self._parse_transaction_events(line, line_num, str(log_file))
-        
-        # Post-process SST sessions to calculate durations
-        self._finalize_sst_sessions()
-        
-        # Normalize node names consistently across entities
-        self._normalize_node_entities()
-
-        # Assign cluster references to entities
-        self._assign_cluster_references()
-        
-        return sorted(self.entities, key=lambda e: e.timestamp or datetime.min)
-
-    def _infer_node_name(self, log_source: str) -> str:
-        """Infer a stable node name from the log source path (filename without extension)."""
-        try:
-            base = Path(log_source).name
-            # Strip common extensions
-            if '.' in base:
-                base = base.split('.')[0]
-            # Normalize common suffixes (e.g., -mysql24) and domains
-            return self._normalize_node_name(base)
-        except Exception:
-            return "unknown"
-
-    def _normalize_node_name(self, raw: str) -> str:
-        """Normalize node name heuristically to avoid duplicates.
-        Rules:
-        - Drop domain part after first dot.
-        - Strip service/version suffixes like -mysqlXX, -mariadbXX.
-        - Keep base token before such suffixes.
-        """
-        if not raw:
-            return raw
-        name = raw.strip()
-        # Drop domain part
-        if '.' in name:
-            name = name.split('.', 1)[0]
-        # Strip common service suffixes
-        name = re.sub(r'-(mysql|mariadb)[0-9.-]*$', '', name, flags=re.IGNORECASE)
-        # Strip site/role short suffixes like -ffm, -fra, -prd
-        name = re.sub(r'-([a-z]{2,4})$', '', name)
-        # If hyphen remains and left part is a known canonical, reduce to left
-        if '-' in name:
-            left = name.split('-', 1)[0]
-            if left in self._known_canonical_names:
-                name = left
-        # If we learned a canonical for this source alias, return it later in _normalize_node_entities
-        return name
+        # View parsing state
+        self._view_block_active = False
+        self._view_block_lines = []
+        self._view_block_start_line = 0
+        self._view_block_log_source = ""
+        self._view_block_timestamp = None
+        self._current_view_data = None
+        self._current_view_section = None
     
-    def filter_entities(self, entities: List[Entity], 
-                       entity_types: Optional[Set[str]] = None,
-                       confidence_threshold: float = 0.0) -> List[Entity]:
-        """Filter entities by type and confidence"""
-        filtered = entities
+    def parse_log(self, log_content: str, log_source: str = "unknown") -> List[Entity]:
+        """Parse log content and return entities"""
+        lines = log_content.strip().split('\n')
+
+        for line_num, line in enumerate(lines, 1):
+            self._parse_line(line, line_num, log_source)
         
-        # Filter by entity types
-        if entity_types:
-            entity_types_lower = {t.lower() for t in entity_types}
-            filtered = [e for e in filtered if e.entity_type.lower() in entity_types_lower]
+        # Complete any pending view block
+        if self._view_block_active:
+            self._complete_view_block(line_num)
         
-        # Filter by confidence threshold
-        if confidence_threshold > 0.0:
-            filtered = [e for e in filtered if e.confidence >= confidence_threshold]
-            
-        return filtered
-    
-    def _parse_timestamp(self, line: str) -> Optional[datetime]:
-        """Extract timestamp from log line"""
-        # MariaDB format variants:
-        #  - "2025-09-19 11:10:37" (standard)
-        #  - "2025-09-19  2:10:37" (single-digit hour with double space before time)
-        # Use a regex that tolerates one or more spaces and 1-2 digit hour, then normalize.
-        m = re.search(r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
-        if m:
-            try:
-                date_part, h, mi, s = m.groups()
-                # Zero-pad hour to 2 digits before parsing
-                norm = f"{date_part} {int(h):02d}:{mi}:{s}"
-                return datetime.strptime(norm, '%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                pass
-                
-        # mysqld_safe format: 250919 11:10:37  
-        match = re.search(r'(\d{6}\s+\d{2}:\d{2}:\d{2})', line)
-        if match:
-            try:
-                return datetime.strptime('20' + match.group(1), '%Y%m%d %H:%M:%S')
-            except ValueError:
-                pass
-                
+        # Scan for cluster UUID if not found
+        if not self.cluster_uuid:
+            self._scan_for_cluster_uuid(lines)
+        
+        # Assign cluster_ref to all entities
+        if not self.cluster_ref and self.cluster_uuid:
+            self.cluster_ref = f"cluster_{self.cluster_uuid[:8]}"
+        elif not self.cluster_ref:
+            # Try to derive from first view
+            for entity in self.entities:
+                if isinstance(entity, ViewEntity) and entity.cluster_uuid:
+                    self.cluster_ref = f"cluster_{entity.cluster_uuid[:8]}"
+                    break
+            if not self.cluster_ref:
+                self.cluster_ref = "_unknown_cluster"
+        
+        # Update all entities with cluster_ref
+        for entity in self.entities:
+            if not entity.cluster_ref:
+                entity.cluster_ref = self.cluster_ref
+        
+        # Add cluster entity if we have UUID
+        if self.cluster_uuid:
+            cluster_entity = ClusterEntity(
+                timestamp=self.entities[0].timestamp if self.entities else None,
+                line_number=0,
+                raw_line="",
+                log_source=log_source,
+                entity_id=f"cluster_{self.cluster_uuid[:8]}",
+                cluster_uuid=self.cluster_uuid,
+                cluster_ref=self.cluster_ref
+            )
+            self.entities.insert(0, cluster_entity)
+        
+        return self.entities
+
+    def _infer_node_name_from_source(self, log_source: str) -> Optional[str]:
+        """Historically inferred node names from log source path; disabled per requirements."""
         return None
 
-    def _learn_local_node_name(self, line: str, log_source: str) -> None:
-        """Learn the local node's canonical name from configuration or wsrep logs.
-        This is more reliable than inferring from the filename.
-        """
-        try:
-            src_base = Path(log_source).stem
-        except Exception:
-            src_base = log_source
+    def _shorten_uuid(self, uuid_str: str) -> Optional[str]:
+        """Generate shortened UUID variant used by Galera view listings."""
+        if not uuid_str:
+            return None
+        parts = uuid_str.split('-')
+        if len(parts) >= 4:
+            return f"{parts[0]}-{parts[3]}"
+        return None
 
-        # wsrep_node_name in config or runtime settings
-        m = re.search(r"wsrep_node_name\s*=\s*([\w.-]+)", line, re.IGNORECASE)
-        if not m:
-            m = re.search(r"WSREP:\s+Setting wsrep_node_name to ['\"]([^'\"]+)['\"]", line)
-        if not m:
-            m = re.search(r"Node name:\s*([\w.-]+)", line, re.IGNORECASE)
-        if m:
-            name = self._normalize_node_name(m.group(1))
-            if name:
-                self._node_canonical_by_source[src_base] = name
-                self._known_canonical_names.add(name)
+    def _register_member_name(self, name: str, index: Optional[int] = None, uuid: Optional[str] = None):
+        """Register mapping metadata so we can resolve view members to canonical names."""
+        if index is not None:
+            self._state_exchange_names[index] = name
+        identifiers: Set[str] = set()
+        if uuid:
+            norm_uuid = uuid.strip().lower()
+            self._uuid_name_map[norm_uuid] = name
+            identifiers.add(norm_uuid)
+            short_uuid = self._shorten_uuid(norm_uuid)
+            if short_uuid:
+                self._uuid_name_map[short_uuid] = name
+                identifiers.add(short_uuid)
+            compact_uuid = norm_uuid.replace('-', '')
+            if compact_uuid:
+                self._uuid_name_map[compact_uuid] = name
+                identifiers.add(compact_uuid)
+            self._name_uuid_map[name] = norm_uuid
+        if identifiers:
+            self._backfill_view_members(name, identifiers, uuid)
+
+    def _resolve_member_name(self, identifier: str) -> Optional[str]:
+        """Resolve a member identifier (index/uuid/short uuid) to a registered node name."""
+        if identifier is None:
+            return None
+        candidate = identifier.strip().lower()
+        if not candidate:
+            return None
+        if candidate.isdigit():
+            idx = int(candidate)
+            if idx in self._state_exchange_names:
+                return self._state_exchange_names[idx]
+        if candidate in self._uuid_name_map:
+            return self._uuid_name_map[candidate]
+        short_candidate = self._shorten_uuid(candidate)
+        if short_candidate and short_candidate in self._uuid_name_map:
+            return self._uuid_name_map[short_candidate]
+        compact_candidate = candidate.replace('-', '')
+        if compact_candidate in self._uuid_name_map:
+            return self._uuid_name_map[compact_candidate]
+        return None
+
+    def _backfill_view_members(self, name: str, identifiers: Set[str], uuid: Optional[str]):
+        """Update previously parsed view entities once canonical mappings become available."""
+        if not identifiers:
+            return
+        lowered_identifiers = {ident.lower() for ident in identifiers}
+        for entity in self.entities:
+            if not isinstance(entity, ViewEntity):
+                continue
+            modified = False
+            for attr in ['members', 'joined_members', 'left_members', 'partitioned_members']:
+                values = getattr(entity, attr)
+                if not values:
+                    continue
+                new_values: List[str] = []
+                seen: Set[str] = set()
+                for value in values:
+                    value_str = str(value).strip()
+                    value_key = value_str.lower()
+                    if value_key in lowered_identifiers:
+                        value_str = name
+                        value_key = name.lower()
+                        modified = True
+                    if value_key not in seen:
+                        new_values.append(value_str)
+                        seen.add(value_key)
+                setattr(entity, attr, new_values)
+            if uuid:
+                if entity.member_uuid_map.get(name) != uuid:
+                    entity.member_uuid_map[name] = uuid
+                    modified = True
+            if modified:
+                updated_segments: Dict[str, int] = {}
+                for seg_key, seg_val in entity.member_segments.items():
+                    seg_key_str = str(seg_key).strip()
+                    seg_key_lower = seg_key_str.lower()
+                    if seg_key_lower in lowered_identifiers:
+                        updated_segments[name] = seg_val
+                        # Preserve legacy lookup for original identifiers too
+                        updated_segments[seg_key] = seg_val
+                    else:
+                        updated_segments[seg_key] = seg_val
+                entity.member_segments = updated_segments
+                entity.member_count = len(entity.members)
+
+    def _backfill_node_entities(self, previous_name: Optional[str], new_name: str):
+        """Update existing node entities when we discover a more precise node name."""
+        if not previous_name or previous_name == new_name:
+            return
+        updated_prefix = f"node_{previous_name}_"
+        replacement_prefix = f"node_{new_name}_"
+        for entity in self.entities:
+            if isinstance(entity, NodeEntity) and entity.node_name == previous_name:
+                entity.node_name = new_name
+                if entity.entity_id.startswith(updated_prefix):
+                    entity.entity_id = replacement_prefix + entity.entity_id[len(updated_prefix):]
+
+    def _should_backfill_node_name(self, previous_name: Optional[str], candidate_name: str) -> bool:
+        """Determine if we should update previously inferred node names."""
+        if not previous_name or not candidate_name:
+            return False
+        prev_norm = previous_name.lower()
+        cand_norm = candidate_name.lower()
+        if prev_norm == cand_norm:
+            return False
+        # Only backfill when prior name appears to be a truncated version of the candidate
+        cand_without_digits = re.sub(r"\d+", "", cand_norm)
+        if prev_norm == cand_without_digits:
+            return True
+        # Also allow hyphen/underscore stripping cases
+        cand_compact = re.sub(r"[\W_]", "", cand_norm)
+        prev_compact = re.sub(r"[\W_]", "", prev_norm)
+        if prev_compact and prev_compact == cand_compact:
+            return True
+        return False
+    
+    def _scan_for_cluster_uuid(self, lines: List[str]):
+        """Scan for cluster UUID in various formats"""
+        patterns = [
+            r'group\s+UUID\s*=\s*([0-9a-f-]+)',
+            r'cluster\s+UUID:\s*([0-9a-f-]+)',
+            r'uuid:\s*([0-9a-f-]+)',
+        ]
+        
+        for line in lines:
+            for pattern in patterns:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    self.cluster_uuid = match.group(1)
+                    return
+    
+    def _parse_line(self, line: str, line_num: int, log_source: str):
+        """Parse a single log line"""
+        # Skip empty lines
+        if not line.strip():
+            return
+        
+        # Parse different entity types
+        self._parse_node_events(line, line_num, log_source)
+        self._parse_view_events(line, line_num, log_source)
+        self._parse_sst_events(line, line_num, log_source)
+        self._parse_ist_events(line, line_num, log_source)
+        self._parse_error_events(line, line_num, log_source)
+    
+    def _extract_timestamp(self, line: str) -> Optional[datetime]:
+        """Extract timestamp from log line"""
+        # Pattern for timestamps like "2025-09-25 13:54:32" or "2025-09-23  2:31:29" (single digit hour)
+        pattern = r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})'
+        match = re.search(pattern, line)
+        if match:
+            date_str = match.group(1)
+            hour = match.group(2).zfill(2)  # Pad single digit hours
+            minute = match.group(3)
+            second = match.group(4)
+            timestamp_str = f"{date_str} {hour}:{minute}:{second}"
+            try:
+                return datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pass
+        return None
     
     def _parse_node_events(self, line: str, line_num: int, log_source: str):
         """Parse node-related events"""
-        timestamp = self._parse_timestamp(line)
+        # Learn node name from various sources
+        node_name_patterns = [
+            (r"wsrep_node_name\s*[:=]\s*'?([^']+)'?", 1),
+            (r"Setting\s+wsrep_node_name\s+to\s+'([^']+)'", 1),
+            (r"Node\s+name:\s*'?([^']+)'?", 1),
+            (r"SST\s+request:\s*.*\s+from:\s*'([^']+)'", 1),
+            (r"Server\s+([^\s]+)\s+synced\s+with\s+group", 1),
+        ]
         
-        # Node state changes: Server status change joined -> synced
-        match = re.search(r'Server status change (\w+) -> (\w+)', line)
-        if match:
-            inferred = self._infer_node_name(log_source)
-            entity = NodeEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                node_name=inferred,
-                node_state=f"{match.group(1)} -> {match.group(2)}",
-                entity_id=f"node_state_{line_num}"
-            )
-            self.entities.append(entity)
-            return
-            
-        # Node sync status: Member 1.0 (NODE_50000) synced with group
-        match = re.search(r'Member (\d+\.\d+) \(([^)]+)\) synced with group', line)
-        if match:
-            # Learn canonical name from explicit member line
-            canonical = self._normalize_node_name(match.group(2))
-            try:
-                src_base = Path(log_source).stem
-            except Exception:
-                src_base = log_source
-            if canonical:
-                self._node_canonical_by_source[src_base] = canonical
-                self._known_canonical_names.add(canonical)
-            entity = NodeEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                cluster_position=match.group(1),
-                node_name=canonical or match.group(2),
-                node_state="synced",
-                entity_id=f"node_sync_{line_num}"
-            )
-            self.entities.append(entity)
-            return
-            
-        # Node state shifting: Shifting PRIMARY -> JOINER (TO: 3)
-        match = re.search(r'Shifting (\S+) -> (\w+)(?:\s+\(TO:\s+(\d+)\))?', line)
-        if match:
-            inferred = self._infer_node_name(log_source)
-            entity = NodeEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                node_name=inferred,
-                node_state=f"{match.group(1)} -> {match.group(2)}",
-                entity_id=f"node_shift_{line_num}"
-            )
-            self.entities.append(entity)
-            return
-    
-    def _normalize_node_entities(self):
-        """Apply learned canonical names and heuristics to all NodeEntity instances."""
-        if not self.entities:
-            return
-        # Build alias mapping by source base -> canonical
-        for entity in self.entities:
-            if isinstance(entity, NodeEntity):
-                try:
-                    src_base = Path(entity.log_source).stem
-                except Exception:
-                    src_base = entity.log_source
-                # Do not override explicitly named remote member events (cluster_position set)
-                if getattr(entity, 'cluster_position', None):
-                    # Still normalize basic formatting
-                    entity.node_name = self._normalize_node_name(entity.node_name or "")
-                    continue
-                # For local-node state transitions (no cluster_position), prefer learned local canonical
-                if src_base in self._node_canonical_by_source:
-                    entity.node_name = self._node_canonical_by_source[src_base]
-                else:
-                    # Fallback to heuristic normalization of existing/inferred name
-                    inferred = entity.node_name or self._infer_node_name(entity.log_source)
-                    entity.node_name = self._normalize_node_name(inferred)
+        for pattern, group_idx in node_name_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                self.current_node_name = match.group(group_idx).strip()
+                break
+        
+        # Node state changes
+        state_patterns = [
+            r'Shifting\s+(\w+)\s*->\s*(\w+)',
+            r'Member\s+.*?\(([^)]+)\)\s+(\w+)',
+            r'Synchronized with group, ready for connections',
+        ]
+        
+        for pattern in state_patterns:
+            match = re.search(pattern, line)
+            if match:
+                candidate_name = None
+                if pattern == state_patterns[1] and len(match.groups()) >= 1:
+                    candidate_name = match.group(1).strip()
+                if candidate_name:
+                    previous_name = self.current_node_name
+                    if self._should_backfill_node_name(previous_name, candidate_name):
+                        self._backfill_node_entities(previous_name, candidate_name)
+                    self.current_node_name = candidate_name
+                timestamp = self._extract_timestamp(line)
+                if timestamp:
+                    # Fallback to inferred node name if available
+                    node_name = self.current_node_name or self._infer_node_name_from_source(log_source)
+                    if not node_name:
+                        node_name = "unknown"
+                    if pattern == state_patterns[2]:
+                        node_state = "SYNCED"
+                    elif len(match.groups()) >= 2:
+                        node_state = f"{match.group(1)} -> {match.group(2)}"
+                    else:
+                        node_state = match.group(1) if match.groups() else "UNKNOWN"
 
-    def _canon_member_token(self, token: str) -> Optional[str]:
-        """Canonicalize a member token for view membership lists.
-        - Return None for UUID-like tokens (we don't want these as 'nodes').
-        - Normalize names: strip domain, service suffixes, and collapse site suffixes like '-ffm'.
-        - If token matches a known canonical with a prefix, reduce to canonical base.
-        """
-        if not token:
-            return None
-        t = token.strip()
-        # Drop placeholders
-        if t.lower() in {"unknown", "joiner", "donor", "cluster", "n/a"}:
-            return None
-        # If it's a UUID-ish value, skip
-        if re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){0,2}", t, flags=re.IGNORECASE):
-            return None
-        # Strip domain
-        if '.' in t:
-            t = t.split('.', 1)[0]
-        # Strip service/version suffixes
-        t = re.sub(r'-(mysql|mariadb)[0-9.-]*$', '', t, flags=re.IGNORECASE)
-        # Collapse site/role suffixes like '-ffm', '-fra', '-prd'
-        t = re.sub(r'-([a-z]{2,4})$', '', t)
-        # If t contains a hyphen and its left part is a known canonical, reduce to left part
-        if '-' in t:
-            left = t.split('-', 1)[0]
-            if left in self._known_canonical_names:
-                t = left
-        return t or None
+                    if node_name.lower() == "unknown":
+                        continue
+                    
+                    entity = NodeEntity(
+                        timestamp=timestamp,
+                        line_number=line_num,
+                        raw_line=line,
+                        log_source=log_source,
+                        entity_id=f"node_{node_name}_{line_num}",
+                        node_name=node_name,
+                        node_state=node_state,
+                        cluster_ref=self.cluster_ref
+                    )
+                    self.entities.append(entity)
+                break
     
     def _parse_view_events(self, line: str, line_num: int, log_source: str):
-        """Parse cluster view events"""
-        timestamp = self._parse_timestamp(line)
-
-        # If currently collecting a wsrep view member block, accumulate members until closing brace
-        if getattr(self, "_in_view_block", False) and self._pending_view:
-            # Detect block termination
-            # Handle transitions like "} joined {" / "} left {" / "} partitioned {"
-            trans = re.search(r'}\s*(memb|joined|left|partitioned)\s*\{', line)
-            if trans:
-                self._view_section = trans.group(1).lower()
-                return
-
-            # Handle final close ")" after finishing sections
-            if re.search(r'}\s*\)\s*$', line):
-                # Finalize and append the pending view entity
-                self._pending_view.line_number = self._pending_view.line_number or line_num
-                self.entities.append(self._pending_view)
-                # Reset state
-                self._in_view_block = False
-                self._pending_view = None
-                self._view_section = None
-                return
-
-            # Try to extract member entries inside parentheses: (node_name[, uuid]?)
-            # Example formats:
-            #   "\t14e3444b-9273,0"  (uuid,idx)
-            #   "  node_name,0"       (name,idx)
-            #   or legacy: "1.0 (node_name)"
-            # Prefer capturing tokens before comma, else try parentheses pattern
-            # Only register members for sections 'memb' or 'joined'
-            current_section = (self._view_section or '').lower()
-            collect = current_section in {"memb", "joined"}
-            m_uuid = re.search(r'\b([a-f0-9\-]{8,})\s*,\s*\d+', line, re.IGNORECASE) if collect else None
-            added = False
-            if m_uuid:
-                tok = m_uuid.group(1).strip()
-                canon = self._canon_member_token(tok)
-                if canon and canon not in self._pending_view.members:
-                    self._pending_view.members.append(canon)
-                    added = True
-            if not added and collect:
-                m_name_idx = re.search(r'\b([^,()]+)\s*,\s*\d+', line)
-                if m_name_idx:
-                    name = m_name_idx.group(1).strip()
-                    canon = self._canon_member_token(name)
-                    if canon and canon not in self._pending_view.members:
-                        self._pending_view.members.append(canon)
-                        added = True
-            if not added and collect:
-                paren = re.search(r'\(([^)]+)\)', line)
-                if paren:
-                    inside = paren.group(1).strip()
-                    name = inside.split(',')[0].strip()
-                    canon = self._canon_member_token(name)
-                    if canon and canon not in self._pending_view.members:
-                        self._pending_view.members.append(canon)
-            return
-
-        # Start of a new view block: view(view_id(PRIM,14e...,1206) memb {
-        mstart = re.search(r'view\(view_id\((\w+),([^,]+),(\d+)\)\s+memb\s*\{', line)
-        if mstart:
-            state, cuuid, seq = mstart.groups()
-            ve = ViewEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                cluster_state=state,
-                view_id=f"{cuuid}:{seq}",
-                view_seq=int(seq),
-                cluster_uuid=cuuid,
-                members=[],
-                entity_id=f"view_{cuuid}_{seq}"
-            )
-            self._pending_view = ve
-            self._in_view_block = True
-            self._view_section = 'memb'
-            # If the block is immediately closed on same line, finalize
-            if re.search(r'\}', line):
-                # If also final close ")" present, finalize; otherwise switch sections handled above
-                if re.search(r'}\s*\)\s*$', line):
-                    self.entities.append(self._pending_view)
-                    self._in_view_block = False
-                    self._pending_view = None
-                    self._view_section = None
-            return
-
-        # Fallback: view(view_id(...)) line without explicit memb block (rare)
-        mfallback = re.search(r'view\(view_id\((\w+),([^,]+),(\d+)\)\)', line)
-        if mfallback:
-            state, cuuid, seq = mfallback.groups()
-            entity = ViewEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                cluster_state=state,
-                view_id=f"{cuuid}:{seq}",
-                view_seq=int(seq),
-                cluster_uuid=cuuid,
-                entity_id=f"view_{cuuid}_{seq}"
-            )
-            self.entities.append(entity)
-            return
-
-        # State transfer request: Member 1.0 (NODE_50000) requested state transfer from '*any*'
-        match = re.search(r'Member (\d+\.\d+) \(([^)]+)\) requested state transfer', line)
-        if match:
-            # This creates a view-like event about state transfer need (keep as ViewEntity for backward compatibility)
-            canon = self._canon_member_token(match.group(2))
-            entity = ViewEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                members=[canon] if canon else [],
-                cluster_state="state_transfer_requested",
-                entity_id=f"view_sst_req_{line_num}"
-            )
-            self.entities.append(entity)
-            return
-            
-    def _parse_sst_events(self, line: str, line_num: int, log_source: str):
-        """Parse SST events and track sessions"""
-        timestamp = self._parse_timestamp(line)
+        """Parse WSREP view events - handles multi-line views correctly based on Galera source"""
         
-        # SST script start: Running: 'wsrep_sst_mariabackup --role 'joiner'
-        match = re.search(r"Running: 'wsrep_sst_(\w+).*?--role '(\w+)'", line)
+        # Check if we're continuing a multi-line view block
+        if self._view_block_active:
+            self._continue_view_block(line, line_num)
+            return
+
+        # Capture member index/full UUID/name mapping lines often emitted in verbose view dumps
+        member_info_match = re.match(
+            r'^\s*(\d+):\s*([0-9a-f-]{8,}),\s*([^,\s]+)',
+            line,
+            re.IGNORECASE
+        )
+        if member_info_match:
+            member_idx = int(member_info_match.group(1))
+            member_uuid = member_info_match.group(2).strip()
+            member_name = member_info_match.group(3).strip().strip("'\"")
+            self._register_member_name(member_name, index=member_idx, uuid=member_uuid)
+            return
+        
+        # Check for STATE EXCHANGE messages to build name mappings
+        state_exchange_pattern = r'STATE EXCHANGE:.*from\s+(\d+)\s+\(([^\)]+)\)'
+        match = re.search(state_exchange_pattern, line)
         if match:
-            method = match.group(1)
-            role = match.group(2)
-            session_key = f"sst_{line_num}"
-            
-            self.sst_sessions[session_key] = {
-                'start_time': timestamp,
-                'method': method,
-                'role': role,
-                'start_line': line_num
+            node_index = int(match.group(1))
+            node_name = match.group(2).strip()
+            self._register_member_name(node_name, index=node_index)
+            return
+        
+        # Main view start patterns based on Galera source
+        view_start_patterns = [
+            (r'WSREP:\s+view\(view_id\((\w+),([0-9a-f-]+),(\d+)\)', 'standard'),
+            (r'WSREP:\s+New\s+COMPONENT.*?view_id\((\w+),([0-9a-f-]+),(\d+)\)', 'new_component'),
+            (r'Current view of cluster.*?view:\s*([0-9a-f-]+):(\d+)', 'alternative')
+        ]
+        
+        for pattern, format_type in view_start_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                self._start_view_block(line, line_num, log_source, match, format_type)
+                return
+    
+    def _start_view_block(self, line: str, line_num: int, log_source: str, match, format_type: str):
+        """Start parsing a multi-line view block"""
+        self._view_block_active = True
+        self._view_block_lines = [line]
+        self._view_block_start_line = line_num
+        self._view_block_log_source = log_source
+        self._view_block_timestamp = self._extract_timestamp(line)
+        
+        # Extract view components based on format
+        if format_type in ['standard', 'new_component']:
+            self._current_view_data = {
+                'type': match.group(1),  # PRIM or NON-PRIM
+                'uuid': match.group(2),
+                'seq': int(match.group(3)),
+                'members': [],
+                'joined': [],
+                'left': [],
+                'partitioned': [],
+                'member_segments': {},  # uuid -> segment mapping
+                'member_uuid_map': {}
+            }
+        else:  # alternative format
+            self._current_view_data = {
+                'type': 'UNKNOWN',
+                'uuid': match.group(1),
+                'seq': int(match.group(2)),
+                'members': [],
+                'joined': [],
+                'left': [],
+                'partitioned': [],
+                'member_segments': {},
+                'member_uuid_map': {}
             }
             
-            entity = SSTEntity(
-                entity_type="sst",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                sst_method=method,
-                sst_status="started",
-                sst_script_triggered=True,  # SST script was initiated
-                joiner_node=role if role == 'joiner' else '',
-                donor_node=role if role == 'donor' else '',
-                entity_id=session_key
-            )
-            self.entities.append(entity)
+        # Check if member section starts on same line
+        if 'memb {' in line:
+            self._current_view_section = 'members'
+    
+    def _continue_view_block(self, line: str, line_num: int):
+        """Continue parsing a multi-line view block"""
+        self._view_block_lines.append(line)
+        
+        # Detect section changes
+        if 'memb {' in line:
+            self._current_view_section = 'members'
+        elif 'joined {' in line:
+            self._current_view_section = 'joined'
+        elif 'left {' in line:
+            self._current_view_section = 'left'
+        elif 'partitioned {' in line:
+            self._current_view_section = 'partitioned'
+        elif '}' in line:
+            # Check if this completes the view
+            if ')' in line:
+                # View block complete
+                self._complete_view_block(line_num)
+                return
+            # Check for double closing (empty section + view close)
+            remaining = line[line.index('}') + 1:].strip()
+            if remaining.startswith('}'):
+                # Also check if there's more sections after
+                if any(x in remaining for x in ['joined {', 'left {', 'partitioned {']):
+                    self._current_view_section = None
+                else:
+                    # Might be end of view
+                    if ')' in remaining:
+                        self._complete_view_block(line_num)
+                        return
+            # Just ending a section
+            self._current_view_section = None
+        elif self._current_view_section:
+            # Parse member line
+            member_line = line.strip()
+            if member_line and member_line not in ['{', '}', '(', ')']:
+                self._parse_view_member_line(member_line)
+    
+    def _parse_view_member_line(self, line: str):
+        """Parse a member entry from the view"""
+        # Format from Galera source: uuid,segment or just uuid
+        parts = line.split(',')
+        if not parts[0]:
             return
             
-        # SST completion: mariabackup SST completed on joiner
-        match = re.search(r'(\w+) SST completed on (\w+)', line)
-        if match:
-            method = match.group(1)
-            role = match.group(2)
-            
-            # Find matching session
-            session_key = None
-            for key, session in self.sst_sessions.items():
-                if session.get('method') == method and session.get('role') == role:
-                    session_key = key
-                    break
-            
-            if not session_key:
-                session_key = f"sst_complete_{line_num}"
-            
-            entity = SSTEntity(
-                entity_type="sst",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                sst_method=method,
-                sst_status="completed",
-                joiner_node=role if role == 'joiner' else '',
-                donor_node=role if role == 'donor' else '',
-                entity_id=session_key
-            )
-            self.entities.append(entity)
-            
-            # Calculate duration if we have start time
-            if session_key in self.sst_sessions:
-                start_time = self.sst_sessions[session_key].get('start_time')
-                if start_time and timestamp:
-                    entity.duration_seconds = (timestamp - start_time).total_seconds()
+        member_id = parts[0].strip()
+        segment = 0
+        
+        # Extract segment if present
+        if len(parts) > 1:
+            try:
+                segment = int(parts[1].strip())
+            except ValueError:
+                pass
+        
+        if not self._current_view_data or not self._current_view_section:
+            return
+
+        # Resolve member to canonical name if possible
+        resolved_name = self._resolve_member_name(member_id)
+        segment_key = resolved_name or member_id
+        self._current_view_data['member_segments'][segment_key] = segment
+        if resolved_name and resolved_name != member_id:
+            # Preserve legacy lookup by raw identifier as well
+            self._current_view_data['member_segments'][member_id] = segment
+
+        display_value = resolved_name or member_id
+
+        if resolved_name:
+            uuid_map = self._current_view_data.setdefault('member_uuid_map', {})
+            if resolved_name not in uuid_map:
+                uuid_map[resolved_name] = self._name_uuid_map.get(resolved_name, member_id)
+
+        section_members = self._current_view_data[self._current_view_section]
+        if display_value not in section_members:
+            section_members.append(display_value)
+    
+    def _complete_view_block(self, line_num: int):
+        """Complete the view block and create entity"""
+        if not self._current_view_data:
             return
             
-        # State transfer complete: State transfer to 1.0 (NODE_50000) complete
-        match = re.search(r'State transfer to (\d+\.\d+) \(([^)]+)\) complete', line)
-        if match:
-            entity = SSTEntity(
-                entity_type="sst",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                sst_status="transfer_complete",
-                joiner_node=match.group(2),
-                entity_id=f"sst_xfer_complete_{line_num}"
-            )
-            self.entities.append(entity)
-            return
-            
-        # Donor selection: Selected 0.0 (NODE_54320)(SYNCED) as donor
-        match = re.search(r'Selected (\d+\.\d+) \(([^)]+)\)\(([^)]+)\) as donor', line)
-        if match:
-            entity = SSTEntity(
-                entity_type="sst",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                sst_status="donor_selected",
-                donor_node=match.group(2),
-                entity_id=f"sst_donor_{line_num}"
-            )
-            self.entities.append(entity)
-            return
-            
-        # SST backup transfer proceeding: WSREP_SST: [INFO] Proceeding with SST
-        if "Proceeding with SST" in line:
-            # Find the most recent SST session to update
-            for session_key in reversed(list(self.sst_sessions.keys())):
-                session = self.sst_sessions[session_key]
-                # Update existing entities to mark backup transfer
-                for entity in reversed(self.entities):
-                    if (isinstance(entity, SSTEntity) and 
-                        entity.entity_id == session_key and 
-                        entity.sst_status == "started"):
-                        entity.sst_status = "backup_transfer_started"
-                        entity.backup_transfer_occurred = True
-                        entity.sst_script_triggered = True
-                        break
+        view = self._current_view_data
+        
+        # Determine cluster_ref
+        cluster_ref = self.cluster_ref or f"cluster_{view['uuid'][:8]}"
+        
+        # Create the ViewEntity with all member categories
+        entity = ViewEntity(
+            timestamp=self._view_block_timestamp,
+            line_number=self._view_block_start_line,
+            raw_line='\n'.join(self._view_block_lines),
+            log_source=self._view_block_log_source,
+            entity_id=f"view_{view['uuid'][:8]}_{view['seq']}",
+            view_id=f"{view['uuid']}:{view['seq']}",
+            cluster_uuid=view['uuid'],
+            view_seq=view['seq'],
+            cluster_state=view['type'],
+            members=view['members'],  # Current members
+            joined_members=view.get('joined', []),  # New field
+            left_members=view.get('left', []),  # New field
+            partitioned_members=view.get('partitioned', []),  # New field
+            member_segments=view.get('member_segments', {}),  # New field
+            member_uuid_map=view.get('member_uuid_map', {}),
+            cluster_ref=cluster_ref
+        )
+        
+        self.entities.append(entity)
+        
+        # Update cluster UUID for future reference
+        if view['uuid'] and not self.cluster_uuid:
+            self.cluster_uuid = view['uuid']
+            if not self.cluster_ref:
+                self.cluster_ref = f"cluster_{view['uuid'][:8]}"
+        
+        # Reset view block state
+        self._view_block_active = False
+        self._current_view_data = None
+        self._current_view_section = None
+        self._view_block_lines = []
+    
+    def _parse_sst_events(self, line: str, line_num: int, log_source: str):
+        """Parse SST-related events"""
+        sst_patterns = [
+            (r'SST\s+request:\s*(.*)', 'request'),
+            (r'SST\s+complete', 'complete'),
+            (r'Donor\s+selected:\s*([^\s]+)', 'donor_selected'),
+            (r'SST\s+method:\s*(\w+)', 'method'),
+        ]
+        
+        for pattern, event_type in sst_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                timestamp = self._extract_timestamp(line)
+                if timestamp:
+                    entity = SSTEntity(
+                        timestamp=timestamp,
+                        line_number=line_num,
+                        raw_line=line,
+                        log_source=log_source,
+                        entity_id=f"sst_{event_type}_{line_num}",
+                        sst_status=event_type,
+                        sst_method=match.group(1) if event_type == 'method' else None,
+                        donor_node=match.group(1) if event_type == 'donor_selected' else None,
+                        cluster_ref=self.cluster_ref
+                    )
+                    self.entities.append(entity)
                 break
-            
-            # Also create a specific entity for this event
-            entity = SSTEntity(
-                entity_type="sst",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                sst_status="proceeding_with_backup",
-                backup_transfer_occurred=True,
-                sst_script_triggered=True,
-                entity_id=f"sst_proceeding_{line_num}"
-            )
-            self.entities.append(entity)
-            return
     
     def _parse_ist_events(self, line: str, line_num: int, log_source: str):
-        """Parse IST (Incremental State Transfer) events - Enhanced with full workflow tracking"""
-        timestamp = self._parse_timestamp(line)
+        """Parse IST-related events"""
+        ist_patterns = [
+            (r'IST\s+receiver.*?from\s+(\d+)\s+to\s+(\d+)', 'receiver'),
+            (r'IST\s+sender.*?from\s+(\d+)\s+to\s+(\d+)', 'sender'),
+            (r'Receiving\s+IST.*?(\d+)\s+writesets', 'receiving'),
+        ]
         
-        # IST UUID and range definition: ####### IST uuid:670ce4a0-9538-11f0-aa1f-168ebbd1d7d1 f: 0, l: 3
-        match = re.search(r'IST uuid:([a-f0-9\-]+) f: (\d+), l: (\d+)', line)
-        if match:
-            uuid, first, last = match.groups()
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_{uuid[:8]}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                ist_uuid=uuid,
-                ist_first=int(first),
-                ist_last=int(last),
-                ist_status="preparing"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST receiver address: IST receiver addr using tcp://192.168.178.77:15321
-        match = re.search(r'IST receiver addr using (.+)', line)
-        if match:
-            address = match.group(1)
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_receiver_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                receiver_address=address,
-                ist_status="receiver_ready"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST prepared receiver: Prepared IST receiver for 0-3704, listening at: tcp://192.168.178.79:15321
-        match = re.search(r'Prepared IST receiver for (\d+)-(\d+), listening at: (.+)', line)
-        if match:
-            start, end, address = match.groups()
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_prepared_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                ist_first=int(start),
-                ist_last=int(end),
-                receiver_address=address,
-                ist_status="prepared"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST applying starts: ####### IST applying starts with 3705
-        match = re.search(r'IST applying starts with (\d+)', line)
-        if match:
-            seqno = int(match.group(1))
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_applying_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                ist_first=seqno,
-                ist_status="applying"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST current seqno initialization: ####### IST current seqno initialized to 3668
-        match = re.search(r'IST current seqno initialized to (\d+)', line)
-        if match:
-            seqno = int(match.group(1))
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_seqno_init_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                ist_first=seqno,
-                ist_status="seqno_initialized"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST progress: Receiving IST... 0.0% (0/37 events) complete.
-        match = re.search(r'Receiving IST\.\.\. ([\d.]+)% \((\d+)/(\d+) events\) complete\.', line)
-        if match:
-            percent, processed, total = match.groups()
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_progress_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                progress_percent=float(percent),
-                events_processed=int(processed),
-                events_total=int(total),
-                ist_status="receiving"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST received completion: IST received: 322635c3-8fac-11f0-8a05-2f6d0edb475a:3704
-        match = re.search(r'IST received: ([a-f0-9\-]+):(\d+)', line)
-        if match:
-            uuid, seqno = match.groups()
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_received_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                ist_uuid=uuid,
-                ist_last=int(seqno),
-                ist_status="received"
-            )
-            self.entities.append(entity)
-            return
-            
-        # IST preload: IST preload starting at 3668  
-        match = re.search(r'IST preload starting at (\d+)', line)
-        if match:
-            seqno = int(match.group(1))
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_preload_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                ist_first=seqno,
-                ist_status="preloading"
-            )
-            self.entities.append(entity)
-            return
-            
-        # Processing event queue (post-IST): Processing event queue:... 28.4% (13072/46040 events) complete.
-        match = re.search(r'Processing event queue:\.\.\. ([\d.]+)% \((\d+)/(\d+) events\) complete\.', line)
-        if match:
-            percent, processed, total = match.groups()
-            entity = ISTEntity(
-                entity_type="ist",
-                entity_id=f"ist_processing_{line_num}",
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                progress_percent=float(percent),
-                events_processed=int(processed),
-                events_total=int(total),
-                ist_status="processing"
-            )
-            self.entities.append(entity)
-            return
+        for pattern, event_type in ist_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                timestamp = self._extract_timestamp(line)
+                if timestamp:
+                    entity = ISTEntity(
+                        timestamp=timestamp,
+                        line_number=line_num,
+                        raw_line=line,
+                        log_source=log_source,
+                        entity_id=f"ist_{event_type}_{line_num}",
+                        ist_status=event_type,
+                        seqno_start=int(match.group(1)) if len(match.groups()) >= 2 else None,
+                        seqno_end=int(match.group(2)) if len(match.groups()) >= 2 else None,
+                        transfer_count=int(match.group(1)) if event_type == 'receiving' else None,
+                        cluster_ref=self.cluster_ref
+                    )
+                    self.entities.append(entity)
+                break
     
     def _parse_error_events(self, line: str, line_num: int, log_source: str):
-        """Parse errors and warnings"""
-        timestamp = self._parse_timestamp(line)
+        """Parse error and warning events"""
+        error_patterns = [
+            (r'\[ERROR\]\s*(.*)', 'ERROR'),
+            (r'\[Warning\]\s*(.*)', 'WARNING'),
+            (r'WSREP:\s+Failed', 'ERROR'),
+        ]
         
-        # Standard log levels
-        for level in ['ERROR', 'Warning', 'Error']:
-            if f'[{level}]' in line:
-                # Extract message after log level
-                match = re.search(f'\\[{level}\\]\\s+(.+)', line)
-                if match:
+        for pattern, level in error_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                timestamp = self._extract_timestamp(line)
+                if timestamp:
                     entity = ErrorEntity(
                         timestamp=timestamp,
                         line_number=line_num,
                         raw_line=line,
                         log_source=log_source,
-                        error_level=level.lower(),
-                        error_message=match.group(1),
-                        entity_id=f"error_{level.lower()}_{line_num}"
+                        entity_id=f"error_{level.lower()}_{line_num}",
+                        error_level=level,
+                        error_message=match.group(1) if match.groups() else line,
+                        affected_node=self.current_node_name,
+                        cluster_ref=self.cluster_ref
                     )
                     self.entities.append(entity)
-                    return
-                    
-        # WSREP specific errors
-        if 'WSREP:' in line and any(word in line.lower() for word in ['error', 'fail', 'abort']):
-            match = re.search(r'WSREP:\s+(.+)', line)
-            if match:
-                entity = ErrorEntity(
-                    timestamp=timestamp,
-                    line_number=line_num,
-                    raw_line=line,
-                    log_source=log_source,
-                    error_level="wsrep_error",
-                    error_message=match.group(1),
-                    component="WSREP",
-                    entity_id=f"wsrep_error_{line_num}"
-                )
-                self.entities.append(entity)
-                return
-    
-    def _parse_transaction_events(self, line: str, line_num: int, log_source: str):
-        """Parse transaction and commit events"""
-        timestamp = self._parse_timestamp(line)
-        
-        # Transaction commit: applying trx ... 
-        match = re.search(r'applying.*seqno:\s*(\d+)', line)
-        if match:
-            entity = TransactionEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                transaction_id=match.group(1),
-                operation_type="applying",
-                entity_id=f"trx_apply_{match.group(1)}"
-            )
-            self.entities.append(entity)
-            return
-            
-        # Seqno information in various formats
-        match = re.search(r'seqno[:\s]+(\d+)', line, re.IGNORECASE)
-        if match and 'commit' in line.lower():
-            entity = TransactionEntity(
-                timestamp=timestamp,
-                line_number=line_num,
-                raw_line=line,
-                log_source=log_source,
-                transaction_id=match.group(1),
-                operation_type="commit",
-                entity_id=f"trx_commit_{match.group(1)}"
-            )
-            self.entities.append(entity)
-            return
-    
-    def _finalize_sst_sessions(self):
-        """Post-process SST sessions to link start/end events"""
-        # This would link related SST events and calculate accurate durations
-        pass
-    
-    def _assign_cluster_references(self):
-        """
-        Assign cluster references to entities based on relationship design:
-        - VIEW → CLUSTER
-        - NODE → CLUSTER  
-        - SST → CLUSTER
-        - IST → NODE
-        - ERROR → NODE+CLUSTER (smart classification)
-        """
-        try:
-            # Import cluster UUID extraction function from core library
-            from lib.entities.enhanced_parser import extract_cluster_uuid_from_raw_line
-        except ImportError:
-            # Fallback if core library is not available
-            extract_cluster_uuid_from_raw_line = None
-        
-        # Step 1: Detect cluster UUID by scanning the entire log file
-        cluster_uuid = None
-        
-        # We need to scan the original log file, not just entity lines
-        # The cluster UUID patterns might be in lines that aren't extracted as entities
-        log_source = None
-        for entity in self.entities:
-            if hasattr(entity, 'log_source') and entity.log_source:
-                log_source = entity.log_source
                 break
-        
-        if log_source and extract_cluster_uuid_from_raw_line:
-            try:
-                with open(log_source, 'r', encoding='utf-8', errors='replace') as f:
-                    for line in f:
-                        detected_uuid = extract_cluster_uuid_from_raw_line(line)
-                        if detected_uuid:
-                            cluster_uuid = detected_uuid
-                            break
-            except Exception as e:
-                pass
 
-        # Fallback: derive from parsed view entities if scan failed
-        if not cluster_uuid:
-            for e in self.entities:
-                if isinstance(e, ViewEntity) and e.cluster_uuid:
-                    cluster_uuid = e.cluster_uuid
-                    break
+def entity_to_dict(entity) -> dict:
+    """Convert entity to dictionary for JSON serialization"""
+    result = {}
+    
+    # Handle different entity types
+    if hasattr(entity, '__dict__'):
+        for key, value in entity.__dict__.items():
+            if value is not None:
+                if key == 'entity_type':
+                    # Handle EntityType enum or string
+                    if hasattr(value, 'value'):
+                        result[key] = value.value.lower() if hasattr(value.value, 'lower') else str(value.value).lower()
+                    else:
+                        result[key] = str(value).lower() if value else ""
+                elif isinstance(value, (str, int, float, bool, type(None))):
+                    result[key] = value
+                elif isinstance(value, (list, tuple)):
+                    result[key] = list(value)
+                elif isinstance(value, dict):
+                    result[key] = dict(value)
+                elif hasattr(value, '__dict__'):
+                    result[key] = entity_to_dict(value)
+                else:
+                    result[key] = str(value)
+    
+    # Ensure entity_type is set properly
+    if 'entity_type' not in result or not result['entity_type']:
+        # Derive from class name
+        class_name = type(entity).__name__
+        result['entity_type'] = class_name.replace('Entity', '').lower()
+    
+    return result
 
-        # Last resort: try to extract from view_id if available
-        if not cluster_uuid:
-            for e in self.entities:
-                if isinstance(e, ViewEntity) and e.view_id and ':' in e.view_id:
-                    maybe_uuid = e.view_id.split(':', 1)[0].strip()
-                    if maybe_uuid and re.match(r'^[0-9a-fA-F\-]{8,}$', maybe_uuid):
-                        cluster_uuid = maybe_uuid
-                        break
-        
-        # Create cluster reference name (use unknown bucket if UUID still missing)
-        cluster_ref = f"cluster_{cluster_uuid[:8]}" if cluster_uuid else "_unknown_cluster"
-        
-        # Create cluster reference name
-        # Step 2: Add cluster_ref field to base Entity class if not present
-        for entity in self.entities:
-            if not hasattr(entity, 'cluster_ref'):
-                entity.cluster_ref = None
-        
-        # Step 3: Assign cluster references based on entity types
-        for entity in self.entities:
-            # Use class type like entity_to_dict does
-            entity_type = type(entity).__name__.replace('Entity', '').lower()
-            
-            if entity_type == 'view':
-                # VIEW → CLUSTER
-                entity.cluster_ref = cluster_ref
-                
-            elif entity_type == 'node':
-                # NODE → CLUSTER
-                entity.cluster_ref = cluster_ref
-                
-            elif entity_type == 'sst':
-                # SST → CLUSTER (cluster-wide operation)
-                entity.cluster_ref = cluster_ref
-                
-            elif entity_type == 'ist':
-                # IST → NODE (node-specific, but could also reference cluster via node)
-                # For now, assign cluster_ref since we don't have node_ref field
-                entity.cluster_ref = cluster_ref
-                
-            elif entity_type == 'error':
-                # ERROR → NODE+CLUSTER (smart classification)
-                # For simplicity, assign cluster_ref to all errors
-                # More sophisticated logic could determine node vs cluster scope
-                entity.cluster_ref = cluster_ref
-        
-        # Step 4: Create and add a CLUSTER entity using core library
-        if ClusterEntity and cluster_uuid:
-            # Determine a reasonable timestamp: earliest available among parsed entities
-            earliest_ts = None
-            for e in self.entities:
-                ts = getattr(e, 'timestamp', None)
-                if ts is None:
-                    continue
-                if earliest_ts is None:
-                    earliest_ts = ts
-                elif ts < earliest_ts:
-                    earliest_ts = ts
-            cluster_entity = ClusterEntity(
-                entity_id=f"cluster_{cluster_uuid[:8]}",
-                timestamp=earliest_ts,
-                line_number=0,
-                log_source="cluster_detection",
-                confidence=1.0,
-                raw_line=f"Cluster UUID: {cluster_uuid}",
-                cluster_name=cluster_ref,
-                cluster_uuid=cluster_uuid
-            )
-            # Set cluster_ref to itself
-            cluster_entity.cluster_ref = cluster_ref
-            self.entities.append(cluster_entity)
-        
+def get_cache_key(file_path: str) -> str:
+    """Generate cache key for a file"""
+    stat = os.stat(file_path)
+    return f"{file_path}_{stat.st_mtime}_{stat.st_size}_{GRAP_VERSION}"
 
-
-class GrapCacheManager:
-    """Manages GRAP analysis cache for performance optimization"""
-    
-    def __init__(self, cache_dir: Optional[Path] = None):
-        self.cache_dir = cache_dir or Path("./grap_cache")
-        self.cache_dir.mkdir(exist_ok=True)
-    
-    def get_cache_key(self, log_file: Path) -> str:
-        """Generate cache key based on file path and metadata"""
-        # Use file path + size + mtime for cache key
-        stat = log_file.stat()
-        key_data = f"{log_file.absolute()}_{stat.st_size}_{stat.st_mtime}"
-        return hashlib.md5(key_data.encode()).hexdigest()[:16]
-    
-    def get_cache_path(self, log_file: Path) -> Path:
-        """Get cache file path for log file"""
-        cache_key = self.get_cache_key(log_file)
-        safe_filename = log_file.stem.replace('/', '_').replace('\\', '_')
-        return self.cache_dir / f"{safe_filename}_grap_{cache_key}.json"
-    
-    def is_cache_valid(self, log_file: Path) -> bool:
-        """Check if cache exists and is valid"""
-        cache_path = self.get_cache_path(log_file)
-        
-        if not cache_path.exists():
-            return False
-        
+def load_from_cache(cache_key: str) -> Optional[List[Entity]]:
+    """Load entities from cache"""
+    cache_file = CACHE_DIR / f"{hashlib.md5(cache_key.encode()).hexdigest()}.pkl"
+    if cache_file.exists():
         try:
-            # Load cache and check metadata
-            with open(cache_path, 'r', encoding='utf-8') as f:
-                cache_data = json.load(f)
-            
-            cache_meta = cache_data.get('cache_metadata', {})
-            original_file = Path(cache_meta.get('original_file', ''))
-            
-            # Check if original file still exists and matches metadata
-            if not original_file.exists() or original_file.absolute() != log_file.absolute():
-                return False
-            
-            stat = log_file.stat()
-            # Use rounded comparison for mtime to handle floating point precision
-            return (cache_meta.get('file_size') == stat.st_size and 
-                   abs(cache_meta.get('file_mtime', 0) - stat.st_mtime) < 0.001)
-        
-        except (json.JSONDecodeError, KeyError, OSError):
-            return False
-    
-    def load_cache(self, log_file: Path) -> Optional[Dict[str, Any]]:
-        """Load cached analysis if valid"""
-        if not self.is_cache_valid(log_file):
-            return None
-        
-        cache_path = self.get_cache_path(log_file)
-        try:
-            with open(cache_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return None
-    
-    def save_cache(self, log_file: Path, analysis_data: Dict[str, Any]) -> Path:
-        """Save analysis to cache with metadata"""
-        cache_path = self.get_cache_path(log_file)
-        
-        # Get file metadata
-        stat = log_file.stat()
-        
-        # Create cache data with metadata header
-        cache_data = {
-            'cache_metadata': {
-                'original_file': str(log_file.absolute()),
-                'original_filename': log_file.name,
-                'file_size': stat.st_size,
-                'file_mtime': stat.st_mtime,
-                'file_modified_time': datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                'cache_created': datetime.now().isoformat(),
-                'grap_version': GRAP_VERSION,
-                'cache_format_version': '1.0'
-            },
-            'analysis_data': analysis_data
-        }
-        
-        # Save to cache
-        with open(cache_path, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2)
-        
-        return cache_path
+            with open(cache_file, 'rb') as f:
+                return pickle.load(f)
+        except:
+            pass
+    return None
 
-class GrapOutputFormatter:
-    """Output formatter for GRAP results"""
-    
-    @staticmethod
-    def format_text(entities: List[Entity]) -> str:
-        """Format entities as human-readable text"""
-        output = []
-        output.append("GRAP Complete Entity Extraction Results")
-        output.append("=" * 50)
-        output.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (v{GRAP_VERSION})")
-        output.append(f"Total entities: {len(entities)}")
-        output.append("")
-        
-        # Group by entity type
-        entity_groups = {}
-        for entity in entities:
-            entity_type = type(entity).__name__.replace('Entity', '').upper()
-            if entity_type not in entity_groups:
-                entity_groups[entity_type] = []
-            entity_groups[entity_type].append(entity)
-        
-        for entity_type, group_entities in entity_groups.items():
-            output.append(f"{entity_type} ({len(group_entities)} entities)")
-            output.append("-" * 30)
-            
-            for entity in group_entities[:10]:  # Limit to first 10
-                timestamp_str = entity.timestamp.strftime('%Y-%m-%d %H:%M:%S') if entity.timestamp else 'No timestamp'
-                output.append(f"  {timestamp_str} ({entity.confidence:.2f}) [ID: {entity.entity_id[:10]}]")
-                
-                if isinstance(entity, NodeEntity):
-                    output.append(f"    Node: {entity.node_name or 'Unknown'} | State: {entity.node_state}")
-                elif isinstance(entity, ViewEntity):
-                    output.append(f"    View: {entity.view_id[:10]}... | Seq: {entity.view_seq} | State: {entity.cluster_state}")
-                elif isinstance(entity, SSTEntity):
-                    output.append(f"    Method: {entity.sst_method} | Status: {entity.sst_status} | Duration: {entity.duration_seconds:.1f}s")
-                elif isinstance(entity, ISTEntity):
-                    output.append(f"    UUID: {entity.ist_uuid[:20]}... | Range: {entity.ist_first}-{entity.ist_last}")
-                elif isinstance(entity, ErrorEntity):
-                    output.append(f"    Level: {entity.error_level} | Message: {entity.error_message[:50]}...")
-                elif isinstance(entity, TransactionEntity):
-                    output.append(f"    Transaction: {entity.transaction_id} | Operation: {entity.operation_type}")
-                    
-            if len(group_entities) > 10:
-                output.append(f"    ... and {len(group_entities) - 10} more entities")
-            output.append("")
-            
-        return "\n".join(output)
-    
-    @staticmethod
-    def entity_to_dict(entity: Entity) -> Dict[str, Any]:
-        """Convert entity to dictionary representation"""
-        # Handle entity_type from both string and enum sources
-        entity_type = type(entity).__name__.replace('Entity', '').lower()
-        
-        # Handle core library entities with EntityType enum
-        et_attr = getattr(entity, 'entity_type', None)
-        if et_attr:
-            # If already a non-empty string, use it
-            if isinstance(et_attr, str) and et_attr.strip():
-                entity_type = et_attr.lower()
-            else:
-                # Attempt to read enum-like .value attribute
-                val = getattr(et_attr, 'value', None)
-                if isinstance(val, str) and val.strip():
-                    entity_type = val.lower()
-        
-        result = {
-            'entity_type': entity_type,
-            'entity_id': entity.entity_id,
-            'timestamp': entity.timestamp.isoformat() if entity.timestamp else None,
-            'line_number': entity.line_number,
-            'log_source': entity.log_source,
-            'confidence': entity.confidence,
-            'raw_line': entity.raw_line,
-            'cluster_ref': entity.cluster_ref
-        }
-        
-        # Add entity-specific fields
-        if isinstance(entity, NodeEntity):
-            result.update({
-                'node_uuid': entity.node_uuid,
-                'node_name': entity.node_name,
-                'node_address': entity.node_address,
-                'node_state': entity.node_state,
-                'cluster_position': entity.cluster_position
-            })
-        elif isinstance(entity, ViewEntity):
-            result.update({
-                'view_id': entity.view_id,
-                'view_seq': entity.view_seq,
-                'cluster_state': entity.cluster_state,
-                'cluster_uuid': entity.cluster_uuid,
-                'members': entity.members
-            })
-        elif isinstance(entity, SSTEntity):
-            result.update({
-                'sst_method': entity.sst_method,
-                'donor_node': entity.donor_node,
-                'joiner_node': entity.joiner_node,
-                'sst_status': entity.sst_status,
-                'seqno_start': entity.seqno_start,
-                'seqno_end': entity.seqno_end,
-                'duration_seconds': entity.duration_seconds,
-                'backup_transfer_occurred': entity.backup_transfer_occurred,
-                'sst_script_triggered': entity.sst_script_triggered,
-                'installed_state_seqno': entity.installed_state_seqno,
-                'related_ist_id': entity.related_ist_id
-            })
-        elif isinstance(entity, ISTEntity):
-            result.update({
-                'ist_uuid': entity.ist_uuid,
-                'ist_first': entity.ist_first,
-                'ist_last': entity.ist_last,
-                'donor_node': entity.donor_node,
-                'receiver_address': entity.receiver_address,
-                'progress_percent': entity.progress_percent,
-                'events_total': entity.events_total,
-                'events_processed': entity.events_processed,
-                'ist_status': entity.ist_status,
-                'follows_sst_id': entity.follows_sst_id,
-                'applying_from_seqno': entity.applying_from_seqno
-            })
-        elif isinstance(entity, ErrorEntity):
-            result.update({
-                'error_level': entity.error_level,
-                'error_code': entity.error_code,
-                'error_message': entity.error_message,
-                'component': entity.component
-            })
-        elif isinstance(entity, TransactionEntity):
-            result.update({
-                'transaction_id': entity.transaction_id,
-                'operation_type': entity.operation_type
-            })
-        elif ClusterEntity and isinstance(entity, ClusterEntity):
-            result.update({
-                'cluster_name': entity.cluster_name,
-                'cluster_uuid': entity.cluster_uuid,
-                'cluster_health_score': entity.cluster_health_score,
-                'split_brain_detected': entity.split_brain_detected
-            })
-            
-        return result
-    
-    @staticmethod
-    def format_json(entities: List[Entity]) -> str:
-        """Format entities as JSON"""
-        formatter = GrapOutputFormatter()
-        
-        data = {
-            'grap_version': GRAP_VERSION,
-            'extraction_time': datetime.now().isoformat(),
-            'total_entities': len(entities),
-            'entities': [formatter.entity_to_dict(e) for e in entities]
-        }
-        
-        return json.dumps(data, indent=2)
-    
-    @staticmethod
-    def format_yaml(entities: List[Entity]) -> str:
-        """Format entities as YAML"""
-        data = {
-            'grap_version': GRAP_VERSION,
-            'extraction_time': datetime.now().isoformat(),
-            'total_entities': len(entities),
-            'entities': []
-        }
-        
-        formatter = GrapOutputFormatter()
-        for entity in entities:
-            entity_dict = formatter.entity_to_dict(entity)
-            data['entities'].append(entity_dict)
-        
-        return yaml.dump(data, default_flow_style=False, sort_keys=False)
+def save_to_cache(cache_key: str, entities: List[Entity]):
+    """Save entities to cache"""
+    cache_file = CACHE_DIR / f"{hashlib.md5(cache_key.encode()).hexdigest()}.pkl"
+    try:
+        with open(cache_file, 'wb') as f:
+            pickle.dump(entities, f)
+    except:
+        pass
 
 def main():
-    """Enhanced main CLI entry point with filtering and YAML support"""
-    parser = argparse.ArgumentParser(
-        description='GRAP - Galera Real-time Analysis Parser (Enhanced Production Implementation)',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s node1.log                                    # Single node analysis
-  %(prog)s node1.log node2.log --multi                   # Multi-node cluster analysis  
-  %(prog)s *.log --multi --format=json                   # JSON cluster analysis
-  %(prog)s node.log --entities=SST,IST                   # Filter SST and IST entities only
-  %(prog)s node.log --format=yaml --confidence-threshold=0.9       # YAML output with high confidence
-  %(prog)s node.log --entities=IST --format=json         # IST workflow analysis in JSON
-        """
-    )
-    parser.add_argument('logfiles', nargs='+', help='Galera log file(s) to analyze')
-    parser.add_argument('--format', choices=['text', 'json', 'yaml'], default='text',
-                        help='Output format (default: text)')
-    parser.add_argument('--output', '-o', type=Path,
-                        help='Output file (default: stdout)')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Enable verbose logging')
-    parser.add_argument('--multi', action='store_true',
-                        help='Multi-node cluster analysis mode')
-    parser.add_argument('--no-cache', action='store_true',
-                        help='Disable cache usage (force re-analysis)')
-    parser.add_argument('--cache-dir', type=Path, default='./grap_cache',
-                        help='Cache directory (default: ./grap_cache)')
-    
-    # New enhanced options
-    parser.add_argument('--entities', 
-                       help='Comma-separated list of entity types to extract (SST,IST,VIEW,NODE,ERROR,TRANSACTION)')
-    parser.add_argument('--confidence-threshold', type=float, default=0.0,
-                       help='Minimum confidence threshold for entity extraction (default: 0.0)')
+    parser = argparse.ArgumentParser(description='GRAP - Galera Raw Analysis Parser')
+    parser.add_argument('files', nargs='*', help='Log files to parse')
+    parser.add_argument('--format', choices=['json', 'ndjson'], default='json',
+                       help='Output format (default: json)')
+    parser.add_argument('--no-cache', action='store_true', help='Disable caching')
+    parser.add_argument('--filter', help='Filter entities by type (comma-separated)')
     
     args = parser.parse_args()
     
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+    # Read input
+    all_entities = []
     
-    if args.multi and len(args.logfiles) > 1:
-        # Multi-node analysis - TODO: Implement integrated multi-node processing
-        print("Error: Multi-node analysis (--multi) is currently not available.")
-        print("Use single-node analysis on individual log files instead:")
-        for logfile in args.logfiles:
-            print(f"  ./grap {logfile}")
-        sys.exit(1)
+    if not args.files or args.files == ['-']:
+        # Read from stdin
+        content = sys.stdin.read()
+        parser = GaleraLogParser()
+        entities = parser.parse_log(content, "stdin")
+        all_entities.extend(entities)
     else:
-        # Single-node analysis
-        if len(args.logfiles) > 1:
-            print("⚠️  Multiple files provided without --multi flag. Analyzing first file only.")
-        
-        log_file = Path(args.logfiles[0])
-        
-        # Initialize cache manager
-        cache_manager = GrapCacheManager(args.cache_dir)
-        
-        # Check cache unless disabled
-        analysis_data = None
-        used_cache = False
-        
-        if not args.no_cache:
-            cached_data = cache_manager.load_cache(log_file)
-            if cached_data:
-                analysis_data = cached_data['analysis_data']
-                used_cache = True
-                if args.verbose:
-                    cache_meta = cached_data['cache_metadata']
-                    print(f"📁 Using cached analysis from {cache_meta['cache_created']}")
-                    print(f"   Original: {cache_meta['original_filename']} ({cache_meta['file_size']} bytes)")
-                    print(f"   Modified: {cache_meta['file_modified_time']}")
-        
-        if not analysis_data:
-            # Parse the log file
-            if args.verbose:
-                print(f"🔍 Analyzing {log_file.name}...")
+        # Read from files
+        for file_path in args.files:
+            # Try cache first
+            cache_key = get_cache_key(file_path) if not args.no_cache else None
+            entities = None
             
-            grap_parser = GaleraLogParser()
-            entities = grap_parser.parse_log(log_file)
+            if cache_key and not args.no_cache:
+                entities = load_from_cache(cache_key)
+                if entities:
+                    all_entities.extend(entities)
+                    continue
             
-            # Apply entity filtering
-            entity_types = None
-            if args.entities:
-                entity_types = set(e.strip().upper() for e in args.entities.split(','))
-            
-            filtered_entities = grap_parser.filter_entities(
-                entities, entity_types, args.confidence_threshold
-            )
-            
-            # Create analysis data structure (use filtered entities)
-            formatter = GrapOutputFormatter()
-            analysis_data = {
-                    'grap_version': GRAP_VERSION,
-                'extraction_time': datetime.now().isoformat(),
-                'total_entities': len(filtered_entities),
-                'entities': [formatter.entity_to_dict(e) for e in filtered_entities]
-            }
-            
-            # Save to cache unless disabled (cache all entities, not filtered)
-            if not args.no_cache:
-                cache_data = {
-                    'grap_version': GRAP_VERSION,
-                    'extraction_time': datetime.now().isoformat(),
-                    'total_entities': len(entities),
-                    'entities': [formatter.entity_to_dict(e) for e in entities]
-                }
-                cache_path = cache_manager.save_cache(log_file, cache_data)
-                if args.verbose:
-                    print(f"💾 Analysis cached to {cache_path}")
-        else:
-            # Load from cache and apply filters
-            all_entities = []
-            for entity_data in analysis_data['entities']:
-                # Reconstruct entities from cache with correct types
-                entity_type = entity_data.get('entity_type', '').lower()
+            # Parse file
+            with open(file_path, 'r', errors='ignore') as f:
+                content = f.read()
+                parser = GaleraLogParser()
+                entities = parser.parse_log(content, file_path)
+                all_entities.extend(entities)
                 
-                # Create entity of correct type
-                if entity_type == 'node':
-                    entity = NodeEntity()
-                elif entity_type == 'view':
-                    entity = ViewEntity()
-                elif entity_type == 'sst':
-                    entity = SSTEntity()
-                elif entity_type == 'ist':
-                    entity = ISTEntity()
-                elif entity_type == 'error':
-                    entity = ErrorEntity()
-                elif entity_type == 'transaction':
-                    entity = TransactionEntity()
-                else:
-                    entity = Entity()
-                
-                # Set all attributes
-                for key, value in entity_data.items():
-                    if key == 'timestamp' and value:
-                        try:
-                            entity.timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                        except:
-                            entity.timestamp = None
-                    else:
-                        setattr(entity, key, value)
-                all_entities.append(entity)
-            
-            # Apply filters to cached data
-            entity_types = None
-            if args.entities:
-                entity_types = set(e.strip().upper() for e in args.entities.split(','))
-            
-            grap_parser = GaleraLogParser()
-            filtered_entities = grap_parser.filter_entities(
-                all_entities, entity_types, args.confidence_threshold
-            )
-        
-        # Format output
-        formatter = GrapOutputFormatter()
-        if args.format == 'json':
-            output = formatter.format_json(filtered_entities)
-        elif args.format == 'yaml':
-            output = formatter.format_yaml(filtered_entities)
-        else:
-            output = formatter.format_text(filtered_entities)
-            
-            # Add cache info to text output
-            if used_cache:
-                output = f"📁 (Using cached analysis)\n{output}"
-        
-        # Write output
-        if args.output:
-            args.output.write_text(output, encoding='utf-8')
-            print(f"✅ Results written to {args.output}")
-        else:
-            print(output)
+                # Save to cache
+                if cache_key and not args.no_cache:
+                    save_to_cache(cache_key, entities)
+    
+    # Filter if requested
+    if args.filter:
+        filter_types = [t.strip().lower() for t in args.filter.split(',')]
+        all_entities = [e for e in all_entities if 
+                       str(e.entity_type.value if hasattr(e.entity_type, 'value') 
+                           else e.entity_type).lower() in filter_types]
+    
+    # Output
+    if args.format == 'ndjson':
+        # NDJSON format
+        for entity in all_entities:
+            print(json.dumps(entity_to_dict(entity), default=str))
+    else:
+        # Standard JSON
+        output = {
+            "grap_version": GRAP_VERSION,
+            "extraction_time": datetime.now().isoformat(),
+            "total_entities": len(all_entities),
+            "entities": [entity_to_dict(e) for e in all_entities]
+        }
+        print(json.dumps(output, indent=2, default=str))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

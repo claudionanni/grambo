@@ -1,0 +1,527 @@
+#!/usr/bin/env python3
+"""
+GRAF - GRAP Frames Builder
+
+Builds per-event cluster "frames" from GRAP JSON output. Each frame is a
+snapshot of the cluster state immediately after applying one event, suitable
+for timeline visualization.
+
+Usage examples:
+  # Pipe GRAP output directly
+  ./grap --format=json unittest/error.31407.log | ./graf --ndjson | head -5
+
+  # Or use files
+  ./grap --format=json unittest/error.31407.log > grap.json
+  ./graf grap.json -o frames.json
+
+Output formats:
+  - Default: JSON object with metadata and frames array
+  - --ndjson: one JSON frame per line (stream-friendly)
+"""
+
+from __future__ import annotations
+
+import sys
+import json
+import re
+from dataclasses import dataclass, field, asdict
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime
+
+
+# -----------------------------
+# Domain models (in-memory state)
+# -----------------------------
+
+@dataclass
+class NodeMember:
+    name: str = ""
+    uuid: str = ""
+    address: str = ""
+    state: str = ""           # joined/synced/etc
+    role: str = ""            # donor/joiner/unknown
+
+
+@dataclass
+class SstSession:
+    session_id: str = ""
+    method: str = ""
+    donor: str = ""
+    joiner: str = ""
+    status: str = ""          # started/proceeding_with_backup/donor_selected/transfer_complete/failed/completed
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    backup_transfer: Optional[bool] = None
+    failure_reason: Optional[str] = None
+
+
+@dataclass
+class IstSession:
+    session_id: str = ""
+    node: str = ""            # receiver node or address when known
+    uuid: str = ""
+    status: str = ""          # preparing/prepared/receiving/applying/received/processing
+    first: Optional[int] = None
+    last: Optional[int] = None
+    progress_percent: Optional[float] = None
+    events_processed: Optional[int] = None
+    events_total: Optional[int] = None
+    started_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+@dataclass
+class ClusterState:
+    cluster_ref: str = ""
+    cluster_name: Optional[str] = None
+    cluster_uuid: Optional[str] = None
+    view_state: str = "UNKNOWN"    # PRIM/NON_PRIM/UNKNOWN
+    view_seq: Optional[int] = None
+    view_id: Optional[str] = None
+    quorum: Optional[bool] = None   # derived from view_state: PRIM => True
+
+    members: Dict[str, NodeMember] = field(default_factory=dict)
+    sst_sessions: Dict[str, SstSession] = field(default_factory=dict)
+    ist_sessions: Dict[str, IstSession] = field(default_factory=dict)
+
+    error_count: int = 0
+    warning_count: int = 0
+    errors_recent: List[Dict[str, Any]] = field(default_factory=list)  # capped list
+
+    def snapshot(self) -> Dict[str, Any]:
+        data = asdict(self)
+        # Keep only the last 10 errors to bound size
+        data["errors_recent"] = self.errors_recent[-10:]
+        return data
+
+
+@dataclass
+class WorldState:
+    clusters: Dict[str, ClusterState] = field(default_factory=dict)
+    counters: Dict[str, int] = field(default_factory=lambda: {
+        "view": 0, "node": 0, "sst": 0, "ist": 0, "error": 0, "transaction": 0, "cluster": 0
+    })
+
+
+# -----------------------------
+# Error classification helpers
+# -----------------------------
+
+SST_FAILURE_PATTERNS = [
+    re.compile(r"WSREP:\s+.*State transfer .* failed:\s+(?P<reason>.+)", re.IGNORECASE),
+    re.compile(r"Application state transfer failed", re.IGNORECASE),
+    re.compile(r"failed:\s+(?P<reason>Broken pipe|Invalid argument|Operation canceled)", re.IGNORECASE),
+]
+
+IST_FAILURE_PATTERNS = [
+    re.compile(r"IST[^\n]*?(fail|failed|error|aborted|canceled)", re.IGNORECASE),
+]
+
+
+def detect_sst_failure(message: str) -> Optional[str]:
+    for rx in SST_FAILURE_PATTERNS:
+        m = rx.search(message)
+        if m:
+            reason = m.groupdict().get("reason") or m.group(0)
+            return reason.strip()
+    return None
+
+
+def is_cluster_scope_error(message: str) -> bool:
+    msg = message.lower()
+    return any(k in msg for k in [
+        "primary component", "non-prim", "non_primary", "quorum", "view change", "pc: ", "lost connection to cluster"
+    ])
+
+
+# -----------------------------
+# Utilities
+# -----------------------------
+
+def parse_iso(ts: Optional[str]) -> Optional[datetime]:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def sort_entities(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def key(e: Dict[str, Any]) -> Tuple:
+        ts = parse_iso(e.get("timestamp"))
+        ln = e.get("line_number", 0)
+        return ((ts or datetime.min), ln)
+    return sorted(entities, key=key)
+
+
+# -----------------------------
+# Reducers per entity type
+# -----------------------------
+
+def reduce_view(world: WorldState, e: Dict[str, Any]):
+    cref = e.get("cluster_ref")
+    if not cref:
+        return
+    c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
+    c.view_state = (e.get("cluster_state") or c.view_state or "UNKNOWN")
+    c.view_seq = e.get("view_seq") or c.view_seq
+    c.view_id = e.get("view_id") or c.view_id
+    c.cluster_uuid = e.get("cluster_uuid") or c.cluster_uuid
+    c.quorum = True if c.view_state == "PRIM" else (False if c.view_state == "NON_PRIM" else None)
+    # Members (when present)
+    for name in e.get("members") or []:
+        m = c.members.setdefault(name, NodeMember(name=name))
+        if not m.state:
+            m.state = "unknown"
+
+
+def reduce_node(world: WorldState, e: Dict[str, Any]):
+    cref = e.get("cluster_ref")
+    if not cref:
+        return
+    c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
+    name = e.get("node_name") or e.get("node_uuid") or "unknown"
+    m = c.members.setdefault(name, NodeMember(name=name))
+    if e.get("node_uuid"):
+        m.uuid = e["node_uuid"]
+    if e.get("node_address"):
+        m.address = e["node_address"]
+    if e.get("node_state"):
+        m.state = e["node_state"]
+
+
+def reduce_sst(world: WorldState, e: Dict[str, Any]):
+    cref = e.get("cluster_ref")
+    if not cref:
+        return
+    c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
+    sid = e.get("entity_id") or f"sst_{len(c.sst_sessions)+1}"
+    sess = c.sst_sessions.setdefault(sid, SstSession(session_id=sid))
+    sess.method = e.get("sst_method") or sess.method
+    if e.get("donor_node"):
+        sess.donor = e["donor_node"]
+        m = c.members.setdefault(sess.donor, NodeMember(name=sess.donor))
+        m.role = "donor"
+    if e.get("joiner_node"):
+        sess.joiner = e["joiner_node"]
+        m = c.members.setdefault(sess.joiner, NodeMember(name=sess.joiner))
+        m.role = "joiner"
+    if e.get("sst_status"):
+        sess.status = e["sst_status"]
+    if e.get("backup_transfer_occurred") is not None:
+        sess.backup_transfer = bool(e["backup_transfer_occurred"])
+    # timestamps
+    ts = e.get("timestamp")
+    if sess.status in ("started", "backup_transfer_started", "proceeding_with_backup", "donor_selected") and not sess.started_at:
+        sess.started_at = ts
+    if sess.status in ("transfer_complete", "completed") and not sess.ended_at:
+        sess.ended_at = ts
+        dur = None
+        st = parse_iso(sess.started_at)
+        en = parse_iso(sess.ended_at)
+        if st and en:
+            dur = (en - st).total_seconds()
+        sess.duration_seconds = dur or e.get("duration_seconds")
+
+
+def reduce_ist(world: WorldState, e: Dict[str, Any]):
+    cref = e.get("cluster_ref")
+    if not cref:
+        return
+    c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
+    sid = e.get("entity_id") or f"ist_{len(c.ist_sessions)+1}"
+    sess = c.ist_sessions.setdefault(sid, IstSession(session_id=sid))
+    if e.get("ist_uuid"): sess.uuid = e["ist_uuid"]
+    if e.get("ist_status"): sess.status = e["ist_status"]
+    if e.get("ist_first") is not None: sess.first = e["ist_first"]
+    if e.get("ist_last") is not None: sess.last = e["ist_last"]
+    if e.get("progress_percent") is not None: sess.progress_percent = e["progress_percent"]
+    if e.get("events_processed") is not None: sess.events_processed = e["events_processed"]
+    if e.get("events_total") is not None: sess.events_total = e["events_total"]
+    # Try to infer node from receiver address "tcp://host:port"
+    # Try multiple hints for node attribution
+    # 1) direct node fields
+    for key in ("node_name", "node", "receiver_node"):
+        if e.get(key):
+            sess.node = e[key]
+            break
+    # 2) receiver_address (tcp://host:port) -> extract host and match to known members by name/address
+    if not sess.node and e.get("receiver_address"):
+        sess.node = e["receiver_address"]
+        addr = e["receiver_address"]
+        host = None
+        m = re.search(r"tcp://([^:/]+)", str(addr))
+        if m:
+            host = m.group(1)
+        if host:
+            # attempt to map host to existing members by address or substring match
+            c = world.clusters.setdefault(e.get("cluster_ref", "_unknown_cluster"), ClusterState(cluster_ref=e.get("cluster_ref", "_unknown_cluster")))
+            for name, member in c.members.items():
+                if member.address and host in member.address:
+                    sess.node = name
+                    break
+                if host in name:
+                    sess.node = name
+                    break
+    ts = e.get("timestamp")
+    if not sess.started_at:
+        sess.started_at = ts
+    sess.updated_at = ts
+
+
+def reduce_error(world: WorldState, e: Dict[str, Any]):
+    cref = e.get("cluster_ref")
+    if cref:
+        c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
+    else:
+        # Put under a synthetic bucket if no cluster_ref
+        c = world.clusters.setdefault("_unknown_cluster", ClusterState(cluster_ref="_unknown_cluster"))
+    level = (e.get("error_level") or "").lower()
+    msg = e.get("error_message") or e.get("raw_line") or ""
+    if level in ("warning", "warn"):
+        c.warning_count += 1
+    else:
+        c.error_count += 1
+    # Basic categorization
+    msg_l = msg.lower()
+    category = None
+    scope = "node"
+    if detect_sst_failure(msg):
+        category = "sst_failure"
+    elif "ist" in msg_l:
+        category = "ist"
+    elif any(k in msg_l for k in ["asio", "socket", "connect", "timeout", "gcomm"]):
+        category = "network"
+    elif is_cluster_scope_error(msg):
+        category = "cluster"
+        scope = "cluster"
+    else:
+        category = "general"
+
+    c.errors_recent.append({
+        "timestamp": e.get("timestamp"),
+        "level": level or "error",
+        "message": msg[:500],
+        "component": e.get("component") or "",
+        "category": category,
+        "scope": scope,
+    })
+    # SST failure linkage: close the most recent open SST session
+    reason = detect_sst_failure(msg)
+    if reason:
+        # Find last open session (no ended_at and status not terminal)
+        open_sess = None
+        for sess in reversed(list(c.sst_sessions.values())):
+            if not sess.ended_at and sess.status not in ("failed", "completed", "transfer_complete"):
+                open_sess = sess
+                break
+        if open_sess:
+            open_sess.status = "failed"
+            open_sess.failure_reason = reason
+            open_sess.ended_at = e.get("timestamp")
+
+    # IST failure linkage: mark the most recent IST session as failed when errors mention IST failure
+    if any(rx.search(msg) for rx in IST_FAILURE_PATTERNS):
+        for sess in reversed(list(c.ist_sessions.values())):
+            if sess.status and sess.status.lower() not in ("received", "completed"):
+                sess.status = "failed"
+                sess.updated_at = e.get("timestamp")
+                break
+
+
+def reduce_cluster(world: WorldState, e: Dict[str, Any]):
+    cref = e.get("cluster_ref")
+    if not cref:
+        return
+    c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
+    # Seed basic identity from the cluster entity
+    if e.get("cluster_uuid"):
+        c.cluster_uuid = e["cluster_uuid"]
+    if e.get("cluster_name"):
+        c.cluster_name = e["cluster_name"]
+
+
+# -----------------------------
+# Frame builder
+# -----------------------------
+
+def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
+    entities = grap_json.get("entities") or []
+    entities = sort_entities(entities)
+
+    world = WorldState()
+    frames: List[Dict[str, Any]] = []
+
+    reducers = {
+        "view": reduce_view,
+        "node": reduce_node,
+        "sst": reduce_sst,
+        "ist": reduce_ist,
+        "error": reduce_error,
+        # "transaction": ... (optional)
+        "cluster": reduce_cluster,
+    }
+
+    for idx, e in enumerate(entities):
+        et = (e.get("entity_type") or "").lower()
+        world.counters[et] = world.counters.get(et, 0) + 1
+
+        reducer = reducers.get(et)
+        if reducer:
+            reducer(world, e)
+
+        frame = {
+            "index": idx,
+            "event": {
+                "entity_type": et,
+                "entity_id": e.get("entity_id"),
+                "timestamp": e.get("timestamp"),
+                "line_number": e.get("line_number"),
+                "cluster_ref": e.get("cluster_ref"),
+            },
+            "clusters": {ref: cs.snapshot() for ref, cs in world.clusters.items()},
+            "counters": dict(world.counters),
+        }
+        frames.append(frame)
+
+    return frames
+
+
+# -----------------------------
+# CLI
+# -----------------------------
+
+def _read_input(path: Optional[str]) -> Dict[str, Any]:
+    """Read a single GRAP JSON from a file or stdin."""
+    if path and path != "-":
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return json.load(sys.stdin)
+
+
+def _read_multiple_inputs(paths: List[str]) -> Dict[str, Any]:
+    """Read and merge multiple GRAP JSON files into a single object.
+
+    Rules:
+    - Accept one or more file paths; "-" means read one JSON payload from stdin (only once).
+    - Each input must be a JSON object containing an "entities" array (GRAP output).
+    - Merge all entities, then sort chronologically (timestamp, line_number).
+    - Return a synthetic GRAP-like JSON: { entities: [...], merged_from: [...] }
+    """
+    merged_entities: List[Dict[str, Any]] = []
+    merged_from: List[str] = []
+
+    if not paths:
+        raise ValueError("No input paths provided")
+
+    used_stdin = False
+    for p in paths:
+        if p == "-":
+            if used_stdin:
+                # Avoid reading stdin twice
+                continue
+            data = _read_input("-")
+            used_stdin = True
+            merged_from.append("stdin")
+        else:
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            merged_from.append(p)
+
+        ents = data.get("entities") or []
+        # Defensive: ensure each entity has a timestamp/line_number field
+        for e in ents:
+            if "timestamp" not in e:
+                e["timestamp"] = None
+            if "line_number" not in e:
+                e["line_number"] = 0
+        merged_entities.extend(ents)
+
+    # Sort once globally
+    merged_entities = sort_entities(merged_entities)
+
+    return {
+        "source": "grap_multi_merge",
+        "merged_from": merged_from,
+        "entities": merged_entities,
+    }
+
+
+def main():
+    import argparse
+    p = argparse.ArgumentParser(description="Build per-event cluster frames from GRAP JSON")
+    p.add_argument("inputs", nargs="*", help="One or more GRAP JSON files (use '-' for stdin)")
+    p.add_argument("--output", "-o", help="Frames JSON output file (defaults to stdout)")
+    p.add_argument("--ndjson", action="store_true", help="Emit NDJSON (one frame per line)")
+    args = p.parse_args()
+
+    # Input handling:
+    # - No args: read a single JSON from stdin
+    # - One arg: read that path (or '-' for stdin)
+    # - Many args: merge all into a single entity stream
+    try:
+        if not args.inputs:
+            grap_json = _read_input("-")
+        elif len(args.inputs) == 1:
+            grap_json = _read_input(args.inputs[0])
+        else:
+            grap_json = _read_multiple_inputs(args.inputs)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON input: {e}", file=sys.stderr)
+        sys.exit(2)
+    except OSError as e:
+        print(f"Cannot read input: {e}", file=sys.stderr)
+        sys.exit(2)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(2)
+
+    frames = build_frames(grap_json)
+
+    if args.ndjson:
+        out = sys.stdout
+        close_after = False
+        if args.output:
+            out = open(args.output, "w", encoding="utf-8")
+            close_after = True
+        try:
+            for fr in frames:
+                out.write(json.dumps(fr, separators=(",", ":")) + "\n")
+        except BrokenPipeError:
+            try:
+                out.flush()
+            except Exception:
+                pass
+            # Exit quietly when the downstream pipe is closed (e.g., head)
+            try:
+                sys.exit(0)
+            except SystemExit:
+                return
+        finally:
+            if close_after:
+                out.close()
+    else:
+        data = {
+            "source": "grap_frames",
+            "frames_count": len(frames),
+            "frames": frames,
+        }
+        text = json.dumps(data, indent=2)
+        try:
+            if args.output:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(text)
+            else:
+                print(text)
+        except BrokenPipeError:
+            # Quietly exit when piping to tools like head
+            try:
+                sys.exit(0)
+            except SystemExit:
+                return
+
+
+if __name__ == "__main__":
+    main()

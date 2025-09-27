@@ -67,6 +67,8 @@ class ClusterState:
         self.events: List[str] = []       # events in this frame
         self.issues: List[str] = []       # cluster issues
         self.sst_statuses: Dict[str, Dict] = {}  # SST transfer statuses per node
+        self.cluster_meta: Dict[str, Any] = {}   # view_state, view_seq, view_id, quorum, cluster_uuid, cluster_ref
+        self.errors_recent: List[Dict[str, Any]] = []  # recent warnings/errors from frame snapshot (graf)
     
     def add_node(self, name: str, state: str, **kwargs):
         """Add or update a node in this cluster state"""
@@ -137,7 +139,7 @@ class WebClusterVisualizer:
             counters: {...}
           }
         """
-        self.states = []
+        self.states = []  
         self.node_name_mapping = {}  # In frames mode, assume member keys are final names
         # In frames mode, categorized events are not present; initialize empty
         self.categorized_events = {
@@ -226,6 +228,19 @@ class WebClusterVisualizer:
                 # Record mapping for display (identity mapping)
                 self.node_name_mapping[name] = name
                 st.add_node(name, _canon_state(m.get('state')), seqno=None)
+
+            # Capture cluster-level metadata for right panel
+            st.cluster_meta = {
+                'cluster_ref': first_key if clusters else None,
+                'view_state': cluster_snap.get('view_state'),
+                'view_seq': cluster_snap.get('view_seq'),
+                'view_id': cluster_snap.get('view_id'),
+                'quorum': cluster_snap.get('quorum'),
+                'cluster_uuid': cluster_snap.get('cluster_uuid') or None
+            }
+
+            # Capture recent warnings/errors if provided by graf
+            st.errors_recent = cluster_snap.get('errors_recent') or []
 
             # Derive transfers from SST sessions
             sst_sessions = (cluster_snap.get('sst_sessions') or {})
@@ -2026,7 +2041,7 @@ class WebClusterVisualizer:
                     html.Div(id='state-details'),
                     
                     # Categorized Event Sections
-                    html.H3("� State Transfer Log", style={'color': '#2c3e50', 'marginTop': '30px'}),
+                    html.H3("📡 State Transfer Log", style={'color': '#2c3e50', 'marginTop': '30px'}),
                     html.Div(id='state-transfer-log', style={
                         'height': '200px', 
                         'overflowY': 'scroll',
@@ -2517,15 +2532,77 @@ class WebClusterVisualizer:
                 details.append(html.P(f"⚠️ Issues: {len(state.issues)}", style={'margin': '5px 0', 'color': 'red'}))
             
             # Generate categorized event sections
-            state_transfer_events = self.generate_state_transfer_events(state.timestamp)
-            service_events = self.generate_service_events(state.timestamp)
-            warnings_errors = self.generate_warnings_errors(state.timestamp)
+            # If frames mode (no legacy categorized events), synthesize minimal panels from current state
+            if self.frames_data is not None:
+                # Build State Transfer Log from active transfers
+                active_sst = [t for t in self._select_active_transfers(state) if t.get('type') == 'SST']
+                if active_sst:
+                    st_msgs = []
+                    for t in active_sst:
+                        joiner = t.get('joiner') or 'unknown'
+                        donor = t.get('donor') or 'unknown'
+                        status = (t.get('status') or 'in_progress')
+                        method = t.get('method') or ''
+                        label = f"[{state.timestamp.strftime('%H:%M:%S')}] {joiner} from {donor} via {method or 'sst'} [{status}]"
+                        st_msgs.append(html.P(label, style={'margin': '3px 0', 'fontSize': '13px', 'color': '#3498db'}))
+                    state_transfer_events = st_msgs
+                else:
+                    state_transfer_events = [html.P("No recent state transfer events", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+
+                # Service Log (not available in frames; leave empty message)
+                service_events = [html.P("No recent service events", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+
+                # Warnings & Errors: use errors_recent snapshot from frame if provided
+                if getattr(state, 'errors_recent', None):
+                    w_msgs = []
+                    for e in state.errors_recent[-10:]:
+                        ts = e.get('timestamp')
+                        ts_s = ts[11:19] if isinstance(ts, str) and len(ts) >= 19 else state.timestamp.strftime('%H:%M:%S')
+                        msg = e.get('message') or e.get('raw_message') or 'warning/error'
+                        level = e.get('level') or 'warning'
+                        color = '#e74c3c' if level.lower().startswith('error') else '#f39c12'
+                        w_msgs.append(html.P(f"[{ts_s}] {msg}", style={'margin': '3px 0', 'fontSize': '13px', 'color': color}))
+                    warnings_errors = w_msgs or [html.P("No recent warnings or errors", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+                else:
+                    warnings_errors = [html.P("No recent warnings or errors", style={'color': '#7f8c8d', 'fontStyle': 'italic'})]
+            else:
+                state_transfer_events = self.generate_state_transfer_events(state.timestamp)
+                service_events = self.generate_service_events(state.timestamp)
+                warnings_errors = self.generate_warnings_errors(state.timestamp)
             
             # Frame info for slider
             # Enhanced frame info with timestamp (date + time)
             current_timestamp = state.timestamp.strftime('%Y-%m-%d %H:%M:%S')
             frame_info_text = f"Total frames: {len(self.states)} | Current frame: {frame_index + 1} | ⏰ {current_timestamp}"
             
+            # Cluster Info panel: show cluster view/meta if available (frames mode)
+            if getattr(state, 'cluster_meta', None):
+                cm = state.cluster_meta or {}
+                view_state = cm.get('view_state') or 'UNKNOWN'
+                view_seq = cm.get('view_seq')
+                view_id = cm.get('view_id')
+                quorum = cm.get('quorum')
+                c_uuid = cm.get('cluster_uuid')
+
+                # Compute counts
+                total_members = len([n for n in state.nodes.keys()])
+                effective = self._effective_state_overlay(state)
+                synced = sum(1 for n in state.nodes if (effective.get(n) or '').upper() in ('SYNCED','JOINED','DONOR','DONOR/DESYNCED'))
+                transitional = total_members - synced
+
+                details.append(html.Hr())
+                details.append(html.H4("Cluster Info", style={'margin': '10px 0', 'color': '#2c3e50'}))
+                info_items = [
+                    f"View State: {view_state}",
+                    f"View Seq: {view_seq if view_seq is not None else '-'}",
+                    f"View ID: {view_id if view_id else '-'}",
+                    f"Cluster UUID: {c_uuid if c_uuid else '-'}",
+                    f"Quorum: {quorum if quorum is not None else '-'}",
+                    f"Members: {synced} synced / {transitional} transitional / {total_members} total",
+                ]
+                for it in info_items:
+                    details.append(html.P(it, style={'margin': '2px 0', 'fontSize': '13px', 'color': '#34495e'}))
+
             # Generate timeline markers
             timeline_markers = self.generate_timeline_markers(frame_index)
             
