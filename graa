@@ -1818,17 +1818,27 @@ def _collect_ist_events_from_log(log_file_path: Optional[str]) -> List[Dict[str,
             seq_match = re.search(r'f:\s*(\d+),\s*l:\s*(\d+)', line)
             seq_start = _safe_int(seq_match.group(1)) if seq_match else None
             seq_end = _safe_int(seq_match.group(2)) if seq_match else None
+            uuid_match = re.search(r'ist uuid:([^\s]+)', line, re.IGNORECASE)
+            uuid_val = uuid_match.group(1) if uuid_match else None
             events.append(_create_fallback_ist_event(
                 timestamp,
                 'preparing',
                 line,
                 seqno_start=seq_start,
                 seqno_end=seq_end,
+                extra={'uuid': uuid_val} if uuid_val else None,
             ))
             continue
 
         if 'ist receiver addr using' in lower:
-            events.append(_create_fallback_ist_event(timestamp, 'receiver_ready', line))
+            addr_match = re.search(r'using\s+([^\s]+)', line, re.IGNORECASE)
+            receiver_addr = addr_match.group(1) if addr_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'receiver_ready',
+                line,
+                extra={'receiver_address': receiver_addr} if receiver_addr else None,
+            ))
             continue
 
         if 'prepared ist receiver' in lower:
@@ -1879,12 +1889,15 @@ def _collect_ist_events_from_log(log_file_path: Optional[str]) -> List[Dict[str,
                 seqno_start=seq_start,
                 seqno_end=seq_end,
                 transfer_count=transfer_count,
+                extra={'writesets': transfer_count} if transfer_count is not None else None,
             ))
             continue
 
         if 'receiving ist...' in lower:
-            progress_match = re.search(r'(\d+(?:\.\d+)?)%\s*\((\d+)/(\d+)\s+events\)', line)
+            progress_match = re.search(r'([\-\w.]+)%\s*\((\d+)/(\d+)\s+events\)', line, re.IGNORECASE)
             progress = _safe_float(progress_match.group(1)) if progress_match else None
+            if progress is not None and progress != progress:
+                progress = None
             processed = _safe_int(progress_match.group(2)) if progress_match else None
             total = _safe_int(progress_match.group(3)) if progress_match else None
             events.append(_create_fallback_ist_event(
@@ -1905,11 +1918,12 @@ def _collect_ist_events_from_log(log_file_path: Optional[str]) -> List[Dict[str,
                 'preloading',
                 line,
                 seqno_start=seq_start,
+                extra={'preload_start': seq_start} if seq_start is not None else None,
             ))
             continue
 
         if 'ist received' in lower:
-            seq_match = re.search(r':(\d+)(?:\s|$)', line)
+            seq_match = re.search(r'ist received:[^:]+:(\d+)', line, re.IGNORECASE)
             seq_end = _safe_int(seq_match.group(1)) if seq_match else None
             events.append(_create_fallback_ist_event(
                 timestamp,
@@ -1919,9 +1933,23 @@ def _collect_ist_events_from_log(log_file_path: Optional[str]) -> List[Dict[str,
             ))
             continue
 
+        if 'draining apply monitors after ist' in lower:
+            seq_match = re.search(r'up to\s*(\d+)', line)
+            seq_end = _safe_int(seq_match.group(1)) if seq_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'processing',
+                line,
+                seqno_end=seq_end,
+                extra={'processed_seq': seq_end} if seq_end is not None else None,
+            ))
+            continue
+
         if 'processing event queue' in lower:
-            progress_match = re.search(r'(\d+(?:\.\d+)?)%\s*\((\d+)/(\d+)\s+events\)', line)
+            progress_match = re.search(r'([\-\w.]+)%\s*\((\d+)/(\d+)\s+events\)', line, re.IGNORECASE)
             progress = _safe_float(progress_match.group(1)) if progress_match else None
+            if progress is not None and progress != progress:
+                progress = None
             processed = _safe_int(progress_match.group(2)) if progress_match else None
             total = _safe_int(progress_match.group(3)) if progress_match else None
             events.append(_create_fallback_ist_event(
@@ -1948,10 +1976,11 @@ def _create_fallback_ist_event(
     events_processed: Optional[int] = None,
     events_total: Optional[int] = None,
     transfer_count: Optional[int] = None,
+    extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     identifier_source = f"{timestamp}|{status}|{raw_line}"
     identifier = hashlib.md5(identifier_source.encode('utf-8')).hexdigest()[:16]
-    return {
+    event = {
         'timestamp': timestamp,
         'ist_status': status,
         'raw_line': raw_line,
@@ -1963,6 +1992,11 @@ def _create_fallback_ist_event(
         'transfer_count': transfer_count,
         'entity_id': f'ist-fallback-{identifier}',
     }
+    if extra:
+        for key, value in extra.items():
+            if value is not None:
+                event[key] = value
+    return event
 
 
 def _safe_int(value: Optional[str]) -> Optional[int]:
@@ -2194,23 +2228,49 @@ def _describe_sst_event_line(line: str) -> str:
 
 
 def _describe_ist_event(ist: Dict[str, Any]) -> str:
-    status = (ist.get('ist_status') or 'unknown').upper()
-    parts = [f"[{status}]"]
+    status = (ist.get('ist_status') or ist.get('status') or 'unknown').upper()
+    details: List[str] = []
 
     seq_start = ist.get('seqno_start')
     seq_end = ist.get('seqno_end')
-    if seq_start is not None and seq_end is not None:
-        parts.append(f"seqno {seq_start}→{seq_end}")
+    if seq_start is not None or seq_end is not None:
+        start_txt = '?' if seq_start is None else seq_start
+        end_txt = '?' if seq_end is None else seq_end
+        details.append(f"seqno {start_txt}→{end_txt}")
 
-    transfer_count = ist.get('transfer_count')
+    transfer_count = ist.get('transfer_count') or ist.get('writesets')
     if transfer_count:
-        parts.append(f"{transfer_count} writesets")
+        details.append(f"{transfer_count} writesets")
 
-    raw = _trim_log_line(ist.get('raw_line', ''))
-    if raw:
-        parts.append(raw)
+    progress = ist.get('progress_percent')
+    if progress is not None:
+        details.append(f"progress {progress:.1f}%")
 
-    return " | ".join(parts)
+    processed = ist.get('events_processed')
+    total = ist.get('events_total')
+    if processed is not None and total is not None:
+        details.append(f"events {processed}/{total}")
+
+    if status == 'RECEIVER_READY' and ist.get('receiver_address'):
+        details.append(f"addr {ist['receiver_address']}")
+
+    if status == 'PREPARING' and ist.get('uuid'):
+        details.append(f"uuid {ist['uuid']}")
+
+    preload_start = ist.get('preload_start')
+    if status == 'PRELOADING' and preload_start is not None:
+        details.append(f"start {preload_start}")
+
+    processed_seq = ist.get('processed_seq')
+    if processed_seq is not None and processed_seq != seq_end:
+        details.append(f"up to {processed_seq}")
+
+    if not details:
+        raw = _trim_log_line(ist.get('raw_line', ''))
+        if raw:
+            details.append(raw)
+
+    return " | ".join([f"[{status}]"] + details)
 
 
 def main():
