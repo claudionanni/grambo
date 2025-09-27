@@ -19,7 +19,7 @@ import pickle
 import os
 
 # Version for cache invalidation
-GRAP_VERSION = "v2.4.4"  # Disable filename-based node inference
+GRAP_VERSION = "v2.4.5"  # Track node UUID history and aliases
 
 # Cache directory
 CACHE_DIR = Path.home() / ".cache" / "grap"
@@ -87,6 +87,7 @@ class NodeEntity(Entity):
     node_index: Optional[int] = None
     node_address: Optional[str] = None
     wsrep_last_committed: Optional[int] = None
+    known_uuids: List[str] = field(default_factory=list)
     
     def __post_init__(self):
         super().__post_init__()
@@ -181,6 +182,7 @@ class GaleraLogParser:
         self._state_exchange_names: Dict[int, str] = {}
         self._uuid_name_map: Dict[str, str] = {}
         self._name_uuid_map: Dict[str, str] = {}
+        self._node_uuid_history: Dict[str, List[str]] = {}
         
         # View parsing state
         self._view_block_active = False
@@ -269,6 +271,7 @@ class GaleraLogParser:
                 self._uuid_name_map[compact_uuid] = name
                 identifiers.add(compact_uuid)
             self._name_uuid_map[name] = norm_uuid
+            self._register_node_uuid(name, norm_uuid)
         if identifiers:
             self._backfill_view_members(name, identifiers, uuid)
 
@@ -337,17 +340,97 @@ class GaleraLogParser:
                 entity.member_segments = updated_segments
                 entity.member_count = len(entity.members)
 
+    def _is_full_uuid(self, value: str) -> bool:
+        return bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', value))
+
+    def _select_primary_uuid(self, aliases: List[str]) -> Optional[str]:
+        for alias in reversed(aliases):
+            if self._is_full_uuid(alias):
+                return alias
+        return aliases[-1] if aliases else None
+
+    def _refresh_uuid_aliases(self, node_name: str):
+        history = self._node_uuid_history.get(node_name, [])
+        if not history:
+            return
+        for alias in history:
+            self._uuid_name_map[alias] = node_name
+            self._uuid_name_map[alias.replace('-', '')] = node_name
+        primary = self._select_primary_uuid(history)
+        if primary:
+            self._name_uuid_map[node_name] = primary
+
+    def _register_node_uuid(self, node_name: Optional[str], uuid: Optional[str]):
+        """Record uuid assignments per node and update existing entities."""
+        if not node_name or not uuid:
+            return
+        norm_name = node_name.strip()
+        norm_uuid = uuid.strip().lower()
+        if not norm_name or not norm_uuid:
+            return
+        history = self._node_uuid_history.setdefault(norm_name, [])
+
+        def _add_alias(alias: Optional[str]):
+            if not alias:
+                return False
+            alias_lc = alias.lower()
+            if alias_lc not in history:
+                history.append(alias_lc)
+                return True
+            return False
+
+        added = _add_alias(norm_uuid)
+        short_uuid = self._shorten_uuid(norm_uuid)
+        added = _add_alias(short_uuid) or added
+
+        # Maintain fast lookup aliases even if we don't keep them in history
+        self._uuid_name_map[norm_uuid] = norm_name
+        if short_uuid:
+            self._uuid_name_map[short_uuid] = norm_name
+        compact_uuid = norm_uuid.replace('-', '')
+        if compact_uuid:
+            self._uuid_name_map[compact_uuid] = norm_name
+
+        self._refresh_uuid_aliases(norm_name)
+        self._backfill_node_uuid(norm_name)
+
+    def _backfill_node_uuid(self, node_name: str):
+        """Ensure all NodeEntity instances reflect the recorded uuid history."""
+        history = self._node_uuid_history.get(node_name)
+        if not history:
+            return
+        primary = self._select_primary_uuid(history)
+        if primary:
+            self._name_uuid_map[node_name] = primary
+        for entity in self.entities:
+            if isinstance(entity, NodeEntity) and entity.node_name == node_name:
+                entity.node_uuid = primary
+                entity.known_uuids = list(history)
+
     def _backfill_node_entities(self, previous_name: Optional[str], new_name: str):
         """Update existing node entities when we discover a more precise node name."""
         if not previous_name or previous_name == new_name:
             return
+        # Move uuid history to the new canonical name
+        previous_history = self._node_uuid_history.pop(previous_name, [])
+        if previous_history:
+            merged_history = self._node_uuid_history.setdefault(new_name, [])
+            for uuid in previous_history:
+                if uuid not in merged_history:
+                    merged_history.append(uuid)
+        history_for_new = self._node_uuid_history.get(new_name, [])
         updated_prefix = f"node_{previous_name}_"
         replacement_prefix = f"node_{new_name}_"
         for entity in self.entities:
             if isinstance(entity, NodeEntity) and entity.node_name == previous_name:
                 entity.node_name = new_name
+                if history_for_new:
+                    entity.node_uuid = self._select_primary_uuid(history_for_new)
+                    entity.known_uuids = list(history_for_new)
                 if entity.entity_id.startswith(updated_prefix):
                     entity.entity_id = replacement_prefix + entity.entity_id[len(updated_prefix):]
+        self._backfill_node_uuid(new_name)
+        self._refresh_uuid_aliases(new_name)
 
     def _should_backfill_node_name(self, previous_name: Optional[str], candidate_name: str) -> bool:
         """Determine if we should update previously inferred node names."""
@@ -429,6 +512,28 @@ class GaleraLogParser:
             if match:
                 self.current_node_name = match.group(group_idx).strip()
                 break
+
+        # Detect explicit server connection lines with UUID assignment
+        connect_match = re.search(r"Server\s+([^\s]+)\s+connected.*?ID\s+([0-9a-f-]{8,})", line, re.IGNORECASE)
+        if connect_match:
+            node_name = connect_match.group(1).strip()
+            node_uuid = connect_match.group(2).strip()
+            previous_name = self.current_node_name
+            if self._should_backfill_node_name(previous_name, node_name):
+                self._backfill_node_entities(previous_name, node_name)
+            self.current_node_name = node_name
+            self._register_node_uuid(node_name, node_uuid)
+
+        # Capture lines that explicitly state the node's UUID
+        uuid_patterns = [
+            r"\bmy\s+uuid:\s*([0-9a-f-]{8,})",
+            r"\bwith\s+id\s+([0-9a-f-]{8,})"
+        ]
+        for uuid_pattern in uuid_patterns:
+            match = re.search(uuid_pattern, line, re.IGNORECASE)
+            if match and self.current_node_name:
+                self._register_node_uuid(self.current_node_name, match.group(1))
+                break
         
         # Node state changes
         state_patterns = [
@@ -463,7 +568,8 @@ class GaleraLogParser:
 
                     if node_name.lower() == "unknown":
                         continue
-                    
+                    history = self._node_uuid_history.get(node_name, [])
+                    primary_uuid = self._select_primary_uuid(history) if history else None
                     entity = NodeEntity(
                         timestamp=timestamp,
                         line_number=line_num,
@@ -472,6 +578,8 @@ class GaleraLogParser:
                         entity_id=f"node_{node_name}_{line_num}",
                         node_name=node_name,
                         node_state=node_state,
+                        node_uuid=primary_uuid,
+                        known_uuids=list(history),
                         cluster_ref=self.cluster_ref
                     )
                     self.entities.append(entity)
@@ -628,8 +736,13 @@ class GaleraLogParser:
 
         if resolved_name:
             uuid_map = self._current_view_data.setdefault('member_uuid_map', {})
-            if resolved_name not in uuid_map:
-                uuid_map[resolved_name] = self._name_uuid_map.get(resolved_name, member_id)
+            stored_uuid = self._name_uuid_map.get(resolved_name)
+            if stored_uuid:
+                if resolved_name not in uuid_map:
+                    uuid_map[resolved_name] = stored_uuid
+                self._register_node_uuid(resolved_name, stored_uuid)
+            elif resolved_name not in uuid_map:
+                uuid_map[resolved_name] = member_id
 
         section_members = self._current_view_data[self._current_view_section]
         if display_value not in section_members:
