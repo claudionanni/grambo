@@ -14,6 +14,7 @@ Usage:
 import sys
 import json
 import argparse
+import hashlib
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
@@ -1704,6 +1705,11 @@ def print_sst_ist_tree(analyzer):
 
     sst_entities = _collect_entities_by_type(analyzer.entities, 'sst')
     ist_entities = _collect_entities_by_type(analyzer.entities, 'ist')
+    if analyzer.log_file_path:
+        ist_entities = _merge_ist_events_with_log_fallback(
+            ist_entities,
+            analyzer.log_file_path,
+        )
 
     if not sessions and sst_entities:
         sessions = _build_sessions_from_sst_entities(sst_entities)
@@ -1747,6 +1753,234 @@ def _collect_entities_by_type(entities: List[Dict[str, Any]], entity_type: str) 
         for entity in entities
         if (entity.get('entity_type') or '').lower() == target
     ]
+
+
+def _merge_ist_events_with_log_fallback(
+    ist_entities: List[Dict[str, Any]],
+    log_file_path: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Augment IST entities with events derived directly from the raw log."""
+
+    fallback_events = _collect_ist_events_from_log(log_file_path)
+    if not fallback_events:
+        return ist_entities
+
+    merged = list(ist_entities)
+    seen_keys = {
+        (
+            entity.get('timestamp'),
+            _trim_log_line(entity.get('raw_line', '')) if entity.get('raw_line') else None,
+        )
+        for entity in merged
+    }
+
+    for event in fallback_events:
+        key = (
+            event.get('timestamp'),
+            _trim_log_line(event.get('raw_line', '')) if event.get('raw_line') else None,
+        )
+        if key not in seen_keys:
+            merged.append(event)
+            seen_keys.add(key)
+
+    return merged
+
+
+def _collect_ist_events_from_log(log_file_path: Optional[str]) -> List[Dict[str, Any]]:
+    if not log_file_path:
+        return []
+
+    try:
+        try:
+            with open(log_file_path, 'r', encoding='utf-8') as handle:
+                lines = handle.readlines()
+        except UnicodeDecodeError:
+            with open(log_file_path, 'r', encoding='latin-1') as handle:
+                lines = handle.readlines()
+    except (FileNotFoundError, IOError):
+        return []
+
+    events: List[Dict[str, Any]] = []
+
+    for idx, raw_line in enumerate(lines):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+        if not timestamp_match:
+            continue
+
+        timestamp = timestamp_match.group(1)
+        lower = line.lower()
+
+        if '####### ist uuid' in lower:
+            seq_match = re.search(r'f:\s*(\d+),\s*l:\s*(\d+)', line)
+            seq_start = _safe_int(seq_match.group(1)) if seq_match else None
+            seq_end = _safe_int(seq_match.group(2)) if seq_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'preparing',
+                line,
+                seqno_start=seq_start,
+                seqno_end=seq_end,
+            ))
+            continue
+
+        if 'ist receiver addr using' in lower:
+            events.append(_create_fallback_ist_event(timestamp, 'receiver_ready', line))
+            continue
+
+        if 'prepared ist receiver' in lower:
+            seq_range = re.search(r'for\s+(\d+)[-→](\d+)', line)
+            seq_start = _safe_int(seq_range.group(1)) if seq_range else None
+            seq_end = _safe_int(seq_range.group(2)) if seq_range else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'prepared',
+                line,
+                seqno_start=seq_start,
+                seqno_end=seq_end,
+            ))
+            continue
+
+        if 'ist applying starts' in lower:
+            start_match = re.search(r'starts\s+with\s+(\d+)', line)
+            seq_start = _safe_int(start_match.group(1)) if start_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'applying',
+                line,
+                seqno_start=seq_start,
+            ))
+            continue
+
+        if 'ist current seqno initialized' in lower:
+            seq_match = re.search(r'initialized\s+to\s+(\d+)', line)
+            seq_start = _safe_int(seq_match.group(1)) if seq_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'seqno_initialized',
+                line,
+                seqno_start=seq_start,
+            ))
+            continue
+
+        if 'receiving ist:' in lower:
+            count_match = re.search(r'receiving ist:\s*(\d+)\s*writesets', line, re.IGNORECASE)
+            seq_range = re.search(r'seqnos\s+(\d+)[-→](\d+)', line)
+            transfer_count = _safe_int(count_match.group(1)) if count_match else None
+            seq_start = _safe_int(seq_range.group(1)) if seq_range else None
+            seq_end = _safe_int(seq_range.group(2)) if seq_range else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'receiving',
+                line,
+                seqno_start=seq_start,
+                seqno_end=seq_end,
+                transfer_count=transfer_count,
+            ))
+            continue
+
+        if 'receiving ist...' in lower:
+            progress_match = re.search(r'(\d+(?:\.\d+)?)%\s*\((\d+)/(\d+)\s+events\)', line)
+            progress = _safe_float(progress_match.group(1)) if progress_match else None
+            processed = _safe_int(progress_match.group(2)) if progress_match else None
+            total = _safe_int(progress_match.group(3)) if progress_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'receiving',
+                line,
+                progress=progress,
+                events_processed=processed,
+                events_total=total,
+            ))
+            continue
+
+        if 'ist preload starting' in lower:
+            start_match = re.search(r'starting\s+at\s+(\d+)', line)
+            seq_start = _safe_int(start_match.group(1)) if start_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'preloading',
+                line,
+                seqno_start=seq_start,
+            ))
+            continue
+
+        if 'ist received' in lower:
+            seq_match = re.search(r':(\d+)(?:\s|$)', line)
+            seq_end = _safe_int(seq_match.group(1)) if seq_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'received',
+                line,
+                seqno_end=seq_end,
+            ))
+            continue
+
+        if 'processing event queue' in lower:
+            progress_match = re.search(r'(\d+(?:\.\d+)?)%\s*\((\d+)/(\d+)\s+events\)', line)
+            progress = _safe_float(progress_match.group(1)) if progress_match else None
+            processed = _safe_int(progress_match.group(2)) if progress_match else None
+            total = _safe_int(progress_match.group(3)) if progress_match else None
+            events.append(_create_fallback_ist_event(
+                timestamp,
+                'processing',
+                line,
+                progress=progress,
+                events_processed=processed,
+                events_total=total,
+            ))
+            continue
+
+    return events
+
+
+def _create_fallback_ist_event(
+    timestamp: str,
+    status: str,
+    raw_line: str,
+    *,
+    seqno_start: Optional[int] = None,
+    seqno_end: Optional[int] = None,
+    progress: Optional[float] = None,
+    events_processed: Optional[int] = None,
+    events_total: Optional[int] = None,
+    transfer_count: Optional[int] = None,
+) -> Dict[str, Any]:
+    identifier_source = f"{timestamp}|{status}|{raw_line}"
+    identifier = hashlib.md5(identifier_source.encode('utf-8')).hexdigest()[:16]
+    return {
+        'timestamp': timestamp,
+        'ist_status': status,
+        'raw_line': raw_line,
+        'seqno_start': seqno_start,
+        'seqno_end': seqno_end,
+        'progress_percent': progress,
+        'events_processed': events_processed,
+        'events_total': events_total,
+        'transfer_count': transfer_count,
+        'entity_id': f'ist-fallback-{identifier}',
+    }
+
+
+def _safe_int(value: Optional[str]) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value: Optional[str]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _build_sessions_from_sst_entities(sst_entities: List[Dict[str, Any]]) -> List[SSTSession]:
