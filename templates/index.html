@@ -19,11 +19,13 @@
         <button type="submit">Load graf output</button>
     </form>
     <div id="frame-info"></div>
-    <div id="nav">
+    <!-- Main content ...existing code... -->
+    <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03);">
         <button id="prev-btn">Prev</button>
         <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
         / <span id="total-frames">0</span>
         <button id="next-btn">Next</button>
+        <input type="range" id="timeline-bar" min="1" value="1" style="flex:1; margin-left:1em; margin-right:1em;">
     </div>
     <div style="display: flex; flex-direction: row; gap: 2em; align-items: flex-start; width: 100%;">
         <div style="flex:1;"></div>
@@ -47,6 +49,8 @@
                     currentFrame = data.idx;
                     document.getElementById('frame-num').value = currentFrame + 1;
                     document.getElementById('total-frames').textContent = data.total;
+                    document.getElementById('timeline-bar').max = data.total;
+                    document.getElementById('timeline-bar').value = currentFrame + 1;
                     document.getElementById('frame-info').textContent = `Frame ${currentFrame + 1} of ${data.total}`;
 
                     let entities = data.entities || {};
@@ -56,9 +60,10 @@
                     for (let ent in entities) {
                         if (ent.startsWith('cluster:')) {
                             let props = entities[ent];
-                            let html = `<div class='entity' style='background:#f5f5f5; border:2px solid #2196f3;'><div class='entity-title'>Cluster</div>`;
+                            let html = `<div class='entity' style='background:#f5f5f5; border:2px solid #2196f3; font-size:13px; padding:0.5em 1em;'>`;
+                            html += `<div class='entity-title' style='font-size:15px; margin-bottom:0.3em;'>Cluster</div>`;
                             for (let p in props) {
-                                html += `<div>${p}: <b>${props[p]}</b></div>`;
+                                html += `<div style='margin-bottom:2px;'><span style='color:#555;'>${p}:</span> <b style='color:#222;'>${props[p]}</b></div>`;
                             }
                             html += '</div>';
                             clusterDiv.innerHTML += html;
@@ -72,9 +77,10 @@
                         nodesDiv.innerHTML = '<i>No nodes</i>';
                     } else {
                         for (let [ent, props] of nodeEntities) {
-                            let html = `<div class='entity'><div class='entity-title'>${ent.replace('node:', '')}</div>`;
+                            let html = `<div class='entity' style='background:#fafafa; border:1px solid #bbb; margin-bottom:0.7em; font-size:12px; padding:0.4em 0.8em;'>`;
+                            html += `<div class='entity-title' style='font-size:14px; margin-bottom:0.2em;'>${ent.replace('node:', '')}</div>`;
                             for (let p in props) {
-                                html += `<div>${p}: <b>${props[p]}</b></div>`;
+                                html += `<div style='margin-bottom:1px;'><span style='color:#666;'>${p}:</span> <b style='color:#222;'>${props[p]}</b></div>`;
                             }
                             html += '</div>';
                             nodesDiv.innerHTML += html;
@@ -90,34 +96,36 @@
             let graphDiv = document.getElementById('graph');
             graphDiv.innerHTML = '';
             if (nodeEntities.length === 0) return;
-            let width = 320;
-            let height = 60 + nodeEntities.length * 90;
-            let radius = 35;
+            let n = nodeEntities.length;
+            let width = 350;
+            let height = 350;
+            let centerX = width / 2;
+            let centerY = height / 2;
+            let circleRadius = 40;
+            let graphRadius = Math.max(90, Math.min(centerX, centerY) - circleRadius - 10);
             let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             svg.setAttribute('width', width);
             svg.setAttribute('height', height);
-            // Center nodes vertically
-            let centerX = width / 2;
-            let spacing = 90;
-            let startY = 50;
             nodeEntities.forEach(([ent, props], i) => {
-                let y = startY + i * spacing;
+                let angle = (2 * Math.PI * i) / n - Math.PI / 2;
+                let x = centerX + graphRadius * Math.cos(angle);
+                let y = centerY + graphRadius * Math.sin(angle);
                 let color = nodeStateColor(props.node_state);
                 // Circle
                 let circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', centerX);
+                circle.setAttribute('cx', x);
                 circle.setAttribute('cy', y);
-                circle.setAttribute('r', radius);
+                circle.setAttribute('r', circleRadius);
                 circle.setAttribute('fill', color);
                 circle.setAttribute('stroke', '#333');
                 circle.setAttribute('stroke-width', 2);
                 svg.appendChild(circle);
                 // Node name
                 let text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', centerX);
-                text.setAttribute('y', y + radius + 22);
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + circleRadius + 18);
                 text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '16px');
+                text.setAttribute('font-size', '13px');
                 text.textContent = props.node_name || ent.replace('node:', '');
                 svg.appendChild(text);
             });
@@ -126,14 +134,16 @@
 
         // Map node_state to color
         function nodeStateColor(state) {
-            if (!state) return '#ccc';
-            switch(state) {
-                case 'OPEN': return '#4caf50';
-                case 'SYNCED': return '#2196f3';
-                case 'CLOSED': return '#f44336';
-                case 'JOINING': return '#ff9800';
-                default: return '#bdbdbd';
-            }
+              if (!state) return '#e0e0e0'; // OPEN = light grey
+              state = state.toUpperCase();
+              if (state === 'OPEN') return '#e0e0e0'; // light grey
+              if (state === 'PRIMARY') return '#fff'; // white
+              if (state === 'JOINER') return '#ffe066'; // yellow
+              if (state === 'JOINED') return '#b2f2bb'; // light green
+              if (state === 'DONOR' || state === 'DESYNCED') return '#4dabf7'; // blue
+              if (state === 'SYNCED') return '#51cf66'; // green
+              if (state === 'CLOSED') return '#fa5252'; // red
+              return '#e0e0e0';
         }
 
         document.getElementById('prev-btn').onclick = () => {
@@ -143,6 +153,10 @@
             if (currentFrame < totalFrames - 1) updateFrame(currentFrame + 1);
         };
         document.getElementById('frame-num').onchange = (e) => {
+            let val = parseInt(e.target.value) - 1;
+            if (val >= 0 && val < totalFrames) updateFrame(val);
+        };
+        document.getElementById('timeline-bar').oninput = (e) => {
             let val = parseInt(e.target.value) - 1;
             if (val >= 0 && val < totalFrames) updateFrame(val);
         };

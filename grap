@@ -297,10 +297,25 @@ class GaleraLogParser:
         if self._view_block_active:
             self._complete_view_block(line_num)
         
-        # Scan for cluster UUID if not found
+        # Debug: print cluster_uuid before scan
+        print(f"[GRAP DEBUG] Before scan: cluster_uuid={self.cluster_uuid}", file=sys.stderr)
+        # Scan for cluster UUID if not found (only set once, never overwrite)
         if not self.cluster_uuid:
+            print(f"[GRAP DEBUG] Entering _scan_for_cluster_uuid (cluster_uuid is None)", file=sys.stderr)
             self._scan_for_cluster_uuid(lines)
-        
+        else:
+            print(f"[GRAP DEBUG] Skipping _scan_for_cluster_uuid (cluster_uuid already set: {self.cluster_uuid})", file=sys.stderr)
+        # If still not found, try to get from first ViewEntity
+        if not self.cluster_uuid:
+            print(f"[GRAP DEBUG] Entering ViewEntity fallback (cluster_uuid still None)", file=sys.stderr)
+            for entity in self.entities:
+                if isinstance(entity, ViewEntity) and entity.cluster_uuid:
+                    print(f"[GRAP DEBUG] Assigning cluster_uuid from ViewEntity: {entity.cluster_uuid}", file=sys.stderr)
+                    self.cluster_uuid = entity.cluster_uuid
+                    break
+        else:
+            print(f"[GRAP DEBUG] Skipping ViewEntity fallback (cluster_uuid now set: {self.cluster_uuid})", file=sys.stderr)
+
         # Assign cluster_ref to all entities
         if not self.cluster_ref and self.cluster_uuid:
             self.cluster_ref = f"cluster_{self.cluster_uuid[:8]}"
@@ -553,17 +568,22 @@ class GaleraLogParser:
         return False
     
     def _scan_for_cluster_uuid(self, lines: List[str]):
-        """Scan for cluster UUID in various formats"""
+        """Scan for cluster/group UUID in robust, group-only formats (never node UUIDs)"""
         patterns = [
-            r'group\s+UUID\s*=\s*([0-9a-f-]+)',
-            r'cluster\s+UUID:\s*([0-9a-f-]+)',
-            r'uuid:\s*([0-9a-f-]+)',
+            (r'group\s+UUID\s*=\s*([0-9a-f-]+)', 'group UUID = ...'),
+            (r'Group UUID\s*:\s*([0-9a-f-]+)', 'Group UUID   : ...'),
+            (r'cluster id ([0-9a-f-]+)', 'Recovered cluster id ...'),
+            (r'cluster\s+UUID:\s*([0-9a-f-]+)', 'cluster UUID: ...'),
+            (r'View:\s*id:\s*([0-9a-f-]+):', 'View: id: <uuid>:'),
+            (r'Group state:\s*([0-9a-f-]+):', 'Group state: <uuid>:'),
         ]
-        
         for line in lines:
-            for pattern in patterns:
+            for pattern, desc in patterns:
+                if self.cluster_uuid:
+                    return
                 match = re.search(pattern, line, re.IGNORECASE)
                 if match:
+                    print(f"[GRAP DEBUG] Assigned cluster_uuid={match.group(1)} from pattern '{desc}' in line: {line.strip()}", file=sys.stderr)
                     self.cluster_uuid = match.group(1)
                     return
     
@@ -888,11 +908,7 @@ class GaleraLogParser:
                     cluster_ref=cluster_ref
                 )
                 self.entities.append(node_view_entity)
-        # Update cluster UUID for future reference
-        if view['uuid'] and not self.cluster_uuid:
-            self.cluster_uuid = view['uuid']
-            if not self.cluster_ref:
-                self.cluster_ref = f"cluster_{view['uuid'][:8]}"
+        # Do NOT assign cluster_uuid from view block (enforce group-only extraction)
         # Reset view block state
         self._view_block_active = False
         self._current_view_data = None
