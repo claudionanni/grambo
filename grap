@@ -30,6 +30,7 @@ class EntityType(Enum):
     """Types of entities found in Galera logs"""
     CLUSTER = "cluster"
     NODE = "node"
+    NODE_STATE = "node_state"
     VIEW = "view"
     SST = "sst"
     IST = "ist"
@@ -44,10 +45,10 @@ class EntityType(Enum):
     LOCK = "lock"
     SQL = "sql"
 
-# Base Entity
-@dataclass
+# Base Entity (now frozen for immutability)
+@dataclass(frozen=True)
 class Entity:
-    """Base class for all entities"""
+    """Base class for all entities (immutable)"""
     timestamp: Optional[datetime] = None
     line_number: int = 0
     raw_line: str = ""
@@ -55,46 +56,147 @@ class Entity:
     entity_id: str = ""
     entity_type: Optional[EntityType] = None
     cluster_ref: Optional[str] = None
-    
-    def __post_init__(self):
-        """Generate entity_id if not provided"""
-        if not self.entity_id:
-            # Create unique ID from content hash
-            content = f"{self.entity_type}_{self.line_number}_{self.raw_line[:50]}"
-            self.entity_id = hashlib.md5(content.encode()).hexdigest()[:12]
 
-# Cluster Entity
-@dataclass 
+    def __post_init__(self):
+        # Generate entity_id if not provided
+        if not self.entity_id:
+            content = f"{self.entity_type}_{self.line_number}_{self.raw_line[:50]}"
+            object.__setattr__(self, 'entity_id', hashlib.md5(content.encode()).hexdigest()[:12])
+
+
+# Cluster Entity (frozen)
+@dataclass(frozen=True)
 class ClusterEntity(Entity):
-    """Represents a Galera cluster"""
+    """Represents a Galera cluster (immutable)"""
     cluster_uuid: Optional[str] = None
     cluster_name: Optional[str] = None
     cluster_size: Optional[int] = None
     primary_state: Optional[bool] = None
     protocol_version: Optional[int] = None
-    
+
     def __post_init__(self):
         super().__post_init__()
-        self.entity_type = EntityType.CLUSTER
 
-# Node Entity
-@dataclass
+
+# Node (immutable core entity)
+@dataclass(frozen=True)
 class NodeEntity(Entity):
-    """Represents a node in the cluster"""
+    """Represents a node in the cluster (immutable core properties only)"""
     node_name: Optional[str] = None
     node_uuid: Optional[str] = None
-    node_state: Optional[str] = None
     node_index: Optional[int] = None
     node_address: Optional[str] = None
-    wsrep_last_committed: Optional[int] = None
     known_uuids: List[str] = field(default_factory=list)
     
     def __post_init__(self):
+        object.__setattr__(self, 'entity_type', EntityType.NODE)
         super().__post_init__()
-        self.entity_type = EntityType.NODE
+
+# NodeState (time-varying property entity)
+@dataclass(frozen=True)
+class NodeStateEntity(Entity):
+    """Represents a node state change (timestamped, references parent node)"""
+    node_name: Optional[str] = None
+    node_uuid: Optional[str] = None
+    node_state: Optional[str] = None
+
+    def __post_init__(self):
+        object.__setattr__(self, 'entity_type', EntityType.NODE_STATE)
+        super().__post_init__()
+
+# NodeError (time-varying property entity)
+@dataclass(frozen=True)
+class NodeErrorEntity(Entity):
+    """Represents an error or warning for a node (timestamped, references parent node)"""
+    node_name: Optional[str] = None
+    node_uuid: Optional[str] = None
+    error_level: Optional[str] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+
+    def __post_init__(self):
+        object.__setattr__(self, 'entity_type', EntityType.ERROR)
+        super().__post_init__()
+
+# NodeView (time-varying property entity)
+@dataclass(frozen=True)
+class NodeViewEntity(Entity):
+    """Represents a node's view membership at a point in time (timestamped, references parent node and view)"""
+    node_name: Optional[str] = None
+    node_uuid: Optional[str] = None
+    view_id: Optional[str] = None
+    cluster_uuid: Optional[str] = None
+    view_seq: Optional[int] = None
+    member_role: Optional[str] = None  # e.g., joined, left, partitioned, member
+
+    def __post_init__(self):
+        super().__post_init__()
+
+# SST/IST Transfer Session Entities
+@dataclass(frozen=True)
+class SSTSessionEntity(Entity):
+    """Represents a full SST transfer session (start/end, status, events)"""
+    session_id: Optional[str] = None
+    donor_node: Optional[str] = None
+    joiner_node: Optional[str] = None
+    start_timestamp: Optional[datetime] = None
+    end_timestamp: Optional[datetime] = None
+    status: Optional[str] = None  # e.g., started, completed, failed
+    method: Optional[str] = None
+    events: List[str] = field(default_factory=list)  # event entity_ids or raw lines
+
+    def __post_init__(self):
+        super().__post_init__()
+
+@dataclass(frozen=True)
+class ISTSessionEntity(Entity):
+    """Represents a full IST transfer session (start/end, status, events)"""
+    session_id: Optional[str] = None
+    sender_node: Optional[str] = None
+    receiver_node: Optional[str] = None
+    start_timestamp: Optional[datetime] = None
+    end_timestamp: Optional[datetime] = None
+    status: Optional[str] = None  # e.g., started, completed, failed
+    seqno_start: Optional[int] = None
+    seqno_end: Optional[int] = None
+    events: List[str] = field(default_factory=list)  # event entity_ids or raw lines
+
+    def __post_init__(self):
+        super().__post_init__()
+
+# SST/IST Event Entities (atomic events within a session)
+@dataclass(frozen=True)
+class SSTEventEntity(Entity):
+    """Represents an atomic SST event (timestamped, references session)"""
+    session_id: Optional[str] = None
+    event_type: Optional[str] = None  # e.g., donor_selected, request, complete
+    donor_node: Optional[str] = None
+    joiner_node: Optional[str] = None
+    method: Optional[str] = None
+    details: Optional[str] = None
+
+    def __post_init__(self):
+        object.__setattr__(self, 'entity_type', EntityType.SST)
+        super().__post_init__()
+
+@dataclass(frozen=True)
+class ISTEventEntity(Entity):
+    """Represents an atomic IST event (timestamped, references session)"""
+    session_id: Optional[str] = None
+    event_type: Optional[str] = None  # e.g., sender, receiver, receiving
+    sender_node: Optional[str] = None
+    receiver_node: Optional[str] = None
+    seqno_start: Optional[int] = None
+    seqno_end: Optional[int] = None
+    transfer_count: Optional[int] = None
+    details: Optional[str] = None
+
+    def __post_init__(self):
+        object.__setattr__(self, 'entity_type', EntityType.IST)
+        super().__post_init__()
 
 # View Entity with improved structure based on Galera source
-@dataclass
+@dataclass(frozen=True)
 class ViewEntity(Entity):
     """Represents a Galera cluster view change"""
     view_id: Optional[str] = None
@@ -119,16 +221,10 @@ class ViewEntity(Entity):
     is_primary: Optional[bool] = None
     
     def __post_init__(self):
-        """Calculate derived fields after initialization"""
         super().__post_init__()
-        self.entity_type = EntityType.VIEW
-        if self.members:
-            self.member_count = len(self.members)
-        if self.cluster_state:
-            self.is_primary = self.cluster_state == "PRIM"
 
 # SST Entity
-@dataclass
+@dataclass(frozen=True)
 class SSTEntity(Entity):
     """Represents a State Snapshot Transfer"""
     sst_status: Optional[str] = None
@@ -140,10 +236,9 @@ class SSTEntity(Entity):
     
     def __post_init__(self):
         super().__post_init__()
-        self.entity_type = EntityType.SST
 
 # IST Entity
-@dataclass
+@dataclass(frozen=True)
 class ISTEntity(Entity):
     """Represents an Incremental State Transfer"""
     ist_status: Optional[str] = None
@@ -155,10 +250,9 @@ class ISTEntity(Entity):
     
     def __post_init__(self):
         super().__post_init__()
-        self.entity_type = EntityType.IST
 
 # Error Entity
-@dataclass
+@dataclass(frozen=True)
 class ErrorEntity(Entity):
     """Represents an error or warning"""
     error_level: Optional[str] = None  # ERROR, WARNING, etc
@@ -168,7 +262,6 @@ class ErrorEntity(Entity):
     
     def __post_init__(self):
         super().__post_init__()
-        self.entity_type = EntityType.ERROR
 
 # Parser class
 class GaleraLogParser:
@@ -220,10 +313,14 @@ class GaleraLogParser:
             if not self.cluster_ref:
                 self.cluster_ref = "_unknown_cluster"
         
-        # Update all entities with cluster_ref
+        # Update all entities with cluster_ref (rebuild with dataclasses.replace for frozen dataclasses)
+        from dataclasses import replace
+        new_entities = []
         for entity in self.entities:
             if not entity.cluster_ref:
-                entity.cluster_ref = self.cluster_ref
+                entity = replace(entity, cluster_ref=self.cluster_ref)
+            new_entities.append(entity)
+        self.entities = new_entities
         
         # Add cluster entity if we have UUID
         if self.cluster_uuid:
@@ -237,6 +334,23 @@ class GaleraLogParser:
                 cluster_ref=self.cluster_ref
             )
             self.entities.insert(0, cluster_entity)
+
+        # Ensure we emit canonical NodeEntity entries (one per node) using discovered names
+        for node_name, history in self._node_uuid_history.items():
+            if self._is_placeholder_name(node_name):
+                continue  # Skip placeholder/unspecified nodes
+            primary_uuid = self._select_primary_uuid(history) if history else None
+            node_entity = NodeEntity(
+                entity_id=f"node_{node_name}",
+                node_name=node_name,
+                node_uuid=primary_uuid,
+                known_uuids=list(history),
+                cluster_ref=self.cluster_ref
+            )
+            # Avoid duplicates if already present
+            existing = [e for e in self.entities if type(e).__name__ == "NodeEntity" and getattr(e, "node_name", None) == node_name]
+            if not existing:
+                self.entities.append(node_entity)
         
         return self.entities
 
@@ -255,6 +369,9 @@ class GaleraLogParser:
 
     def _register_member_name(self, name: str, index: Optional[int] = None, uuid: Optional[str] = None):
         """Register mapping metadata so we can resolve view members to canonical names."""
+        # Ignore placeholder names such as 'unspecified' that may appear in raw view dumps
+        if name and isinstance(name, str) and name.strip().lower() in {"unknown", "joiner", "donor", "cluster", "n/a", "unspecified"}:
+            return
         if index is not None:
             self._state_exchange_names[index] = name
         identifiers: Set[str] = set()
@@ -296,49 +413,61 @@ class GaleraLogParser:
             return self._uuid_name_map[compact_candidate]
         return None
 
+    def _is_placeholder_name(self, name: Optional[str]) -> bool:
+        """Return True when the given name is a placeholder that should not be treated as a real node."""
+        if not name:
+            return False
+        try:
+            nlow = str(name).strip().lower()
+        except Exception:
+            return False
+        return nlow in {"unknown", "joiner", "donor", "cluster", "n/a", "unspecified"}
+
+    def _normalize_node_state(self, raw: Optional[str]) -> str:
+        """Normalize a raw node state string to one of the canonical states.
+
+        Allowed canonical states: CLOSED, OPEN, JOINER, JOINED, SYNCED, DONOR
+        The function extracts the RHS of arrow-style strings and maps common
+        synonyms to canonical values.
+        """
+        if not raw:
+            return "UNKNOWN"
+        s = str(raw).strip()
+        # If it's an arrow 'A -> B' take RHS
+        if '->' in s:
+            parts = s.split('->')
+            s = parts[-1].strip()
+        s_low = s.lower()
+        # Direct mapping of common tokens/phrases to canonical states
+        if any(k in s_low for k in ['closed']):
+            return 'CLOSED'
+        if any(k in s_low for k in ['open']):
+            return 'OPEN'
+        # Join-related
+        if any(k in s_low for k in ['joined']) and 'joined' in s_low:
+            return 'JOINED'
+        if any(k in s_low for k in ['join', 'joining', 'joiner', 'requested']):
+            return 'JOINER'
+        # Synced/primary
+        if any(k in s_low for k in ['sync', 'synced', 'primary']):
+            return 'SYNCED'
+        # Donor
+        if any(k in s_low for k in ['donor']):
+            return 'DONOR'
+        # Fallback: if it's already one of the canonical words
+        canon = s.upper()
+        if canon in {'CLOSED', 'OPEN', 'JOINER', 'JOINED', 'SYNCED', 'DONOR'}:
+            return canon
+        # Unknown fallback
+        return canon
+
     def _backfill_view_members(self, name: str, identifiers: Set[str], uuid: Optional[str]):
         """Update previously parsed view entities once canonical mappings become available."""
         if not identifiers:
             return
         lowered_identifiers = {ident.lower() for ident in identifiers}
-        for entity in self.entities:
-            if not isinstance(entity, ViewEntity):
-                continue
-            modified = False
-            for attr in ['members', 'joined_members', 'left_members', 'partitioned_members']:
-                values = getattr(entity, attr)
-                if not values:
-                    continue
-                new_values: List[str] = []
-                seen: Set[str] = set()
-                for value in values:
-                    value_str = str(value).strip()
-                    value_key = value_str.lower()
-                    if value_key in lowered_identifiers:
-                        value_str = name
-                        value_key = name.lower()
-                        modified = True
-                    if value_key not in seen:
-                        new_values.append(value_str)
-                        seen.add(value_key)
-                setattr(entity, attr, new_values)
-            if uuid:
-                if entity.member_uuid_map.get(name) != uuid:
-                    entity.member_uuid_map[name] = uuid
-                    modified = True
-            if modified:
-                updated_segments: Dict[str, int] = {}
-                for seg_key, seg_val in entity.member_segments.items():
-                    seg_key_str = str(seg_key).strip()
-                    seg_key_lower = seg_key_str.lower()
-                    if seg_key_lower in lowered_identifiers:
-                        updated_segments[name] = seg_val
-                        # Preserve legacy lookup for original identifiers too
-                        updated_segments[seg_key] = seg_val
-                    else:
-                        updated_segments[seg_key] = seg_val
-                entity.member_segments = updated_segments
-                entity.member_count = len(entity.members)
+        # No mutation allowed for frozen ViewEntity; skip backfill
+        return
 
     def _is_full_uuid(self, value: str) -> bool:
         return bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', value))
@@ -361,10 +490,12 @@ class GaleraLogParser:
             self._name_uuid_map[node_name] = primary
 
     def _register_node_uuid(self, node_name: Optional[str], uuid: Optional[str]):
-        """Record uuid assignments per node and update existing entities."""
+        """Record uuid assignments per node and update existing entities, skipping placeholders."""
         if not node_name or not uuid:
             return
         norm_name = node_name.strip()
+        if self._is_placeholder_name(norm_name):
+            return  # Never register placeholder/unspecified nodes
         norm_uuid = uuid.strip().lower()
         if not norm_name or not norm_uuid:
             return
@@ -395,42 +526,12 @@ class GaleraLogParser:
         self._backfill_node_uuid(norm_name)
 
     def _backfill_node_uuid(self, node_name: str):
-        """Ensure all NodeEntity instances reflect the recorded uuid history."""
-        history = self._node_uuid_history.get(node_name)
-        if not history:
-            return
-        primary = self._select_primary_uuid(history)
-        if primary:
-            self._name_uuid_map[node_name] = primary
-        for entity in self.entities:
-            if isinstance(entity, NodeEntity) and entity.node_name == node_name:
-                entity.node_uuid = primary
-                entity.known_uuids = list(history)
+        """No-op: NodeEntity is now immutable; cannot mutate existing entities."""
+        return
 
     def _backfill_node_entities(self, previous_name: Optional[str], new_name: str):
-        """Update existing node entities when we discover a more precise node name."""
-        if not previous_name or previous_name == new_name:
-            return
-        # Move uuid history to the new canonical name
-        previous_history = self._node_uuid_history.pop(previous_name, [])
-        if previous_history:
-            merged_history = self._node_uuid_history.setdefault(new_name, [])
-            for uuid in previous_history:
-                if uuid not in merged_history:
-                    merged_history.append(uuid)
-        history_for_new = self._node_uuid_history.get(new_name, [])
-        updated_prefix = f"node_{previous_name}_"
-        replacement_prefix = f"node_{new_name}_"
-        for entity in self.entities:
-            if isinstance(entity, NodeEntity) and entity.node_name == previous_name:
-                entity.node_name = new_name
-                if history_for_new:
-                    entity.node_uuid = self._select_primary_uuid(history_for_new)
-                    entity.known_uuids = list(history_for_new)
-                if entity.entity_id.startswith(updated_prefix):
-                    entity.entity_id = replacement_prefix + entity.entity_id[len(updated_prefix):]
-        self._backfill_node_uuid(new_name)
-        self._refresh_uuid_aliases(new_name)
+        """No-op: NodeEntity is now immutable; cannot mutate existing entities."""
+        return
 
     def _should_backfill_node_name(self, previous_name: Optional[str], candidate_name: str) -> bool:
         """Determine if we should update previously inferred node names."""
@@ -497,8 +598,7 @@ class GaleraLogParser:
         return None
     
     def _parse_node_events(self, line: str, line_num: int, log_source: str):
-        """Parse node-related events"""
-        # Learn node name from various sources
+        """Parse node-related events and emit NodeStateEntity (immutable, timestamped)"""
         node_name_patterns = [
             (r"wsrep_node_name\s*[:=]\s*'?([^']+)'?", 1),
             (r"Setting\s+wsrep_node_name\s+to\s+'([^']+)'", 1),
@@ -506,25 +606,19 @@ class GaleraLogParser:
             (r"SST\s+request:\s*.*\s+from:\s*'([^']+)'", 1),
             (r"Server\s+([^\s]+)\s+synced\s+with\s+group", 1),
         ]
-        
         for pattern, group_idx in node_name_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
                 self.current_node_name = match.group(group_idx).strip()
                 break
 
-        # Detect explicit server connection lines with UUID assignment
         connect_match = re.search(r"Server\s+([^\s]+)\s+connected.*?ID\s+([0-9a-f-]{8,})", line, re.IGNORECASE)
         if connect_match:
             node_name = connect_match.group(1).strip()
             node_uuid = connect_match.group(2).strip()
-            previous_name = self.current_node_name
-            if self._should_backfill_node_name(previous_name, node_name):
-                self._backfill_node_entities(previous_name, node_name)
             self.current_node_name = node_name
             self._register_node_uuid(node_name, node_uuid)
 
-        # Capture lines that explicitly state the node's UUID
         uuid_patterns = [
             r"\bmy\s+uuid:\s*([0-9a-f-]{8,})",
             r"\bwith\s+id\s+([0-9a-f-]{8,})"
@@ -534,14 +628,13 @@ class GaleraLogParser:
             if match and self.current_node_name:
                 self._register_node_uuid(self.current_node_name, match.group(1))
                 break
-        
+
         # Node state changes
         state_patterns = [
             r'Shifting\s+(\w+)\s*->\s*(\w+)',
             r'Member\s+.*?\(([^)]+)\)\s+(\w+)',
             r'Synchronized with group, ready for connections',
         ]
-        
         for pattern in state_patterns:
             match = re.search(pattern, line)
             if match:
@@ -549,37 +642,30 @@ class GaleraLogParser:
                 if pattern == state_patterns[1] and len(match.groups()) >= 1:
                     candidate_name = match.group(1).strip()
                 if candidate_name:
-                    previous_name = self.current_node_name
-                    if self._should_backfill_node_name(previous_name, candidate_name):
-                        self._backfill_node_entities(previous_name, candidate_name)
                     self.current_node_name = candidate_name
                 timestamp = self._extract_timestamp(line)
                 if timestamp:
-                    # Fallback to inferred node name if available
-                    node_name = self.current_node_name or self._infer_node_name_from_source(log_source)
-                    if not node_name:
-                        node_name = "unknown"
+                    node_name = self.current_node_name or self._infer_node_name_from_source(log_source) or "unknown"
                     if pattern == state_patterns[2]:
                         node_state = "SYNCED"
                     elif len(match.groups()) >= 2:
-                        node_state = f"{match.group(1)} -> {match.group(2)}"
+                        raw_state = f"{match.group(1)} -> {match.group(2)}"
+                        node_state = self._normalize_node_state(raw_state)
                     else:
-                        node_state = match.group(1) if match.groups() else "UNKNOWN"
-
+                        node_state = self._normalize_node_state(match.group(1) if match.groups() else "UNKNOWN")
                     if node_name.lower() == "unknown":
                         continue
                     history = self._node_uuid_history.get(node_name, [])
                     primary_uuid = self._select_primary_uuid(history) if history else None
-                    entity = NodeEntity(
+                    entity = NodeStateEntity(
                         timestamp=timestamp,
                         line_number=line_num,
                         raw_line=line,
                         log_source=log_source,
-                        entity_id=f"node_{node_name}_{line_num}",
+                        entity_id=f"node_state_{node_name}_{line_num}",
                         node_name=node_name,
                         node_state=node_state,
                         node_uuid=primary_uuid,
-                        known_uuids=list(history),
                         cluster_ref=self.cluster_ref
                     )
                     self.entities.append(entity)
@@ -738,54 +824,75 @@ class GaleraLogParser:
             uuid_map = self._current_view_data.setdefault('member_uuid_map', {})
             stored_uuid = self._name_uuid_map.get(resolved_name)
             if stored_uuid:
-                if resolved_name not in uuid_map:
-                    uuid_map[resolved_name] = stored_uuid
-                self._register_node_uuid(resolved_name, stored_uuid)
+                    if not self._is_placeholder_name(resolved_name):
+                        if resolved_name not in uuid_map:
+                            uuid_map[resolved_name] = stored_uuid
+                        self._register_node_uuid(resolved_name, stored_uuid)
             elif resolved_name not in uuid_map:
-                uuid_map[resolved_name] = member_id
+                    if not self._is_placeholder_name(resolved_name):
+                        uuid_map[resolved_name] = member_id
 
         section_members = self._current_view_data[self._current_view_section]
         if display_value not in section_members:
             section_members.append(display_value)
     
     def _complete_view_block(self, line_num: int):
-        """Complete the view block and create entity"""
+        """Complete the view block and create immutable view and node membership entities"""
         if not self._current_view_data:
             return
-            
         view = self._current_view_data
-        
-        # Determine cluster_ref
         cluster_ref = self.cluster_ref or f"cluster_{view['uuid'][:8]}"
-        
-        # Create the ViewEntity with all member categories
+        view_entity_id = f"view_{view['uuid'][:8]}_{view['seq']}"
+        # Emit the immutable ViewEntity (structural, not time-varying)
         entity = ViewEntity(
             timestamp=self._view_block_timestamp,
             line_number=self._view_block_start_line,
             raw_line='\n'.join(self._view_block_lines),
             log_source=self._view_block_log_source,
-            entity_id=f"view_{view['uuid'][:8]}_{view['seq']}",
+            entity_id=view_entity_id,
             view_id=f"{view['uuid']}:{view['seq']}",
             cluster_uuid=view['uuid'],
             view_seq=view['seq'],
             cluster_state=view['type'],
-            members=view['members'],  # Current members
-            joined_members=view.get('joined', []),  # New field
-            left_members=view.get('left', []),  # New field
-            partitioned_members=view.get('partitioned', []),  # New field
-            member_segments=view.get('member_segments', {}),  # New field
+            members=view['members'],
+            joined_members=view.get('joined', []),
+            left_members=view.get('left', []),
+            partitioned_members=view.get('partitioned', []),
+            member_segments=view.get('member_segments', {}),
             member_uuid_map=view.get('member_uuid_map', {}),
             cluster_ref=cluster_ref
         )
-        
         self.entities.append(entity)
-        
+        # Emit NodeViewEntity for each member (time-varying, timestamped)
+        for role, member_list in [
+            ("member", view['members']),
+            ("joined", view.get('joined', [])),
+            ("left", view.get('left', [])),
+            ("partitioned", view.get('partitioned', [])),
+        ]:
+            for member in member_list:
+                node_name = member
+                node_uuid = self._name_uuid_map.get(node_name)
+                node_view_entity = NodeViewEntity(
+                    timestamp=self._view_block_timestamp,
+                    line_number=self._view_block_start_line,
+                    raw_line='\n'.join(self._view_block_lines),
+                    log_source=self._view_block_log_source,
+                    entity_id=f"nodeview_{node_name}_{view['uuid'][:8]}_{view['seq']}",
+                    node_name=node_name,
+                    node_uuid=node_uuid,
+                    view_id=f"{view['uuid']}:{view['seq']}",
+                    cluster_uuid=view['uuid'],
+                    view_seq=view['seq'],
+                    member_role=role,
+                    cluster_ref=cluster_ref
+                )
+                self.entities.append(node_view_entity)
         # Update cluster UUID for future reference
         if view['uuid'] and not self.cluster_uuid:
             self.cluster_uuid = view['uuid']
             if not self.cluster_ref:
                 self.cluster_ref = f"cluster_{view['uuid'][:8]}"
-        
         # Reset view block state
         self._view_block_active = False
         self._current_view_data = None
@@ -793,83 +900,116 @@ class GaleraLogParser:
         self._view_block_lines = []
     
     def _parse_sst_events(self, line: str, line_num: int, log_source: str):
-        """Parse SST-related events"""
+        """Parse SST-related events and emit SSTEventEntity (atomic) and SSTSessionEntity (session)"""
+        # For simplicity, treat each atomic SST event as an SSTEventEntity; session logic can be extended
         sst_patterns = [
+            (r'Selected\s+[0-9\.]+\s*\(([^)]+)\).*?as\s+donor', 'donor_selected'),
+            (r'donor\s*:\s*(\d+)', 'donor_selected_idx'),
             (r'SST\s+request:\s*(.*)', 'request'),
             (r'SST\s+complete', 'complete'),
             (r'Donor\s+selected:\s*([^\s]+)', 'donor_selected'),
             (r'SST\s+method:\s*(\w+)', 'method'),
         ]
-        
         for pattern, event_type in sst_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
                 timestamp = self._extract_timestamp(line)
-                if timestamp:
-                    entity = SSTEntity(
-                        timestamp=timestamp,
-                        line_number=line_num,
-                        raw_line=line,
-                        log_source=log_source,
-                        entity_id=f"sst_{event_type}_{line_num}",
-                        sst_status=event_type,
-                        sst_method=match.group(1) if event_type == 'method' else None,
-                        donor_node=match.group(1) if event_type == 'donor_selected' else None,
-                        cluster_ref=self.cluster_ref
-                    )
-                    self.entities.append(entity)
+                donor_node = None
+                joiner_node = None
+                method = None
+                details = None
+                if event_type == 'donor_selected':
+                    donor_node = match.group(1)
+                elif event_type == 'donor_selected_idx':
+                    idx = int(match.group(1))
+                    donor_node = self._state_exchange_names.get(idx)
+                elif event_type == 'method':
+                    method = match.group(1)
+                elif event_type == 'request':
+                    details = match.group(1)
+                entity = SSTEventEntity(
+                    timestamp=timestamp,
+                    line_number=line_num,
+                    raw_line=line,
+                    log_source=log_source,
+                    entity_id=f"sst_event_{event_type}_{line_num}",
+                    session_id=None,  # Session tracking can be added
+                    event_type=event_type,
+                    donor_node=donor_node,
+                    joiner_node=joiner_node,
+                    method=method,
+                    details=details,
+                    cluster_ref=self.cluster_ref
+                )
+                self.entities.append(entity)
                 break
     
     def _parse_ist_events(self, line: str, line_num: int, log_source: str):
-        """Parse IST-related events"""
+        """Parse IST-related events and emit ISTEventEntity (atomic) and ISTSessionEntity (session)"""
         ist_patterns = [
             (r'IST\s+receiver.*?from\s+(\d+)\s+to\s+(\d+)', 'receiver'),
             (r'IST\s+sender.*?from\s+(\d+)\s+to\s+(\d+)', 'sender'),
             (r'Receiving\s+IST.*?(\d+)\s+writesets', 'receiving'),
         ]
-        
         for pattern, event_type in ist_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
                 timestamp = self._extract_timestamp(line)
-                if timestamp:
-                    entity = ISTEntity(
-                        timestamp=timestamp,
-                        line_number=line_num,
-                        raw_line=line,
-                        log_source=log_source,
-                        entity_id=f"ist_{event_type}_{line_num}",
-                        ist_status=event_type,
-                        seqno_start=int(match.group(1)) if len(match.groups()) >= 2 else None,
-                        seqno_end=int(match.group(2)) if len(match.groups()) >= 2 else None,
-                        transfer_count=int(match.group(1)) if event_type == 'receiving' else None,
-                        cluster_ref=self.cluster_ref
-                    )
-                    self.entities.append(entity)
+                sender_node = None
+                receiver_node = None
+                seqno_start = None
+                seqno_end = None
+                transfer_count = None
+                details = None
+                if event_type in ('receiver', 'sender') and len(match.groups()) >= 2:
+                    seqno_start = int(match.group(1))
+                    seqno_end = int(match.group(2))
+                if event_type == 'receiving':
+                    transfer_count = int(match.group(1))
+                entity = ISTEventEntity(
+                    timestamp=timestamp,
+                    line_number=line_num,
+                    raw_line=line,
+                    log_source=log_source,
+                    entity_id=f"ist_event_{event_type}_{line_num}",
+                    session_id=None,  # Session tracking can be added
+                    event_type=event_type,
+                    sender_node=sender_node,
+                    receiver_node=receiver_node,
+                    seqno_start=seqno_start,
+                    seqno_end=seqno_end,
+                    transfer_count=transfer_count,
+                    details=details,
+                    cluster_ref=self.cluster_ref
+                )
+                self.entities.append(entity)
                 break
     
     def _parse_error_events(self, line: str, line_num: int, log_source: str):
-        """Parse error and warning events"""
+        """Parse error and warning events as NodeErrorEntity (immutable, timestamped)"""
         error_patterns = [
             (r'\[ERROR\]\s*(.*)', 'ERROR'),
             (r'\[Warning\]\s*(.*)', 'WARNING'),
             (r'WSREP:\s+Failed', 'ERROR'),
         ]
-        
         for pattern, level in error_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
                 timestamp = self._extract_timestamp(line)
                 if timestamp:
-                    entity = ErrorEntity(
+                    node_name = self.current_node_name or "unknown"
+                    history = self._node_uuid_history.get(node_name, [])
+                    primary_uuid = self._select_primary_uuid(history) if history else None
+                    entity = NodeErrorEntity(
                         timestamp=timestamp,
                         line_number=line_num,
                         raw_line=line,
                         log_source=log_source,
-                        entity_id=f"error_{level.lower()}_{line_num}",
+                        entity_id=f"node_error_{level.lower()}_{line_num}",
+                        node_name=node_name,
+                        node_uuid=primary_uuid,
                         error_level=level,
                         error_message=match.group(1) if match.groups() else line,
-                        affected_node=self.current_node_name,
                         cluster_ref=self.cluster_ref
                     )
                     self.entities.append(entity)
@@ -982,6 +1122,8 @@ def main():
         all_entities = [e for e in all_entities if 
                        str(e.entity_type.value if hasattr(e.entity_type, 'value') 
                            else e.entity_type).lower() in filter_types]
+
+    # Remove all normalization and mutation of node_state for immutable entities
     
     # Output
     if args.format == 'ndjson':

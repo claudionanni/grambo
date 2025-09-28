@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""
+grav: Galera cluster state timeline visualizer
+
+Consumes graf output (frames of state machine) and visualizes a timeline of frames, showing entities and their properties at each frame.
+
+Usage:
+    ./grav <graf_output.json|ndjson>
+    python3 grav <graf_output.json|ndjson>
+
+Features:
+- Reads graf output (JSON/NDJSON)
+- Builds a timeline of frames
+- For each frame, shows entities and their properties
+- CLI output (initial version), extensible to GUI/HTML
+
+"""
+import sys
+import json
+from typing import List, Dict, Any
+
+def load_frames(filename: str) -> List[Dict[str, Any]]:
+    frames = []
+    with open(filename, 'r') as f:
+        first_char = f.read(1)
+        f.seek(0)
+        if first_char == '[':
+            # JSON array
+            try:
+                frames = json.load(f)
+            except Exception as e:
+                print(f"Error parsing JSON array: {e}")
+                sys.exit(1)
+        else:
+            # NDJSON (one JSON object per line)
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        frames.append(json.loads(line))
+                    except Exception as e:
+                        print(f"Error parsing NDJSON line: {e}\nLine: {line}")
+                        sys.exit(1)
+    return frames
+
+def print_timeline(frames: List[Dict[str, Any]]):
+    print(f"Timeline: {len(frames)} frames\n")
+    # Track latest node_state for each node
+    latest_node_states = {}
+    for idx, frame in enumerate(frames):
+        print(f"Frame {idx+1}:")
+        all_entities = {}
+        # Update node states if present in this frame
+        nodes = frame.get('nodes', {})
+        for node_name, node_props in nodes.items():
+            if 'node_state' in node_props:
+                latest_node_states[node_name] = node_props['node_state']
+        # Propagate node_state to all nodes in this frame
+        for node_name, node_props in nodes.items():
+            if 'node_state' not in node_props and node_name in latest_node_states:
+                node_props = dict(node_props)  # copy to avoid mutating original
+                node_props['node_state'] = latest_node_states[node_name]
+                nodes[node_name] = node_props
+        # Collect all entities from 'entities', 'nodes', and 'clusters'
+        for key in ('entities', 'nodes', 'clusters'):
+            ents = frame.get(key, {})
+            if ents:
+                for ent_name, ent_props in ents.items():
+                    all_entities[f"{key[:-1]}:{ent_name}"] = ent_props
+        if not all_entities:
+            print("  (No entities)")
+        for ent_name, ent_props in all_entities.items():
+            print(f"  Entity: {ent_name}")
+            for prop, val in ent_props.items():
+                print(f"    {prop}: {val}")
+        print()
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: grav <graf_output.json|ndjson>")
+        sys.exit(1)
+    filename = sys.argv[1]
+    frames = load_frames(filename)
+    print_timeline(frames)
+
+if __name__ == "__main__":
+    main()

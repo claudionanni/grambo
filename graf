@@ -135,6 +135,52 @@ def is_cluster_scope_error(message: str) -> bool:
     ])
 
 
+def _is_placeholder_name(n: Optional[str]) -> bool:
+    if not n:
+        return True
+    nlow = str(n).strip().lower()
+    return nlow in {"unknown", "joiner", "donor", "cluster", "n/a", "unspecified"}
+
+
+def _normalize_node_state(raw: Optional[str]) -> str:
+    """Normalize various raw node_state strings into the canonical set.
+
+    Canonical states: CLOSED, OPEN, JOINER, JOINED, SYNCED, DONOR, UNKNOWN
+    Accepts inputs like "JOINED -> SYNCED", "NODE_11407 -> synced", "requested",
+    and returns the canonical uppercase state.
+    """
+    if not raw:
+        return "UNKNOWN"
+    s = str(raw).strip()
+    # If arrow transition present, take RHS
+    if '->' in s:
+        parts = s.split('->')
+        s = parts[-1].strip()
+    s_up = s.upper()
+    # Common normalizations
+    if 'SYNCED' in s_up:
+        return 'SYNCED'
+    if 'JOINER' in s_up:
+        return 'JOINER'
+    if 'JOINED' in s_up:
+        return 'JOINED'
+    if 'DONOR' in s_up:
+        return 'DONOR'
+    if 'PRIMARY' in s_up:
+        # primary is not a separate member lifecycle state we want to display;
+        # keep as OPEN (or SYNCED) — prefer OPEN to avoid confusion
+        return 'OPEN'
+    if 'OPEN' in s_up:
+        return 'OPEN'
+    if 'CLOSED' in s_up:
+        return 'CLOSED'
+    # other words that indicate requested/request -> JOINER
+    if 'REQUEST' in s_up or 'REQUESTED' in s_up:
+        return 'JOINER'
+    # fallback to UNKNOWN
+    return 'UNKNOWN'
+
+
 # -----------------------------
 # Utilities
 # -----------------------------
@@ -172,6 +218,9 @@ def reduce_view(world: WorldState, e: Dict[str, Any]):
     c.quorum = True if c.view_state == "PRIM" else (False if c.view_state == "NON_PRIM" else None)
     # Members (when present)
     for name in e.get("members") or []:
+        # Skip placeholder members like 'unspecified'
+        if _is_placeholder_name(name):
+            continue
         m = c.members.setdefault(name, NodeMember(name=name))
         if not m.state:
             m.state = "unknown"
@@ -189,7 +238,7 @@ def reduce_node(world: WorldState, e: Dict[str, Any]):
     if e.get("node_address"):
         m.address = e["node_address"]
     if e.get("node_state"):
-        m.state = e["node_state"]
+        m.state = _normalize_node_state(e["node_state"])
 
 
 def reduce_sst(world: WorldState, e: Dict[str, Any]):
@@ -200,21 +249,30 @@ def reduce_sst(world: WorldState, e: Dict[str, Any]):
     sid = e.get("entity_id") or f"sst_{len(c.sst_sessions)+1}"
     sess = c.sst_sessions.setdefault(sid, SstSession(session_id=sid))
     sess.method = e.get("sst_method") or sess.method
-    if e.get("donor_node"):
-        sess.donor = e["donor_node"]
-        m = c.members.setdefault(sess.donor, NodeMember(name=sess.donor))
-        m.role = "donor"
-    if e.get("joiner_node"):
-        sess.joiner = e["joiner_node"]
-        m = c.members.setdefault(sess.joiner, NodeMember(name=sess.joiner))
-        m.role = "joiner"
+    donor_node = e.get("donor_node")
+    joiner_node = e.get("joiner_node")
+    # Ignore placeholder names (unknown/unspecified) to avoid creating fake members
+    if donor_node and not _is_placeholder_name(donor_node):
+        sess.donor = donor_node
+        # ensure member exists, but do NOT persist role here
+        _ = c.members.setdefault(sess.donor, NodeMember(name=sess.donor))
+    else:
+        sess.donor = ""
+
+    if joiner_node and not _is_placeholder_name(joiner_node):
+        sess.joiner = joiner_node
+        # ensure member exists, but do NOT persist role here
+        _ = c.members.setdefault(sess.joiner, NodeMember(name=sess.joiner))
+    else:
+        sess.joiner = ""
     if e.get("sst_status"):
         sess.status = e["sst_status"]
     if e.get("backup_transfer_occurred") is not None:
         sess.backup_transfer = bool(e["backup_transfer_occurred"])
     # timestamps
     ts = e.get("timestamp")
-    if sess.status in ("started", "backup_transfer_started", "proceeding_with_backup", "donor_selected") and not sess.started_at:
+    # Only consider these statuses as indicating an actual started transfer
+    if sess.status in ("started", "backup_transfer_started", "proceeding_with_backup") and not sess.started_at:
         sess.started_at = ts
     if sess.status in ("transfer_complete", "completed") and not sess.ended_at:
         sess.ended_at = ts
@@ -224,6 +282,19 @@ def reduce_sst(world: WorldState, e: Dict[str, Any]):
         if st and en:
             dur = (en - st).total_seconds()
         sess.duration_seconds = dur or e.get("duration_seconds")
+
+    # If a donor/joiner is present, reflect that in the member's state so
+    # the visualizer can highlight donor/joiner roles (don't override with
+    # placeholders).
+    # Only assign persistent 'role' to members here. Do NOT mutate member.state
+    # because state is a transient property that should be derived from node_state
+    # events and per-frame active SST overlays. This avoids donor flags leaking
+    # indefinitely into future frames.
+    # Do NOT persist role on members here. Role/visual highlighting for donor
+    # and joiner will be computed per-frame when the session is active. This
+    # prevents stale donor/joiner labels from appearing after a node has
+    # transitioned back to JOINED/SYNCED.
+    # Keep session donor/joiner values in the SstSession object only.
 
 
 def reduce_ist(world: WorldState, e: Dict[str, Any]):
@@ -351,38 +422,84 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     entities = grap_json.get("entities") or []
     entities = sort_entities(entities)
 
-    world = WorldState()
-    frames: List[Dict[str, Any]] = []
+    # --- State machine: track latest state for each entity property ---
+    # For each entity type, keep a dict of {entity_id: {property: value, ...}}
+    state_machine = {}
+    # For each node, also keep a reference to its immutable core properties
+    node_immutable = {}
+    # For each cluster, keep immutable core properties
+    cluster_immutable = {}
 
-    reducers = {
-        "view": reduce_view,
-        "node": reduce_node,
-        "sst": reduce_sst,
-        "ist": reduce_ist,
-        "error": reduce_error,
-        # "transaction": ... (optional)
-        "cluster": reduce_cluster,
-    }
+    frames: List[Dict[str, Any]] = []
+    timestamps = []
 
     for idx, e in enumerate(entities):
         et = (e.get("entity_type") or "").lower()
-        world.counters[et] = world.counters.get(et, 0) + 1
+        eid = e.get("entity_id")
+        ts = e.get("timestamp")
+        timestamps.append(ts)
 
-        reducer = reducers.get(et)
-        if reducer:
-            reducer(world, e)
+        # --- Track immutable entities ---
+        if et == "node":
+            node_immutable[e.get("node_name") or e.get("node_uuid") or eid] = dict(e)
+        if et == "cluster":
+            cluster_immutable[e.get("cluster_ref") or eid] = dict(e)
+
+        # --- Update state machine for time-varying entities ---
+        if et not in state_machine:
+            state_machine[et] = {}
+        # Use node_name or node_uuid as key for node_state, etc.
+        if et == "node_state":
+            key = e.get("node_name") or e.get("node_uuid") or eid
+            if key not in state_machine[et]:
+                state_machine[et][key] = {}
+            # Update all time-varying properties for this node at this timestamp
+            for k, v in e.items():
+                if k not in ("entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source", "cluster_ref"):
+                    state_machine[et][key][k] = v
+            state_machine[et][key]["timestamp"] = ts
+        elif et == "view":
+            key = e.get("cluster_ref") or eid
+            if key not in state_machine[et]:
+                state_machine[et][key] = {}
+            for k, v in e.items():
+                if k not in ("entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source"):
+                    state_machine[et][key][k] = v
+            state_machine[et][key]["timestamp"] = ts
+        # Add other time-varying entity types as needed
+
+        # --- Build frame: join latest state for all entities up to this timestamp ---
+        frame_nodes = {}
+        for node_key, node_core in node_immutable.items():
+            node_state = dict(node_core)
+            # Overlay latest node_state properties if present
+            ns = state_machine.get("node_state", {}).get(node_key, {})
+            for k, v in ns.items():
+                if k not in node_state:
+                    node_state[k] = v
+            frame_nodes[node_key] = node_state
+
+        frame_clusters = {}
+        for cluster_key, cluster_core in cluster_immutable.items():
+            cluster_state = dict(cluster_core)
+            # Overlay latest view properties if present
+            view = state_machine.get("view", {}).get(cluster_key, {})
+            for k, v in view.items():
+                if k not in cluster_state:
+                    cluster_state[k] = v
+            frame_clusters[cluster_key] = cluster_state
 
         frame = {
             "index": idx,
             "event": {
                 "entity_type": et,
-                "entity_id": e.get("entity_id"),
-                "timestamp": e.get("timestamp"),
+                "entity_id": eid,
+                "timestamp": ts,
                 "line_number": e.get("line_number"),
                 "cluster_ref": e.get("cluster_ref"),
             },
-            "clusters": {ref: cs.snapshot() for ref, cs in world.clusters.items()},
-            "counters": dict(world.counters),
+            "nodes": frame_nodes,
+            "clusters": frame_clusters,
         }
         frames.append(frame)
 
