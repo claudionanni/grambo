@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>grav: Galera Cluster Timeline</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        #nav { margin-bottom: 1em; }
+        #entities { margin-top: 1em; }
+        .entity { margin-bottom: 1em; padding: 0.5em; border: 1px solid #ccc; border-radius: 4px; }
+        .entity-title { font-weight: bold; }
+        #frame-info { margin-bottom: 1em; }
+    </style>
+</head>
+<body>
+    <h1>grav: Galera Cluster Timeline</h1>
+    <form id="upload-form">
+        <input type="file" id="file-input" name="file" accept=".json,.ndjson">
+        <button type="submit">Load graf output</button>
+    </form>
+    <div id="frame-info"></div>
+    <div id="nav">
+        <button id="prev-btn">Prev</button>
+        <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
+        / <span id="total-frames">0</span>
+        <button id="next-btn">Next</button>
+    </div>
+    <div style="display: flex; flex-direction: row; gap: 2em; align-items: flex-start; width: 100%;">
+        <div style="flex:1;"></div>
+        <div id="graph-container" style="flex:0 0 350px; display: flex; flex-direction: column; align-items: center;">
+            <div id="graph"></div>
+        </div>
+        <div style="flex:1; min-width: 320px; max-width: 500px;">
+            <div id="cluster-section" style="margin-bottom: 1.5em;"></div>
+            <div id="nodes-section"></div>
+        </div>
+    </div>
+    <script>
+        let totalFrames = {{ total_frames }};
+        let currentFrame = 0;
+
+        function updateFrame(idx) {
+            fetch(`/frame/${idx}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) return;
+                    currentFrame = data.idx;
+                    document.getElementById('frame-num').value = currentFrame + 1;
+                    document.getElementById('total-frames').textContent = data.total;
+                    document.getElementById('frame-info').textContent = `Frame ${currentFrame + 1} of ${data.total}`;
+
+                    let entities = data.entities || {};
+                    // Cluster section (top right)
+                    let clusterDiv = document.getElementById('cluster-section');
+                    clusterDiv.innerHTML = '';
+                    for (let ent in entities) {
+                        if (ent.startsWith('cluster:')) {
+                            let props = entities[ent];
+                            let html = `<div class='entity' style='background:#f5f5f5; border:2px solid #2196f3;'><div class='entity-title'>Cluster</div>`;
+                            for (let p in props) {
+                                html += `<div>${p}: <b>${props[p]}</b></div>`;
+                            }
+                            html += '</div>';
+                            clusterDiv.innerHTML += html;
+                        }
+                    }
+                    // Nodes section (right, below cluster)
+                    let nodesDiv = document.getElementById('nodes-section');
+                    nodesDiv.innerHTML = '';
+                    let nodeEntities = Object.entries(entities).filter(([k, v]) => k.startsWith('node:'));
+                    if (nodeEntities.length === 0) {
+                        nodesDiv.innerHTML = '<i>No nodes</i>';
+                    } else {
+                        for (let [ent, props] of nodeEntities) {
+                            let html = `<div class='entity'><div class='entity-title'>${ent.replace('node:', '')}</div>`;
+                            for (let p in props) {
+                                html += `<div>${p}: <b>${props[p]}</b></div>`;
+                            }
+                            html += '</div>';
+                            nodesDiv.innerHTML += html;
+                        }
+                    }
+                    // Graph section (center)
+                    drawNodeGraph(nodeEntities);
+                });
+        }
+
+        // Draw SVG node graph
+        function drawNodeGraph(nodeEntities) {
+            let graphDiv = document.getElementById('graph');
+            graphDiv.innerHTML = '';
+            if (nodeEntities.length === 0) return;
+            let width = 320;
+            let height = 60 + nodeEntities.length * 90;
+            let radius = 35;
+            let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', width);
+            svg.setAttribute('height', height);
+            // Center nodes vertically
+            let centerX = width / 2;
+            let spacing = 90;
+            let startY = 50;
+            nodeEntities.forEach(([ent, props], i) => {
+                let y = startY + i * spacing;
+                let color = nodeStateColor(props.node_state);
+                // Circle
+                let circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', centerX);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', radius);
+                circle.setAttribute('fill', color);
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', 2);
+                svg.appendChild(circle);
+                // Node name
+                let text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', centerX);
+                text.setAttribute('y', y + radius + 22);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '16px');
+                text.textContent = props.node_name || ent.replace('node:', '');
+                svg.appendChild(text);
+            });
+            graphDiv.appendChild(svg);
+        }
+
+        // Map node_state to color
+        function nodeStateColor(state) {
+            if (!state) return '#ccc';
+            switch(state) {
+                case 'OPEN': return '#4caf50';
+                case 'SYNCED': return '#2196f3';
+                case 'CLOSED': return '#f44336';
+                case 'JOINING': return '#ff9800';
+                default: return '#bdbdbd';
+            }
+        }
+
+        document.getElementById('prev-btn').onclick = () => {
+            if (currentFrame > 0) updateFrame(currentFrame - 1);
+        };
+        document.getElementById('next-btn').onclick = () => {
+            if (currentFrame < totalFrames - 1) updateFrame(currentFrame + 1);
+        };
+        document.getElementById('frame-num').onchange = (e) => {
+            let val = parseInt(e.target.value) - 1;
+            if (val >= 0 && val < totalFrames) updateFrame(val);
+        };
+        document.getElementById('upload-form').onsubmit = (e) => {
+            e.preventDefault();
+            let fileInput = document.getElementById('file-input');
+            if (!fileInput.files.length) return;
+            let formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            fetch('/load', { method: 'POST', body: formData })
+                .then(r => {
+                    if (r.ok) {
+                        fetch(`/frame/0`).then(r => r.json()).then(data => {
+                            totalFrames = data.total;
+                            updateFrame(0);
+                        });
+                    }
+                });
+        };
+        // Initial state
+        updateFrame(0);
+    </script>
+</body>
+</html>

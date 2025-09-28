@@ -469,24 +469,30 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Add other time-varying entity types as needed
 
         # --- Build frame: join latest state for all entities up to this timestamp ---
+
+        def filter_props(d):
+            return {k: v for k, v in d.items() if k not in ("line_number", "log_source", "raw_line")}
+
         frame_nodes = {}
         for node_key, node_core in node_immutable.items():
-            node_state = dict(node_core)
+            node_state = filter_props(dict(node_core))
             # Overlay latest node_state properties if present
             ns = state_machine.get("node_state", {}).get(node_key, {})
             for k, v in ns.items():
                 if k not in node_state:
                     node_state[k] = v
+            node_state = filter_props(node_state)
             frame_nodes[node_key] = node_state
 
         frame_clusters = {}
         for cluster_key, cluster_core in cluster_immutable.items():
-            cluster_state = dict(cluster_core)
+            cluster_state = filter_props(dict(cluster_core))
             # Overlay latest view properties if present
             view = state_machine.get("view", {}).get(cluster_key, {})
             for k, v in view.items():
                 if k not in cluster_state:
                     cluster_state[k] = v
+            cluster_state = filter_props(cluster_state)
             frame_clusters[cluster_key] = cluster_state
 
         frame = {
