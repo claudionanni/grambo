@@ -8,7 +8,7 @@ log correlation capabilities.
 Based on the comprehensive entity model design in ref/entities/CLUSTER_ENTITY.md
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Set, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict, Counter
@@ -24,7 +24,7 @@ from .core import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ViewCollection:
     """
     Collection of views with perspective awareness for split-brain detection
@@ -37,24 +37,30 @@ class ViewCollection:
     views_by_id: Dict[str, List[ViewEntity]] = field(default_factory=dict)
     timeline: List[ViewEntity] = field(default_factory=list)
     
-    def add_view(self, view: ViewEntity):
-        """Add a view with perspective tracking"""
+    def add_view(self, view: ViewEntity) -> "ViewCollection":
+        """Return a new ViewCollection with the added view (immutable)"""
+        from copy import deepcopy
         node_id = view.log_source or "unknown"
-        
+        views_by_node = deepcopy(self.views_by_node)
+        views_by_id = deepcopy(self.views_by_id)
+        timeline = list(self.timeline)
         # Add to node-specific collection
-        if node_id not in self.views_by_node:
-            self.views_by_node[node_id] = []
-        self.views_by_node[node_id].append(view)
-        
+        if node_id not in views_by_node:
+            views_by_node[node_id] = []
+        views_by_node[node_id].append(view)
         # Add to view ID collection
         if view.view_id:
-            if view.view_id not in self.views_by_id:
-                self.views_by_id[view.view_id] = []
-            self.views_by_id[view.view_id].append(view)
-        
+            if view.view_id not in views_by_id:
+                views_by_id[view.view_id] = []
+            views_by_id[view.view_id].append(view)
         # Add to timeline (sorted by timestamp)
-        self.timeline.append(view)
-        self.timeline.sort(key=lambda v: v.timestamp or datetime.min)
+        timeline.append(view)
+        timeline.sort(key=lambda v: v.timestamp or datetime.min)
+        return ViewCollection(
+            views_by_node=views_by_node,
+            views_by_id=views_by_id,
+            timeline=timeline
+        )
     
     def detect_split_brain(self) -> Dict[str, Any]:
         """
@@ -151,7 +157,7 @@ class ViewCollection:
         return authoritative
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemberCollection:
     """
     Collection of member entities with identity correlation
@@ -169,31 +175,42 @@ class MemberCollection:
     uuid_to_names: Dict[str, Set[str]] = field(default_factory=dict)
     uuid_to_addresses: Dict[str, Set[str]] = field(default_factory=dict)
     
-    def add_member(self, member: NodeEntity):
-        """Add member with identity correlation"""
-        
+    def add_member(self, member: NodeEntity) -> "MemberCollection":
+        """Return a new MemberCollection with the added member (immutable)"""
+        from copy import deepcopy
+        members_by_uuid = deepcopy(self.members_by_uuid)
+        members_by_name = deepcopy(self.members_by_name)
+        members_by_address = deepcopy(self.members_by_address)
+        member_timeline = list(self.member_timeline)
+        uuid_to_names = deepcopy(self.uuid_to_names)
+        uuid_to_addresses = deepcopy(self.uuid_to_addresses)
         # Add to collections
         if member.node_id:
-            if member.node_id not in self.members_by_uuid:
-                self.members_by_uuid[member.node_id] = []
-            self.members_by_uuid[member.node_id].append(member)
-        
+            if member.node_id not in members_by_uuid:
+                members_by_uuid[member.node_id] = []
+            members_by_uuid[member.node_id].append(member)
         if member.node_name:
-            if member.node_name not in self.members_by_name:
-                self.members_by_name[member.node_name] = []
-            self.members_by_name[member.node_name].append(member)
-        
+            if member.node_name not in members_by_name:
+                members_by_name[member.node_name] = []
+            members_by_name[member.node_name].append(member)
         if member.node_address:
-            if member.node_address not in self.members_by_address:
-                self.members_by_address[member.node_address] = []
-            self.members_by_address[member.node_address].append(member)
-        
-        # Add to timeline
-        self.member_timeline.append(member)
-        self.member_timeline.sort(key=lambda m: m.timestamp or datetime.min)
-        
+            if member.node_address not in members_by_address:
+                members_by_address[member.node_address] = []
+            members_by_address[member.node_address].append(member)
+        member_timeline.append(member)
+        member_timeline.sort(key=lambda m: m.timestamp or datetime.min)
         # Update correlation mappings
-        self._update_correlations(member)
+        if member.node_id:
+            uuid_to_names.setdefault(member.node_id, set()).add(member.node_name)
+            uuid_to_addresses.setdefault(member.node_id, set()).add(member.node_address)
+        return MemberCollection(
+            members_by_uuid=members_by_uuid,
+            members_by_name=members_by_name,
+            members_by_address=members_by_address,
+            member_timeline=member_timeline,
+            uuid_to_names=uuid_to_names,
+            uuid_to_addresses=uuid_to_addresses
+        )
     
     def _update_correlations(self, member: NodeEntity):
         """Update identity correlation mappings"""
@@ -241,7 +258,7 @@ class MemberCollection:
         return self.members_by_uuid.get(member_uuid, [])
 
 
-@dataclass
+@dataclass(frozen=True)
 class ClusterEntity(Entity):
     """
     Root hierarchical entity representing a complete Galera cluster
@@ -283,108 +300,56 @@ class ClusterEntity(Entity):
         # Override entity_type for cluster
         object.__setattr__(self, 'entity_type', EntityType.CLUSTER)
         # Skip validation during initialization - will be called manually after adding entities
-        self.validated = False
+            # self.validated = False  # Cannot assign to frozen dataclass
     
-    def add_entity(self, entity: Entity):
+    def add_entity(self, entity: Entity) -> "ClusterEntity":
         """
-        Add any entity to the appropriate collection
-        
-        Args:
-            entity: Entity to add to cluster
+        Return a new ClusterEntity with the added entity (immutable, type-safe)
         """
-        # Track log source
-        if entity.log_source and entity.log_source not in self.log_sources:
-            self.log_sources.append(entity.log_source)
-        
-        # Route to appropriate collection based on entity type
+        from dataclasses import replace
+        log_sources = list(self.log_sources)
+        if entity.log_source and entity.log_source not in log_sources:
+            log_sources.append(entity.log_source)
         entity_type_str = entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type)
-        
-        if entity_type_str == 'VIEW':
-            self.views.add_view(entity)
-        elif entity_type_str == 'NODE':
-            self.members.add_member(entity)
-        elif entity_type_str == 'STATE_TRANSFER':
-            self.sst_operations.append(entity)
-        elif entity_type_str == 'COMMUNICATION':
-            self.communications.append(entity)
-        elif entity_type_str == 'WARNING':
-            self.warnings.append(entity)
-        elif entity_type_str == 'ERROR':
-            self.errors.append(entity)
-        elif entity_type_str == 'PERFORMANCE':
-            self.performance_events.append(entity)
-        elif entity_type_str == 'TRANSACTION':
-            self.transactions.append(entity)
+        views = self.views
+        members = self.members
+        sst_operations = list(self.sst_operations)
+        communications = list(self.communications)
+        warnings = list(self.warnings)
+        errors = list(self.errors)
+        performance_events = list(self.performance_events)
+        transactions = list(self.transactions)
+        if entity_type_str == 'VIEW' and isinstance(entity, ViewEntity):
+            views = self.views.add_view(entity)
+        elif entity_type_str == 'NODE' and isinstance(entity, NodeEntity):
+            members = self.members.add_member(entity)
+        elif entity_type_str == 'STATE_TRANSFER' and isinstance(entity, StateTransferEntity):
+            sst_operations.append(entity)
+        elif entity_type_str == 'COMMUNICATION' and isinstance(entity, CommunicationEntity):
+            communications.append(entity)
+        elif entity_type_str == 'WARNING' and isinstance(entity, WarningEntity):
+            warnings.append(entity)
+        elif entity_type_str == 'ERROR' and isinstance(entity, ErrorEntity):
+            errors.append(entity)
+        elif entity_type_str == 'PERFORMANCE' and isinstance(entity, PerformanceEntity):
+            performance_events.append(entity)
+        elif entity_type_str == 'TRANSACTION' and isinstance(entity, TransactionEntity):
+            transactions.append(entity)
         else:
-            logger.warning(f"Unknown entity type: {entity_type_str}")
+            logger.warning(f"Unknown or mismatched entity type: {entity_type_str}")
+        return replace(self,
+            log_sources=log_sources,
+            views=views,
+            members=members,
+            sst_operations=sst_operations,
+            communications=communications,
+            warnings=warnings,
+            errors=errors,
+            performance_events=performance_events,
+            transactions=transactions
+        )
     
-    def analyze_cluster_health(self) -> float:
-        """
-        Perform comprehensive cluster health analysis
-        
-        Returns:
-            float: Health score from 0.0 (critical) to 1.0 (excellent)
-        """
-        score_components = []
-        
-        # View stability (30% weight)
-        view_score = self._analyze_view_stability()
-        score_components.append(('views', view_score, 0.30))
-        
-        # Error frequency (25% weight)
-        error_score = self._analyze_error_frequency()
-        score_components.append(('errors', error_score, 0.25))
-        
-        # SST frequency (20% weight)
-        sst_score = self._analyze_sst_health()
-        score_components.append(('sst', sst_score, 0.20))
-        
-        # Communication health (15% weight)
-        comm_score = self._analyze_communication_health()
-        score_components.append(('communication', comm_score, 0.15))
-        
-        # Performance indicators (10% weight)
-        perf_score = self._analyze_performance_health()
-        score_components.append(('performance', perf_score, 0.10))
-        
-        # Calculate weighted average
-        total_weight = sum(weight for _, _, weight in score_components)
-        weighted_score = sum(score * weight for _, score, weight in score_components) / total_weight
-        
-        self.cluster_health_score = weighted_score
-        return weighted_score
     
-    def _analyze_view_stability(self) -> float:
-        """Analyze cluster view stability"""
-        if not self.views.timeline:
-            return 0.5  # Neutral score if no view data
-        
-        # Check for frequent view changes (instability indicator)
-        view_count = len(self.views.timeline)
-        time_span = self._get_analysis_time_span()
-        
-        if time_span.total_seconds() == 0:
-            return 0.5
-        
-        # Views per hour - fewer is better for stability
-        views_per_hour = view_count / (time_span.total_seconds() / 3600)
-        
-        # Score: < 1 view/hour = excellent, > 10 views/hour = poor
-        if views_per_hour <= 1:
-            stability_score = 1.0
-        elif views_per_hour >= 10:
-            stability_score = 0.0
-        else:
-            stability_score = max(0.0, 1.0 - (views_per_hour - 1) / 9)
-        
-        # Check for split-brain detection
-        split_brain_result = self.views.detect_split_brain()
-        if split_brain_result['detected']:
-            stability_score *= 0.3  # Severe penalty for split-brain
-            self.split_brain_detected = True
-            self.split_brain_analysis = split_brain_result
-        
-        return stability_score
     
     def _analyze_error_frequency(self) -> float:
         """Analyze error frequency and severity"""
@@ -392,11 +357,11 @@ class ClusterEntity(Entity):
             return 1.0  # Perfect score if no errors
         
         time_span = self._get_analysis_time_span()
-        if time_span.total_seconds() == 0:
+        total_seconds = time_span.total_seconds() if hasattr(time_span, 'total_seconds') else 0
+        if total_seconds == 0:
             return 0.5
-        
         # Errors per hour
-        errors_per_hour = len(self.errors) / (time_span.total_seconds() / 3600)
+        errors_per_hour = len(self.errors) / (total_seconds / 3600)
         
         # Score: 0 errors/hour = perfect, > 50 errors/hour = critical
         if errors_per_hour == 0:
@@ -417,8 +382,9 @@ class ClusterEntity(Entity):
         
         # Check SST frequency (fewer is better)
         time_span = self._get_analysis_time_span()
-        if time_span.total_seconds() > 0:
-            ssts_per_day = len(self.sst_operations) / (time_span.total_seconds() / 86400)
+        total_seconds = time_span.total_seconds() if hasattr(time_span, 'total_seconds') else 0
+        if total_seconds > 0:
+            ssts_per_day = len(self.sst_operations) / (total_seconds / 86400)
             frequency_score = max(0.0, 1.0 - ssts_per_day / 10)  # > 10/day is poor
         else:
             frequency_score = 0.5
@@ -457,8 +423,8 @@ class ClusterEntity(Entity):
         alert_rate = alerts / len(self.performance_events)
         return max(0.0, 1.0 - alert_rate)
     
-    def _get_analysis_time_span(self) -> datetime:
-        """Get the time span of the analysis"""
+    def _get_analysis_time_span(self) -> 'timedelta':
+        """Get the time span of the analysis as a timedelta"""
         if self.analysis_end_time:
             return self.analysis_end_time - self.analysis_start_time
         else:
@@ -496,8 +462,6 @@ class ClusterEntity(Entity):
             Dict with complete cluster analysis
         """
         timeline = self.get_cluster_timeline()
-        health_score = self.analyze_cluster_health()
-        
         summary = {
             'cluster_info': {
                 'name': self.cluster_name,
@@ -509,12 +473,7 @@ class ClusterEntity(Entity):
                     'duration_hours': self._get_analysis_time_span().total_seconds() / 3600
                 }
             },
-            'health_analysis': {
-                'overall_score': health_score,
-                'score_interpretation': self._interpret_health_score(health_score),
-                'split_brain_detected': self.split_brain_detected,
-                'split_brain_analysis': self.split_brain_analysis
-            },
+            
             'entity_counts': {
                 'total_entities': len(timeline),
                 'views': len(self.views.timeline),
@@ -529,7 +488,6 @@ class ClusterEntity(Entity):
             'key_findings': self._generate_key_findings(),
             'recommendations': self._generate_recommendations()
         }
-        
         return summary
     
     def _interpret_health_score(self, score: float) -> str:
@@ -608,30 +566,6 @@ class ClusterEntity(Entity):
             'timestamp': self.analysis_start_time,
         }
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert cluster entity to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'cluster_name': self.cluster_name,
-            'cluster_uuid': self.cluster_uuid,
-            'analysis_start_time': self.analysis_start_time.isoformat() if self.analysis_start_time else None,
-            'analysis_end_time': self.analysis_end_time.isoformat() if self.analysis_end_time else None,
-            'log_sources': self.log_sources,
-            'entity_counts': {
-                'views': len(self.views.timeline),
-                'members': len(self.members.member_timeline),
-                'sst_operations': len(self.sst_operations),
-                'communications': len(self.communications),
-                'warnings': len(self.warnings),
-                'errors': len(self.errors),
-                'performance_events': len(self.performance_events),
-                'transactions': len(self.transactions)
-            },
-            'cluster_health_score': self.cluster_health_score,
-            'split_brain_detected': self.split_brain_detected,
-            'split_brain_analysis': self.split_brain_analysis
-        })
-        return base_dict
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ClusterEntity':

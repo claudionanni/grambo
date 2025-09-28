@@ -181,7 +181,6 @@ class TemporalStateTransferEntity(Entity):
         
         return True
     
-    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary with temporal property information."""
         base_dict = super().to_dict()
         

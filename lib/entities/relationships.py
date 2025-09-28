@@ -70,7 +70,6 @@ class EntityRelationship:
         hash_input = f"{self.source_entity_id}_{self.target_entity_id}_{self.relationship_type.value}"
         return f"rel_{hashlib.md5(hash_input.encode()).hexdigest()[:8]}"
     
-    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             'relationship_id': self.relationship_id,

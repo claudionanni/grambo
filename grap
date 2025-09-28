@@ -11,6 +11,8 @@ import json
 import hashlib
 import argparse
 from typing import Dict, List, Optional, Tuple, Set, Any
+
+from lib.entities import Entity, ViewEntity, NodeEntity, ClusterEntity
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -24,6 +26,7 @@ GRAP_VERSION = "v2.4.5"  # Track node UUID history and aliases
 # Cache directory
 CACHE_DIR = Path.home() / ".cache" / "grap"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # Entity Types
 class EntityType(Enum):
@@ -44,184 +47,151 @@ class EntityType(Enum):
     CLIENT_CONNECTION = "client_connection"
     LOCK = "lock"
     SQL = "sql"
+    QUORUM = "quorum"
 
-# Base Entity (now frozen for immutability)
-@dataclass(frozen=True)
-class Entity:
-    """Base class for all entities (immutable)"""
-    timestamp: Optional[datetime] = None
-    line_number: int = 0
-    raw_line: str = ""
-    log_source: str = ""
-    entity_id: str = ""
-    entity_type: Optional[EntityType] = None
-    cluster_ref: Optional[str] = None
-
-    def __post_init__(self):
-        # Generate entity_id if not provided
-        if not self.entity_id:
-            content = f"{self.entity_type}_{self.line_number}_{self.raw_line[:50]}"
-            object.__setattr__(self, 'entity_id', hashlib.md5(content.encode()).hexdigest()[:12])
-
-
-# Cluster Entity (frozen)
-@dataclass(frozen=True)
-class ClusterEntity(Entity):
-    """Represents a Galera cluster (immutable)"""
-    cluster_uuid: Optional[str] = None
-    cluster_name: Optional[str] = None
-    cluster_size: Optional[int] = None
-    primary_state: Optional[bool] = None
-    protocol_version: Optional[int] = None
-
-    def __post_init__(self):
-        super().__post_init__()
-
-
-# Node (immutable core entity)
-@dataclass(frozen=True)
-class NodeEntity(Entity):
-    """Represents a node in the cluster (immutable core properties only)"""
-    node_name: Optional[str] = None
-    node_uuid: Optional[str] = None
-    node_index: Optional[int] = None
-    node_address: Optional[str] = None
-    known_uuids: List[str] = field(default_factory=list)
-    
-    def __post_init__(self):
-        object.__setattr__(self, 'entity_type', EntityType.NODE)
-        super().__post_init__()
-
-# NodeState (time-varying property entity)
+# --- Local immutable entity definitions for types not available in lib.entities ---
 @dataclass(frozen=True)
 class NodeStateEntity(Entity):
-    """Represents a node state change (timestamped, references parent node)"""
+    entity_type: EntityType = EntityType.NODE_STATE
     node_name: Optional[str] = None
     node_uuid: Optional[str] = None
     node_state: Optional[str] = None
-
     def __post_init__(self):
-        object.__setattr__(self, 'entity_type', EntityType.NODE_STATE)
         super().__post_init__()
 
-# NodeError (time-varying property entity)
+    def validate(self):
+        return True
+
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
+
 @dataclass(frozen=True)
 class NodeErrorEntity(Entity):
-    """Represents an error or warning for a node (timestamped, references parent node)"""
+    entity_type: EntityType = EntityType.ERROR
     node_name: Optional[str] = None
     node_uuid: Optional[str] = None
     error_level: Optional[str] = None
     error_code: Optional[str] = None
     error_message: Optional[str] = None
-
     def __post_init__(self):
-        object.__setattr__(self, 'entity_type', EntityType.ERROR)
         super().__post_init__()
 
-# NodeView (time-varying property entity)
+    def validate(self):
+        return True
+
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
+
 @dataclass(frozen=True)
-class NodeViewEntity(Entity):
-    """Represents a node's view membership at a point in time (timestamped, references parent node and view)"""
-    node_name: Optional[str] = None
-    node_uuid: Optional[str] = None
+class QuorumEntity(Entity):
+    entity_type: EntityType = EntityType.QUORUM
+    raw_lines: str = ""
+    group_uuid: Optional[str] = None
+    version: Optional[str] = None
+    component: Optional[str] = None
+    conf_id: Optional[str] = None
+    quorum_members: Optional[str] = None
+    act_id: Optional[str] = None
+    last_appl: Optional[str] = None
+    protocols: Optional[str] = None
+    vote_policy: Optional[str] = None
     view_id: Optional[str] = None
     cluster_uuid: Optional[str] = None
     view_seq: Optional[int] = None
-    member_role: Optional[str] = None  # e.g., joined, left, partitioned, member
-
+    cluster_state: Optional[str] = None
+    my_uuid: Optional[str] = None
+    protocol_version: Optional[int] = None
+    members: List[str] = field(default_factory=list)
+    joined_members: List[str] = field(default_factory=list)
+    left_members: List[str] = field(default_factory=list)
+    partitioned_members: List[str] = field(default_factory=list)
+    member_segments: Dict[str, int] = field(default_factory=dict)
+    member_uuid_map: Dict[str, str] = field(default_factory=dict)
+    member_count: Optional[int] = None
+    is_primary: Optional[bool] = None
     def __post_init__(self):
+        if not self.entity_id:
+            base = f"quorum_{self.timestamp}_{self.group_uuid or ''}_{self.line_number}"
+            object.__setattr__(self, 'entity_id', hashlib.md5(base.encode()).hexdigest()[:12])
         super().__post_init__()
 
-# SST/IST Transfer Session Entities
-@dataclass(frozen=True)
-class SSTSessionEntity(Entity):
-    """Represents a full SST transfer session (start/end, status, events)"""
-    session_id: Optional[str] = None
-    donor_node: Optional[str] = None
-    joiner_node: Optional[str] = None
-    start_timestamp: Optional[datetime] = None
-    end_timestamp: Optional[datetime] = None
-    status: Optional[str] = None  # e.g., started, completed, failed
-    method: Optional[str] = None
-    events: List[str] = field(default_factory=list)  # event entity_ids or raw lines
+    def validate(self):
+        return True
 
-    def __post_init__(self):
-        super().__post_init__()
 
-@dataclass(frozen=True)
-class ISTSessionEntity(Entity):
-    """Represents a full IST transfer session (start/end, status, events)"""
-    session_id: Optional[str] = None
-    sender_node: Optional[str] = None
-    receiver_node: Optional[str] = None
-    start_timestamp: Optional[datetime] = None
-    end_timestamp: Optional[datetime] = None
-    status: Optional[str] = None  # e.g., started, completed, failed
-    seqno_start: Optional[int] = None
-    seqno_end: Optional[int] = None
-    events: List[str] = field(default_factory=list)  # event entity_ids or raw lines
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
 
-    def __post_init__(self):
-        super().__post_init__()
-
-# SST/IST Event Entities (atomic events within a session)
 @dataclass(frozen=True)
 class SSTEventEntity(Entity):
-    """Represents an atomic SST event (timestamped, references session)"""
+    entity_type: EntityType = EntityType.SST
     session_id: Optional[str] = None
-    event_type: Optional[str] = None  # e.g., donor_selected, request, complete
+    event_type: Optional[str] = None
     donor_node: Optional[str] = None
     joiner_node: Optional[str] = None
     method: Optional[str] = None
     details: Optional[str] = None
-
     def __post_init__(self):
-        object.__setattr__(self, 'entity_type', EntityType.SST)
         super().__post_init__()
+
+    def validate(self):
+        return True
+
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
 
 @dataclass(frozen=True)
 class ISTEventEntity(Entity):
-    """Represents an atomic IST event (timestamped, references session)"""
+    entity_type: EntityType = EntityType.IST
     session_id: Optional[str] = None
-    event_type: Optional[str] = None  # e.g., sender, receiver, receiving
+    event_type: Optional[str] = None
     sender_node: Optional[str] = None
     receiver_node: Optional[str] = None
     seqno_start: Optional[int] = None
     seqno_end: Optional[int] = None
     transfer_count: Optional[int] = None
     details: Optional[str] = None
-
     def __post_init__(self):
-        object.__setattr__(self, 'entity_type', EntityType.IST)
         super().__post_init__()
 
-# View Entity with improved structure based on Galera source
+    def validate(self):
+        return True
+
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
+
 @dataclass(frozen=True)
-class ViewEntity(Entity):
-    """Represents a Galera cluster view change"""
+class NodeViewEntity(Entity):
+    entity_type: EntityType = EntityType.VIEW
+    node_name: Optional[str] = None
+    node_uuid: Optional[str] = None
     view_id: Optional[str] = None
     cluster_uuid: Optional[str] = None
     view_seq: Optional[int] = None
-    cluster_state: Optional[str] = None  # PRIM or NON-PRIM
-    my_uuid: Optional[str] = None
-    protocol_version: Optional[int] = None
-    
-    # Member lists - based on Galera source code structure
-    members: List[str] = field(default_factory=list)  # Current members
-    joined_members: List[str] = field(default_factory=list)  # Newly joined
-    left_members: List[str] = field(default_factory=list)  # Members that left
-    partitioned_members: List[str] = field(default_factory=list)  # Partitioned
-    
-    # Additional member information
-    member_segments: Dict[str, int] = field(default_factory=dict)  # member -> segment mapping
-    member_uuid_map: Dict[str, str] = field(default_factory=dict)  # canonical name -> uuid/identifier mapping
-    
-    # Derived fields
-    member_count: Optional[int] = None
-    is_primary: Optional[bool] = None
-    
+    member_role: Optional[str] = None
     def __post_init__(self):
         super().__post_init__()
+
+    def validate(self):
+        return True
+
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
+
+
+
+
 
 # SST Entity
 @dataclass(frozen=True)
@@ -290,6 +260,71 @@ class GaleraLogParser:
         """Parse log content and return entities"""
         lines = log_content.strip().split('\n')
 
+        # --- Quorum block extraction ---
+        quorum_block = []
+        quorum_start = None
+        for idx, line in enumerate(lines):
+            if 'WSREP: Quorum results:' in line:
+                quorum_block = [line]
+                quorum_start = idx
+            elif quorum_block:
+                quorum_block.append(line)
+                if re.match(r'.*group UUID\s*=\s*([0-9a-f-]+)', line):
+                    # End of quorum block
+                    # Parse fields
+                    ts_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', quorum_block[0])
+                    timestamp = None
+                    if ts_match:
+                        try:
+                            timestamp = datetime.strptime(ts_match.group(1), "%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            pass
+                    fields = {
+                        'version': '', 'component': '', 'conf_id': '', 'quorum_members': '',
+                        'act_id': '', 'last_appl': '', 'protocols': '', 'vote_policy': '', 'group_uuid': ''
+                    }
+                    key_map = {
+                        'version': 'version',
+                        'component': 'component',
+                        'conf_id': 'conf_id',
+                        'members': 'quorum_members',
+                        'act_id': 'act_id',
+                        'last_appl': 'last_appl',
+                        'protocols': 'protocols',
+                        'vote_policy': 'vote_policy',
+                        'group_uuid': 'group_uuid',
+                    }
+                    # Allow string assignment
+                    for l in quorum_block:
+                        for pat_key, field_key in key_map.items():
+                            pat = rf'{pat_key.replace("_", ".").replace("group.uuid", "group UUID").replace("last.appl", "last_appl.")}[\s:=]+([\w\-/().]+)'
+                            m = re.search(pat, l.replace('last_appl.', 'last_appl.').replace('group UUID', 'group UUID'))
+                            if m:
+                                fields[field_key] = str(m.group(1))
+                        # Special for group_uuid
+                        m = re.search(r'group UUID\s*=\s*([0-9a-f-]+)', l)
+                        if m:
+                            fields['group_uuid'] = str(m.group(1))
+                    entity = QuorumEntity(
+                        timestamp=timestamp,
+                        line_number=quorum_start+1 if quorum_start is not None else 0,
+                        raw_lines='\n'.join(quorum_block),
+                        log_source=log_source,
+                        group_uuid=fields['group_uuid'],
+                        version=fields['version'],
+                        component=fields['component'],
+                        conf_id=fields['conf_id'],
+                        quorum_members=fields['quorum_members'],
+                        act_id=fields['act_id'],
+                        last_appl=fields['last_appl'],
+                        protocols=fields['protocols'],
+                        vote_policy=fields['vote_policy']
+                    )
+                    self.entities.append(entity)
+                    quorum_block = []
+                    quorum_start = None
+        # --- End Quorum block extraction ---
+
         for line_num, line in enumerate(lines, 1):
             self._parse_line(line, line_num, log_source)
         
@@ -298,19 +333,15 @@ class GaleraLogParser:
             self._complete_view_block(line_num)
         
         # Debug: print cluster_uuid before scan
-        print(f"[GRAP DEBUG] Before scan: cluster_uuid={self.cluster_uuid}", file=sys.stderr)
         # Scan for cluster UUID if not found (only set once, never overwrite)
         if not self.cluster_uuid:
-            print(f"[GRAP DEBUG] Entering _scan_for_cluster_uuid (cluster_uuid is None)", file=sys.stderr)
             self._scan_for_cluster_uuid(lines)
         else:
-            print(f"[GRAP DEBUG] Skipping _scan_for_cluster_uuid (cluster_uuid already set: {self.cluster_uuid})", file=sys.stderr)
+            pass
         # If still not found, try to get from first ViewEntity
         if not self.cluster_uuid:
-            print(f"[GRAP DEBUG] Entering ViewEntity fallback (cluster_uuid still None)", file=sys.stderr)
             for entity in self.entities:
                 if isinstance(entity, ViewEntity) and entity.cluster_uuid:
-                    print(f"[GRAP DEBUG] Assigning cluster_uuid from ViewEntity: {entity.cluster_uuid}", file=sys.stderr)
                     self.cluster_uuid = entity.cluster_uuid
                     break
         else:
@@ -332,7 +363,7 @@ class GaleraLogParser:
         from dataclasses import replace
         new_entities = []
         for entity in self.entities:
-            if not entity.cluster_ref:
+            if not getattr(entity, 'cluster_ref', None):
                 entity = replace(entity, cluster_ref=self.cluster_ref)
             new_entities.append(entity)
         self.entities = new_entities
@@ -358,8 +389,6 @@ class GaleraLogParser:
             node_entity = NodeEntity(
                 entity_id=f"node_{node_name}",
                 node_name=node_name,
-                node_uuid=primary_uuid,
-                known_uuids=list(history),
                 cluster_ref=self.cluster_ref
             )
             # Avoid duplicates if already present
@@ -583,7 +612,6 @@ class GaleraLogParser:
                     return
                 match = re.search(pattern, line, re.IGNORECASE)
                 if match:
-                    print(f"[GRAP DEBUG] Assigned cluster_uuid={match.group(1)} from pattern '{desc}' in line: {line.strip()}", file=sys.stderr)
                     self.cluster_uuid = match.group(1)
                     return
     
@@ -875,11 +903,8 @@ class GaleraLogParser:
             view_seq=view['seq'],
             cluster_state=view['type'],
             members=view['members'],
-            joined_members=view.get('joined', []),
-            left_members=view.get('left', []),
-            partitioned_members=view.get('partitioned', []),
-            member_segments=view.get('member_segments', {}),
-            member_uuid_map=view.get('member_uuid_map', {}),
+            joined_nodes=view.get('joined', []),
+            left_nodes=view.get('left', []),
             cluster_ref=cluster_ref
         )
         self.entities.append(entity)
@@ -1031,38 +1056,42 @@ class GaleraLogParser:
                     self.entities.append(entity)
                 break
 
-def entity_to_dict(entity) -> dict:
+def entity_to_dict(entity) -> Any:
     """Convert entity to dictionary for JSON serialization"""
-    result = {}
-    
-    # Handle different entity types
-    if hasattr(entity, '__dict__'):
-        for key, value in entity.__dict__.items():
+    from dataclasses import is_dataclass, fields
+    if isinstance(entity, (str, int, float, bool, type(None))):
+        return entity
+    elif isinstance(entity, Enum):
+        return entity.value
+    elif isinstance(entity, (list, tuple)):
+        return [entity_to_dict(item) for item in entity]
+    elif isinstance(entity, dict):
+        # Avoid recursing into dicts that are already converted
+        return {k: entity_to_dict(v) for k, v in entity.items()}
+    elif is_dataclass(entity):
+        result = {}
+        for field in fields(entity):
+            value = getattr(entity, field.name)
             if value is not None:
-                if key == 'entity_type':
-                    # Handle EntityType enum or string
-                    if hasattr(value, 'value'):
-                        result[key] = value.value.lower() if hasattr(value.value, 'lower') else str(value.value).lower()
+                if field.name == 'entity_type':
+                    if isinstance(value, Enum):
+                        result[field.name] = value.value
+                    elif hasattr(value, 'value'):
+                        result[field.name] = value.value
                     else:
-                        result[key] = str(value).lower() if value else ""
-                elif isinstance(value, (str, int, float, bool, type(None))):
-                    result[key] = value
-                elif isinstance(value, (list, tuple)):
-                    result[key] = list(value)
-                elif isinstance(value, dict):
-                    result[key] = dict(value)
-                elif hasattr(value, '__dict__'):
-                    result[key] = entity_to_dict(value)
+                        result[field.name] = str(value).lower() if value else ""
                 else:
-                    result[key] = str(value)
-    
-    # Ensure entity_type is set properly
-    if 'entity_type' not in result or not result['entity_type']:
-        # Derive from class name
-        class_name = type(entity).__name__
-        result['entity_type'] = class_name.replace('Entity', '').lower()
-    
-    return result
+                    result[field.name] = entity_to_dict(value)
+        # Ensure entity_type is set properly
+        if 'entity_type' not in result or not result['entity_type']:
+            class_name = type(entity).__name__
+            result['entity_type'] = class_name.replace('Entity', '').lower()
+        return result
+    elif hasattr(entity, '__dict__'):
+        # Fallback for non-dataclass objects
+        return {k: entity_to_dict(v) for k, v in entity.__dict__.items() if v is not None}
+    else:
+        return str(entity)
 
 def get_cache_key(file_path: str) -> str:
     """Generate cache key for a file"""

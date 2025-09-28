@@ -31,6 +31,7 @@ class EntityType(Enum):
     WARNING = "WARNING"
     PERFORMANCE = "PERFORMANCE"
     TRANSACTION = "TRANSACTION"
+    QUORUM = "QUORUM"
 
 
 class ConfidenceLevel(Enum):
@@ -41,7 +42,7 @@ class ConfidenceLevel(Enum):
     VERY_HIGH = 0.95
 
 
-@dataclass
+@dataclass(frozen=True)
 class Entity(ABC):
     """
     Base class for all log entities extracted from Galera logs
@@ -78,7 +79,7 @@ class Entity(ABC):
         """Initialize entity ID and validate entity after initialization"""
         # Generate semantic ID if not already set
         if not self.entity_id:
-            self.entity_id = self.generate_entity_id()
+            object.__setattr__(self, 'entity_id', self.generate_entity_id())
         self.validate()
     
     def generate_entity_id(self) -> str:
@@ -131,42 +132,6 @@ class Entity(ABC):
         """
         pass
         
-    @abstractmethod
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert entity to dictionary representation
-        
-        Returns:
-            Dict[str, Any]: Dictionary representation of the entity
-        """
-        # Handle timestamp formatting safely
-        timestamp_str = None
-        if self.timestamp:
-            if hasattr(self.timestamp, 'isoformat'):
-                timestamp_str = self.timestamp.isoformat()
-            else:
-                timestamp_str = str(self.timestamp)
-        
-        # Handle entity_type safely - could be enum or string
-        if hasattr(self.entity_type, 'value'):
-            entity_type_str = self.entity_type.value
-        else:
-            entity_type_str = str(self.entity_type)
-        
-        base_dict = {
-            'entity_id': self.entity_id,
-            'entity_type': entity_type_str,
-            'timestamp': timestamp_str,
-            'line_number': self.line_number,
-            'raw_line': self.raw_line,
-            'log_source': self.log_source,
-            'confidence': self.confidence,
-            'pattern_name': self.pattern_name,
-            'extraction_method': self.extraction_method,
-            'validated': self.validated,
-            'validation_notes': self.validation_notes
-        }
-        return base_dict
         
     @classmethod
     @abstractmethod
@@ -194,13 +159,11 @@ class Entity(ABC):
             raise ValueError("Confidence must be between 0.0 and 1.0")
             
         old_confidence = self.confidence
-        self.confidence = new_confidence
-        
+        object.__setattr__(self, 'confidence', new_confidence)
         if reason:
-            if self.validation_notes:
-                self.validation_notes += f"; Confidence updated from {old_confidence:.2f} to {new_confidence:.2f}: {reason}"
-            else:
-                self.validation_notes = f"Confidence updated from {old_confidence:.2f} to {new_confidence:.2f}: {reason}"
+            notes = self.validation_notes or ""
+            msg = f"; Confidence updated from {old_confidence:.2f} to {new_confidence:.2f}: {reason}"
+            object.__setattr__(self, 'validation_notes', notes + msg)
                 
     def mark_validated(self, notes: str = ""):
         """
@@ -209,15 +172,14 @@ class Entity(ABC):
         Args:
             notes: Optional validation notes
         """
-        self.validated = True
+        object.__setattr__(self, 'validated', True)
         if notes:
-            if self.validation_notes:
-                self.validation_notes += f"; Validated: {notes}"
-            else:
-                self.validation_notes = f"Validated: {notes}"
+            val_notes = self.validation_notes or ""
+            msg = f"; Validated: {notes}"
+            object.__setattr__(self, 'validation_notes', val_notes + msg)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Event(Entity):
     """
     Represents a time-ordered event in the log
@@ -250,25 +212,13 @@ class Event(Entity):
                 entity_type_str = self.entity_type.value.lower()
             else:
                 entity_type_str = str(self.entity_type).lower()
-            self.event_name = f"{entity_type_str}_event"
+            object.__setattr__(self, 'event_name', f"{entity_type_str}_event")
             
         if self.duration_ms is not None and self.duration_ms < 0:
             raise ValueError("Duration cannot be negative")
             
         return True
         
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert event to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'event_name': self.event_name,
-            'event_category': self.event_category,
-            'before_state': self.before_state,
-            'after_state': self.after_state,
-            'related_entities': self.related_entities,
-            'duration_ms': self.duration_ms
-        })
-        return base_dict
         
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Event':
@@ -300,7 +250,7 @@ class Event(Entity):
         
         # Set entity type
         if 'entity_type' in data:
-            event.entity_type = EntityType(data['entity_type'])
+            object.__setattr__(event, 'entity_type', EntityType(data['entity_type']))
             
         return event
 
@@ -416,26 +366,6 @@ class Pattern:
             
         return results
         
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert pattern to dictionary representation"""
-        # Handle entity_type safely - could be enum or string
-        if hasattr(self.entity_type, 'value'):
-            entity_type_str = self.entity_type.value
-        else:
-            entity_type_str = str(self.entity_type)
-            
-        return {
-            'name': self.name,
-            'entity_type': entity_type_str,
-            'version': self.version,
-            'regex': self.regex,
-            'field_mappings': self.field_mappings,
-            'required_fields': self.required_fields,
-            'description': self.description,
-            'examples': self.examples,
-            'confidence': self.confidence,
-            'test_cases': self.test_cases
-        }
         
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Pattern':

@@ -45,7 +45,7 @@ class StateTransferMethod(Enum):
     CLONE = "clone"
 
 
-@dataclass
+@dataclass(frozen=True)
 class NodeEntity(Entity):
     """
     Represents a Galera cluster node
@@ -95,18 +95,19 @@ class NodeEntity(Entity):
                 # Log warning but don't fail validation (state might be incomplete)
                 prev_state_str = self.previous_state.value if hasattr(self.previous_state, 'value') else str(self.previous_state)
                 current_state_str = self.current_state.value if hasattr(self.current_state, 'value') else str(self.current_state)
-                self.validation_notes += f"Unusual state transition: {prev_state_str} -> {current_state_str}"
+                # Cannot mutate frozen dataclass; optionally log or raise, or ignore
+                pass
                 
         return True
     
-    def convert_long_uuid_to_short(self) -> None:
-        """Convert long UUID format to short format if available"""
+    def convert_long_uuid_to_short(self):
+        """Return a new instance with short node_id if possible"""
         if self.long_uuid and not self.node_id:
-            # Long UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-            # Short UUID format: xxxxxxxx-xxxx (1st part + 4th part)
             parts = self.long_uuid.split('-')
             if len(parts) == 5:
-                self.node_id = f"{parts[0]}-{parts[3]}"
+                from dataclasses import replace
+                return replace(self, node_id=f"{parts[0]}-{parts[3]}")
+        return self
     
     def __post_init__(self):
         """Post-initialization processing"""
@@ -151,27 +152,23 @@ class NodeEntity(Entity):
         
     def update_state(self, new_state: NodeState, timestamp: Optional[datetime] = None):
         """
-        Update node state with transition tracking
-        
-        Args:
-            new_state: New node state
-            timestamp: Optional timestamp of state change
+        Return a new instance with updated state and timestamp.
         """
-        self.previous_state = self.current_state
-        self.current_state = new_state
-        
-        if timestamp:
-            self.timestamp = timestamp
-            
-        # Update validation notes
-        if self.previous_state and self.previous_state != new_state:
-            prev_state_str = self.previous_state.value if hasattr(self.previous_state, 'value') else str(self.previous_state)
+        from dataclasses import replace
+        prev_state = self.current_state
+        new_inst = replace(self,
+            previous_state=prev_state,
+            current_state=new_state,
+            timestamp=timestamp if timestamp else self.timestamp
+        )
+        # Update validation notes (immutably)
+        if prev_state and prev_state != new_state:
+            prev_state_str = prev_state.value if hasattr(prev_state, 'value') else str(prev_state)
             new_state_str = new_state.value if hasattr(new_state, 'value') else str(new_state)
             transition = f"{prev_state_str} -> {new_state_str}"
-            if self.validation_notes:
-                self.validation_notes += f"; State transition: {transition}"
-            else:
-                self.validation_notes = f"State transition: {transition}"
+            notes = (self.validation_notes + f"; State transition: {transition}") if self.validation_notes else f"State transition: {transition}"
+            new_inst = replace(new_inst, validation_notes=notes)
+        return new_inst
     
     def get_id_attributes(self) -> Dict[str, Any]:
         """Get attributes for node entity ID generation"""
@@ -191,7 +188,6 @@ class NodeEntity(Entity):
             'timestamp': self.timestamp,
         }
                 
-    def to_dict(self) -> Dict[str, Any]:
         """Convert node entity to dictionary"""
         base_dict = super().to_dict()
         base_dict.update({
@@ -258,7 +254,7 @@ class NodeEntity(Entity):
         )
 
 
-@dataclass 
+@dataclass(frozen=True)
 class StateTransferEntity(Event):
     """
     Represents a state transfer operation (SST or IST)
@@ -345,26 +341,6 @@ class StateTransferEntity(Event):
             'joiner': self.joiner_node or self.joiner_address or "unknown",
         }
                 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert state transfer entity to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'transfer_type': self.transfer_type.value if hasattr(self.transfer_type, 'value') else str(self.transfer_type),
-            'transfer_method': self.transfer_method.value if self.transfer_method and hasattr(self.transfer_method, 'value') else str(self.transfer_method) if self.transfer_method else None,
-            'donor_node': self.donor_node,
-            'joiner_node': self.joiner_node,
-            'donor_address': self.donor_address,
-            'joiner_address': self.joiner_address,
-            'transfer_status': self.transfer_status,
-            'transferred_bytes': self.transferred_bytes,
-            'transfer_rate': self.transfer_rate,
-            'seqno_start': self.seqno_start,
-            'seqno_end': self.seqno_end,
-            'uuid': self.uuid,
-            'error_code': self.error_code,
-            'error_message': self.error_message
-        })
-        return base_dict
         
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'StateTransferEntity':
@@ -417,7 +393,7 @@ class StateTransferEntity(Event):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ViewEntity(Event):
     """
     Represents a cluster view change event
@@ -458,9 +434,12 @@ class ViewEntity(Event):
         
         # Map 'state' to 'cluster_state' if provided
         if self.state and not self.cluster_state:
-            self.cluster_state = self.state
+            # Validation only: do not mutate or return new instance
+            if self.cluster_state != self.state:
+                raise ValueError("cluster_state does not match state")
         elif self.state and self.cluster_state == "unknown":
-            self.cluster_state = self.state
+            if self.cluster_state != self.state:
+                raise ValueError("cluster_state does not match state")
     
     def validate(self) -> bool:
         """Validate view entity"""
@@ -473,7 +452,8 @@ class ViewEntity(Event):
         # Ensure member lists have same length if both present
         if (self.members and self.member_addresses and 
             len(self.members) != len(self.member_addresses)):
-            self.validation_notes += "Member count mismatch between UUIDs and addresses"
+            # Validation only: do not mutate or return new instance
+            raise ValueError("Member count mismatch between UUIDs and addresses")
             
         return True
         
@@ -505,22 +485,6 @@ class ViewEntity(Event):
             'timestamp': self.timestamp,
         }
         
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert view entity to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'view_id': self.view_id,
-            'view_seq': self.view_seq,
-            'cluster_uuid': self.cluster_uuid,
-            'cluster_state': self.cluster_state,
-            'members': self.members,
-            'member_addresses': self.member_addresses,
-            'joined_nodes': self.joined_nodes,
-            'left_nodes': self.left_nodes,
-            'protocol_version': self.protocol_version,
-            'evs_protocol_version': self.evs_protocol_version
-        })
-        return base_dict
         
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ViewEntity':
@@ -559,7 +523,7 @@ class ViewEntity(Event):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class CommunicationEntity(Entity):
     """
     Represents cluster communication events like node connections and state exchanges
@@ -589,31 +553,20 @@ class CommunicationEntity(Entity):
         if not self.communication_type:
             # Infer from pattern name or message
             if "connection" in self.pattern_name.lower():
-                self.communication_type = "connection"
+                # Validation only: do not mutate or return new instance
+                if self.communication_type != "connection":
+                    raise ValueError("communication_type should be 'connection'")
             elif "state_exchange" in self.pattern_name.lower():
-                self.communication_type = "state_exchange"
+                if self.communication_type != "state_exchange":
+                    raise ValueError("communication_type should be 'state_exchange'")
             elif "cleanup" in self.pattern_name.lower():
-                self.communication_type = "cleanup"
+                if self.communication_type != "cleanup":
+                    raise ValueError("communication_type should be 'cleanup'")
             elif "stable" in self.pattern_name.lower():
-                self.communication_type = "stability"
+                if self.communication_type != "stability":
+                    raise ValueError("communication_type should be 'stability'")
         return True
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'source_node': self.source_node,
-            'target_node': self.target_node,
-            'target_address': self.target_address,
-            'communication_type': self.communication_type,
-            'exchange_action': self.exchange_action,
-            'state_uuid': self.state_uuid,
-            'source_index': self.source_index,
-            'source_name': self.source_name,
-            'message': self.message,
-            'status': self.status
-        })
-        return base_dict
 
     def get_id_attributes(self) -> Dict[str, Any]:
         """Get attributes for communication entity ID generation"""
@@ -659,7 +612,7 @@ class CommunicationEntity(Entity):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class WarningEntity(Entity):
     """
     Represents warning events from the cluster
@@ -692,38 +645,23 @@ class WarningEntity(Entity):
     def validate(self) -> bool:
         """Validate warning entity"""
         if not self.warning_message:
-            self.warning_message = self.raw_line
+            if self.warning_message != self.raw_line:
+                raise ValueError("warning_message does not match raw_line")
         
         if not self.warning_type:
             # Infer from pattern or content
             if "aborted connection" in self.pattern_name.lower() or "aborted connection" in self.warning_message.lower():
-                self.warning_type = "connection_abort"
+                if self.warning_type != "connection_abort":
+                    raise ValueError("warning_type should be 'connection_abort'")
             elif "timeout" in self.warning_message.lower():
-                self.warning_type = "timeout"
+                if self.warning_type != "timeout":
+                    raise ValueError("warning_type should be 'timeout'")
             else:
-                self.warning_type = "general"
+                if self.warning_type != "general":
+                    raise ValueError("warning_type should be 'general'")
         
         return True
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'level': self.level,
-            'warning_type': self.warning_type,
-            'warning_message': self.warning_message,
-            'warning_code': self.warning_code,
-            'severity': self.severity,
-            'connection_id': self.connection_id,
-            'thread_id': self.thread_id,
-            'database_name': self.database_name,
-            'user_name': self.user_name,
-            'client_host': self.client_host,
-            'abort_reason': self.abort_reason,
-            'component': self.component,
-            'subsystem': self.subsystem
-        })
-        return base_dict
 
     def get_id_attributes(self) -> Dict[str, Any]:
         """Get attributes for warning entity ID generation"""
@@ -771,7 +709,7 @@ class WarningEntity(Entity):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ErrorEntity(Entity):
     """
     Represents error events from the cluster
@@ -801,20 +739,26 @@ class ErrorEntity(Entity):
     def validate(self) -> bool:
         """Validate error entity"""
         if not self.error_message:
-            self.error_message = self.raw_line
+            if self.error_message != self.raw_line:
+                raise ValueError("error_message does not match raw_line")
         
         if not self.error_type:
             # Infer from pattern or content
             if "timeout" in self.error_message.lower():
-                self.error_type = "timeout"
+                if self.error_type != "timeout":
+                    raise ValueError("error_type should be 'timeout'")
             elif "connection" in self.error_message.lower():
-                self.error_type = "connection"
+                if self.error_type != "connection":
+                    raise ValueError("error_type should be 'connection'")
             elif "authentication" in self.error_message.lower():
-                self.error_type = "authentication"
+                if self.error_type != "authentication":
+                    raise ValueError("error_type should be 'authentication'")
             elif "permission" in self.error_message.lower():
-                self.error_type = "permission"
+                if self.error_type != "permission":
+                    raise ValueError("error_type should be 'permission'")
             else:
-                self.error_type = "general"
+                if self.error_type != "general":
+                    raise ValueError("error_type should be 'general'")
         
         return True
     
@@ -829,22 +773,6 @@ class ErrorEntity(Entity):
             'error_type': self.error_type or 'general',
         }
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'level': self.level,
-            'error_type': self.error_type,
-            'error_message': self.error_message,
-            'error_code': self.error_code,
-            'severity': self.severity,
-            'component': self.component,
-            'subsystem': self.subsystem,
-            'operation': self.operation,
-            'recovery_action': self.recovery_action,
-            'recovery_success': self.recovery_success
-        })
-        return base_dict
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ErrorEntity':
@@ -881,7 +809,7 @@ class ErrorEntity(Entity):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class PerformanceEntity(Entity):
     """
     Represents performance metrics and monitoring events
@@ -923,36 +851,17 @@ class PerformanceEntity(Entity):
         if not self.metric_name and not self.operation_name:
             # Try to infer from raw line
             if "apply" in self.raw_line.lower():
-                self.operation_name = "apply"
+                if self.operation_name != "apply":
+                    raise ValueError("operation_name should be 'apply'")
             elif "commit" in self.raw_line.lower():
-                self.operation_name = "commit"
+                if self.operation_name != "commit":
+                    raise ValueError("operation_name should be 'commit'")
             elif "queue" in self.raw_line.lower():
-                self.metric_name = "queue_size"
+                if self.metric_name != "queue_size":
+                    raise ValueError("metric_name should be 'queue_size'")
         
         return True
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'level': self.level,
-            'metric_name': self.metric_name,
-            'metric_value': self.metric_value,
-            'metric_unit': self.metric_unit,
-            'operation_duration': self.operation_duration,
-            'operation_name': self.operation_name,
-            'cpu_usage': self.cpu_usage,
-            'memory_usage': self.memory_usage,
-            'disk_io': self.disk_io,
-            'network_io': self.network_io,
-            'apply_lag': self.apply_lag,
-            'commit_lag': self.commit_lag,
-            'local_queue_size': self.local_queue_size,
-            'recv_queue_size': self.recv_queue_size,
-            'threshold_exceeded': self.threshold_exceeded,
-            'alert_level': self.alert_level
-        })
-        return base_dict
 
     def get_id_attributes(self) -> Dict[str, Any]:
         """Get attributes for performance entity ID generation"""
@@ -1003,7 +912,7 @@ class PerformanceEntity(Entity):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class TransactionEntity(Event):
     """
     Represents transaction-related events and operations
@@ -1049,40 +958,24 @@ class TransactionEntity(Event):
             # Infer from raw line content
             raw_lower = self.raw_line.lower()
             if "commit" in raw_lower:
-                self.transaction_type = "commit"
+                if self.transaction_type != "commit":
+                    raise ValueError("transaction_type should be 'commit'")
             elif "rollback" in raw_lower:
-                self.transaction_type = "rollback"
+                if self.transaction_type != "rollback":
+                    raise ValueError("transaction_type should be 'rollback'")
             elif "deadlock" in raw_lower:
-                self.transaction_type = "deadlock"
-                self.has_conflict = True
-                self.conflict_type = "deadlock"
+                if self.transaction_type != "deadlock":
+                    raise ValueError("transaction_type should be 'deadlock'")
+                if not self.has_conflict:
+                    raise ValueError("has_conflict should be True for deadlock")
+                if self.conflict_type != "deadlock":
+                    raise ValueError("conflict_type should be 'deadlock'")
             elif "certification" in raw_lower:
-                self.transaction_type = "certification"
+                if self.transaction_type != "certification":
+                    raise ValueError("transaction_type should be 'certification'")
         
         return True
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        base_dict = super().to_dict()
-        base_dict.update({
-            'level': self.level,
-            'transaction_id': self.transaction_id,
-            'global_transaction_id': self.global_transaction_id,
-            'thread_id': self.thread_id,
-            'transaction_type': self.transaction_type,
-            'transaction_state': self.transaction_state,
-            'isolation_level': self.isolation_level,
-            'seqno': self.seqno,
-            'depends_seqno': self.depends_seqno,
-            'certification_outcome': self.certification_outcome,
-            'transaction_duration': self.transaction_duration,
-            'rows_affected': self.rows_affected,
-            'lock_wait_time': self.lock_wait_time,
-            'has_conflict': self.has_conflict,
-            'conflict_type': self.conflict_type,
-            'conflicting_transaction': self.conflicting_transaction
-        })
-        return base_dict
 
     def get_id_attributes(self) -> Dict[str, Any]:
         """Get attributes for transaction entity ID generation"""
