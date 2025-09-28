@@ -1074,18 +1074,24 @@ def entity_to_dict(entity) -> Any:
             value = getattr(entity, field.name)
             if value is not None:
                 if field.name == 'entity_type':
+                    # Always use the Enum value (canonical, lowercase)
                     if isinstance(value, Enum):
                         result[field.name] = value.value
                     elif hasattr(value, 'value'):
                         result[field.name] = value.value
                     else:
                         result[field.name] = str(value).lower() if value else ""
+                    # Force lowercase for string values
+                    if isinstance(result[field.name], str):
+                        result[field.name] = result[field.name].lower()
                 else:
                     result[field.name] = entity_to_dict(value)
-        # Ensure entity_type is set properly
+        # Ensure entity_type is set properly and canonical
         if 'entity_type' not in result or not result['entity_type']:
             class_name = type(entity).__name__
             result['entity_type'] = class_name.replace('Entity', '').lower()
+        elif isinstance(result['entity_type'], str):
+            result['entity_type'] = result['entity_type'].lower()
         return result
     elif hasattr(entity, '__dict__'):
         # Fallback for non-dataclass objects
