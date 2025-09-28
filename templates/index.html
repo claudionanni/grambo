@@ -3,13 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <title>grav: Galera Cluster Timeline</title>
+    <link href="https://fonts.googleapis.com/css?family=Inter:400,500,700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; margin: 2em; }
-        #nav { margin-bottom: 1em; }
+        body {
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            margin: 2em;
+            font-size: 14px;
+            background: #f7f9fb;
+            color: #222;
+        }
+        #nav {
+            margin-bottom: 1em;
+            font-size: 13px;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+        }
         #entities { margin-top: 1em; }
-        .entity { margin-bottom: 1em; padding: 0.5em; border: 1px solid #ccc; border-radius: 4px; }
-        .entity-title { font-weight: bold; }
-        #frame-info { margin-bottom: 1em; }
+        .entity {
+            margin-bottom: 0.7em;
+            padding: 0.6em 1em 0.6em 1em;
+            border-radius: 8px;
+            box-shadow: 0 1px 6px rgba(30,60,90,0.06);
+            border: none;
+            background: #fff;
+            font-size: 13px;
+            transition: box-shadow 0.2s;
+        }
+        .entity:hover {
+            box-shadow: 0 4px 16px rgba(30,60,90,0.13);
+        }
+        .entity-title {
+            font-weight: 500;
+            font-size: 15px;
+            margin-bottom: 0.2em;
+            letter-spacing: 0.01em;
+        }
+        .entity.cluster {
+            border-left: 4px solid #2196f3;
+            background: #f5faff;
+        }
+        .entity.quorum {
+            border-left: 4px solid #8e24aa;
+            background: #f8f3ff;
+        }
+        .entity.node {
+            border-left: 4px solid #43a047;
+            background: #f6fff7;
+        }
+        #frame-info {
+            margin-bottom: 1em;
+            font-size: 13px;
+            color: #555;
+        }
+        #graph-container {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 6px rgba(30,60,90,0.07);
+            padding: 1.2em 0.5em 1.2em 0.5em;
+        }
+        #graph svg {
+            background: #f7f9fb;
+            border-radius: 8px;
+        }
+        #cluster-section, #quorum-section, #nodes-section {
+            font-size: 13px;
+        }
+        input, button {
+            font-family: inherit;
+            font-size: 13px;
+        }
+        #timeline-bar {
+            accent-color: #1976d2;
+        }
+        @media (max-width: 900px) {
+            .entity { font-size: 12px; }
+            #graph-container { padding: 0.5em; }
+        }
     </style>
 </head>
 <body>
@@ -21,6 +89,7 @@
     <div id="frame-info"></div>
     <!-- Main content ...existing code... -->
     <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03);">
+        <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-weight: bold; font-size: 14px;"></span>
         <button id="prev-btn">Prev</button>
         <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
         / <span id="total-frames">0</span>
@@ -34,6 +103,7 @@
         </div>
         <div style="flex:1; min-width: 320px; max-width: 500px;">
             <div id="cluster-section" style="margin-bottom: 1.5em;"></div>
+            <div id="quorum-section" style="margin-bottom: 1.5em;"></div>
             <div id="nodes-section"></div>
         </div>
     </div>
@@ -42,6 +112,9 @@
         let currentFrame = 0;
 
         function updateFrame(idx) {
+
+            // Always clear timestamp field at start
+            document.getElementById('frame-timestamp').textContent = '';
             fetch(`/frame/${idx}`)
                 .then(r => r.json())
                 .then(data => {
@@ -54,19 +127,82 @@
                     document.getElementById('frame-info').textContent = `Frame ${currentFrame + 1} of ${data.total}`;
 
                     let entities = data.entities || {};
+                    // Show frame timestamp at left of timeline bar
+                    let ts = '';
+                    if (data.timestamp) {
+                        ts = data.timestamp;
+                    } else if (entities && Object.values(entities).length > 0) {
+                        // fallback: try to find a timestamp field in any entity (prefer cluster, quorum, node, view)
+                        let preferred = ['cluster:', 'quorum:', 'view:', 'node:'];
+                        let found = null;
+                        for (let pref of preferred) {
+                            for (let ent in entities) {
+                                if (ent.startsWith(pref) && entities[ent].timestamp) {
+                                    found = entities[ent].timestamp;
+                                    break;
+                                }
+                            }
+                            if (found) break;
+                        }
+                        if (!found) {
+                            // fallback: any entity with timestamp
+                            for (let ent in entities) {
+                                if (entities[ent].timestamp) {
+                                    found = entities[ent].timestamp;
+                                    break;
+                                }
+                            }
+                        }
+                        ts = found || '';
+                    }
+                    document.getElementById('frame-timestamp').textContent = ts ? ts.replace('T', ' ').replace('Z', '') : '—';
                     // Cluster section (top right)
                     let clusterDiv = document.getElementById('cluster-section');
                     clusterDiv.innerHTML = '';
                     for (let ent in entities) {
                         if (ent.startsWith('cluster:')) {
                             let props = entities[ent];
-                            let html = `<div class='entity' style='background:#f5f5f5; border:2px solid #2196f3; font-size:13px; padding:0.5em 1em;'>`;
-                            html += `<div class='entity-title' style='font-size:15px; margin-bottom:0.3em;'>Cluster</div>`;
-                            for (let p in props) {
-                                html += `<div style='margin-bottom:2px;'><span style='color:#555;'>${p}:</span> <b style='color:#222;'>${props[p]}</b></div>`;
+                            // Only show allowed fields for cluster
+                            const allowed = [
+                                'analysis_start_time', 'cluster_name', 'cluster_ref', 'cluster_uuid',
+                                'members', 'split_brain_detected', 'sst_operations', 'views'
+                            ];
+                            let html = `<div class='entity cluster'>`;
+                            html += `<div class='entity-title'>Cluster</div>`;
+                            for (let p of allowed) {
+                                if (props[p] !== undefined && props[p] !== '' && props[p] !== null) {
+                                    html += `<div style='margin-bottom:2px;'><span style='color:#2196f3;'>${p}:</span> <b style='color:#222;'>${typeof props[p] === 'object' ? '[object]' : props[p]}</b></div>`;
+                                }
                             }
                             html += '</div>';
                             clusterDiv.innerHTML += html;
+                        }
+                    }
+                    // Quorum section (below cluster)
+                    let quorumDiv = document.getElementById('quorum-section');
+                    quorumDiv.innerHTML = '';
+                    let quorumEntities = Object.entries(entities).filter(([k, v]) => k.startsWith('quorum:'));
+                    if (quorumEntities.length === 0) {
+                        quorumDiv.innerHTML = `<div class='entity quorum' style='opacity:0.7; border-style: dashed;'>`
+                            + `<div class='entity-title'>Quorum</div>`
+                            + `<div style='color:#888;'>No quorum data for this frame</div>`
+                            + `</div>`;
+                    } else {
+                        for (let [ent, props] of quorumEntities) {
+                            // Only show allowed fields for quorum
+                            const allowed = [
+                                'component', 'conf_id', 'group_uuid', 'last_appl',
+                                'protocols', 'quorum_members', 'version', 'vote_policy'
+                            ];
+                            let html = `<div class='entity quorum'>`;
+                            html += `<div class='entity-title'>Quorum</div>`;
+                            for (let p of allowed) {
+                                if (props[p] !== undefined && props[p] !== '' && props[p] !== null) {
+                                    html += `<div style='margin-bottom:2px;'><span style='color:#8e24aa;'>${p}:</span> <b style='color:#222;'>${typeof props[p] === 'object' ? '[object]' : props[p]}</b></div>`;
+                                }
+                            }
+                            html += '</div>';
+                            quorumDiv.innerHTML += html;
                         }
                     }
                     // Nodes section (right, below cluster)
@@ -77,10 +213,17 @@
                         nodesDiv.innerHTML = '<i>No nodes</i>';
                     } else {
                         for (let [ent, props] of nodeEntities) {
-                            let html = `<div class='entity' style='background:#fafafa; border:1px solid #bbb; margin-bottom:0.7em; font-size:12px; padding:0.4em 0.8em;'>`;
-                            html += `<div class='entity-title' style='font-size:14px; margin-bottom:0.2em;'>${ent.replace('node:', '')}</div>`;
-                            for (let p in props) {
-                                html += `<div style='margin-bottom:1px;'><span style='color:#666;'>${p}:</span> <b style='color:#222;'>${props[p]}</b></div>`;
+                            // Only show allowed fields for node
+                            const allowed = [
+                                'node_name', 'node_state', 'node_uuid', 'mariadb_version',
+                                'galera_version', 'wsrep_version', 'node_address', 'node_id', 'timestamp'
+                            ];
+                            let html = `<div class='entity node'>`;
+                            html += `<div class='entity-title'>${ent.replace('node:', '')}</div>`;
+                            for (let p of allowed) {
+                                if (props[p] !== undefined && props[p] !== '' && props[p] !== null) {
+                                    html += `<div style='margin-bottom:1px;'><span style='color:#43a047;'>${p}:</span> <b style='color:#222;'>${props[p]}</b></div>`;
+                                }
                             }
                             html += '</div>';
                             nodesDiv.innerHTML += html;
@@ -97,15 +240,33 @@
             graphDiv.innerHTML = '';
             if (nodeEntities.length === 0) return;
             let n = nodeEntities.length;
-            let width = 350;
-            let height = 350;
+            let width = 320;
+            let height = 320;
             let centerX = width / 2;
             let centerY = height / 2;
-            let circleRadius = 40;
-            let graphRadius = Math.max(90, Math.min(centerX, centerY) - circleRadius - 10);
+            let circleRadius = 28;
+            let graphRadius = Math.max(70, Math.min(centerX, centerY) - circleRadius - 10);
             let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             svg.setAttribute('width', width);
             svg.setAttribute('height', height);
+            // Draw connecting lines
+            for (let i = 0; i < n; i++) {
+                let angle1 = (2 * Math.PI * i) / n - Math.PI / 2;
+                let x1 = centerX + graphRadius * Math.cos(angle1);
+                let y1 = centerY + graphRadius * Math.sin(angle1);
+                let angle2 = (2 * Math.PI * ((i + 1) % n)) / n - Math.PI / 2;
+                let x2 = centerX + graphRadius * Math.cos(angle2);
+                let y2 = centerY + graphRadius * Math.sin(angle2);
+                let line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#b0bec5');
+                line.setAttribute('stroke-width', 2);
+                svg.appendChild(line);
+            }
+            // Draw nodes
             nodeEntities.forEach(([ent, props], i) => {
                 let angle = (2 * Math.PI * i) / n - Math.PI / 2;
                 let x = centerX + graphRadius * Math.cos(angle);
@@ -119,13 +280,35 @@
                 circle.setAttribute('fill', color);
                 circle.setAttribute('stroke', '#333');
                 circle.setAttribute('stroke-width', 2);
+                // Tooltip
+                circle.addEventListener('mouseenter', function(e) {
+                    let tooltip = document.createElement('div');
+                    tooltip.id = 'node-tooltip';
+                    tooltip.style.position = 'fixed';
+                    tooltip.style.left = (e.clientX + 10) + 'px';
+                    tooltip.style.top = (e.clientY - 10) + 'px';
+                    tooltip.style.background = '#222';
+                    tooltip.style.color = '#fff';
+                    tooltip.style.padding = '4px 10px';
+                    tooltip.style.borderRadius = '6px';
+                    tooltip.style.fontSize = '12px';
+                    tooltip.style.pointerEvents = 'none';
+                    tooltip.style.zIndex = 1000;
+                    tooltip.textContent = props.node_name || ent.replace('node:', '');
+                    document.body.appendChild(tooltip);
+                });
+                circle.addEventListener('mouseleave', function() {
+                    let tooltip = document.getElementById('node-tooltip');
+                    if (tooltip) tooltip.remove();
+                });
                 svg.appendChild(circle);
                 // Node name
                 let text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', x);
-                text.setAttribute('y', y + circleRadius + 18);
+                text.setAttribute('y', y + circleRadius + 14);
                 text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '13px');
+                text.setAttribute('font-size', '12px');
+                text.setAttribute('fill', '#333');
                 text.textContent = props.node_name || ent.replace('node:', '');
                 svg.appendChild(text);
             });

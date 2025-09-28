@@ -1,57 +1,19 @@
-#!/usr/bin/env python3
-"""
-grav: Galera cluster state timeline visualizer
-
-Consumes graf output (frames of state machine) and visualizes a timeline of frames, showing entities and their properties at each frame.
-
-Usage:
-    ./grav <graf_output.json|ndjson>
-    python3 grav <graf_output.json|ndjson>
-
-Features:
-- Reads graf output (JSON/NDJSON)
-- Builds a timeline of frames
-- For each frame, shows entities and their properties
-- CLI output (initial version), extensible to GUI/HTML
-
-"""
-import sys
+from flask import Flask, render_template, request, jsonify
 import json
-from typing import List, Dict, Any
 
-def load_frames(filename: str) -> List[Dict[str, Any]]:
-    frames = []
-    with open(filename, 'r') as f:
-        first_char = f.read(1)
-        f.seek(0)
-        if first_char == '[':
-            # JSON array
-            try:
-                frames = json.load(f)
-            except Exception as e:
-                print(f"Error parsing JSON array: {e}")
-                sys.exit(1)
-        else:
-            # NDJSON (one JSON object per line)
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        frames.append(json.loads(line))
-                    except Exception as e:
-                        print(f"Error parsing NDJSON line: {e}\nLine: {line}")
-                        sys.exit(1)
-    return frames
+import os
+import argparse
 
-def print_timeline(frames: List[Dict[str, Any]]):
-    print(f"Timeline: {len(frames)} frames\n")
-    # Track latest node_state for each node
+app = Flask(__name__)
+
+FRAMES = []
+
+def propagate_node_states(frames):
+    """Propagate latest node_state for each node across all frames."""
     latest_node_states = {}
-    for idx, frame in enumerate(frames):
-        print(f"Frame {idx+1}:")
-        all_entities = {}
-        # Update node states if present in this frame
+    for frame in frames:
         nodes = frame.get('nodes', {})
+        # Update node states if present in this frame
         for node_name, node_props in nodes.items():
             if 'node_state' in node_props:
                 latest_node_states[node_name] = node_props['node_state']
@@ -61,27 +23,73 @@ def print_timeline(frames: List[Dict[str, Any]]):
                 node_props = dict(node_props)  # copy to avoid mutating original
                 node_props['node_state'] = latest_node_states[node_name]
                 nodes[node_name] = node_props
+    return frames
+
+@app.route('/')
+def index():
+    return render_template('index.html', total_frames=len(FRAMES))
+
+@app.route('/frame/<int:idx>')
+def get_frame(idx):
+    if 0 <= idx < len(FRAMES):
         # Collect all entities from 'entities', 'nodes', and 'clusters'
+        frame = FRAMES[idx]
+        all_entities = {}
         for key in ('entities', 'nodes', 'clusters'):
             ents = frame.get(key, {})
             if ents:
                 for ent_name, ent_props in ents.items():
                     all_entities[f"{key[:-1]}:{ent_name}"] = ent_props
-        if not all_entities:
-            print("  (No entities)")
-        for ent_name, ent_props in all_entities.items():
-            print(f"  Entity: {ent_name}")
-            for prop, val in ent_props.items():
-                print(f"    {prop}: {val}")
-        print()
+        # Inject quorum entity if present (as 'quorum:<id>' or 'quorum:main')
+        quorum = frame.get('quorum')
+        if quorum:
+            quorum_id = quorum.get('entity_id') or 'main'
+            all_entities[f'quorum:{quorum_id}'] = quorum
+        # Determine frame timestamp: prefer frame['timestamp'], else event timestamp, else None
+        frame_ts = frame.get('timestamp')
+        if not frame_ts and 'event' in frame and frame['event'].get('timestamp'):
+            frame_ts = frame['event']['timestamp']
+        return jsonify({
+            'idx': idx,
+            'total': len(FRAMES),
+            'entities': all_entities,
+            'timestamp': frame_ts
+        })
+    return jsonify({'error': 'Frame out of range'}), 404
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: grav <graf_output.json|ndjson>")
-        sys.exit(1)
-    filename = sys.argv[1]
-    frames = load_frames(filename)
-    print_timeline(frames)
+@app.route('/load', methods=['POST'])
+def load_frames():
+    global FRAMES
+    file = request.files['file']
+    if not file:
+        return 'No file uploaded', 400
+    content = file.read().decode('utf-8')
+    try:
+        if content.strip().startswith('{'):
+            FRAMES = [json.loads(line) for line in content.splitlines() if line.strip()]
+        else:
+            FRAMES = json.loads(content)
+        FRAMES = propagate_node_states(FRAMES)
+    except Exception as e:
+        return f'Error parsing file: {e}', 400
+    return 'OK', 200
 
-if __name__ == "__main__":
-    main()
+def load_frames_from_file(path):
+    with open(path, 'r') as f:
+        content = f.read()
+        if content.strip().startswith('{'):
+            frames = [json.loads(line) for line in content.splitlines() if line.strip()]
+        else:
+            frames = json.loads(content)
+        return propagate_node_states(frames)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='grav web visualizer')
+    parser.add_argument('--frames', type=str, help='graf output file (json or ndjson) to load at startup')
+    parser.add_argument('--host', type=str, default='127.0.0.1')
+    parser.add_argument('--port', type=int, default=5000)
+    args = parser.parse_args()
+
+    if args.frames:
+        FRAMES = load_frames_from_file(args.frames)
+    app.run(debug=True, host=args.host, port=args.port)

@@ -422,6 +422,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     entities = grap_json.get("entities") or []
     entities = sort_entities(entities)
 
+
     # --- State machine: track latest state for each entity property ---
     # For each entity type, keep a dict of {entity_id: {property: value, ...}}
     state_machine = {}
@@ -429,6 +430,8 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     node_immutable = {}
     # For each cluster, keep immutable core properties
     cluster_immutable = {}
+    # State machine for quorum events (per cluster key)
+    # state_machine['quorum'][cluster_key] = latest quorum event dict
 
     frames: List[Dict[str, Any]] = []
     timestamps = []
@@ -444,6 +447,15 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             node_immutable[e.get("node_name") or e.get("node_uuid") or eid] = dict(e)
         if et == "cluster":
             cluster_immutable[e.get("cluster_ref") or eid] = dict(e)
+
+        # --- Track latest QuorumEntity per cluster using state machine ---
+        if et == "quorum":
+            # Use group_uuid, cluster_uuid, or cluster_ref as key
+            key = e.get("group_uuid") or e.get("cluster_uuid") or e.get("cluster_ref") or "_default"
+            if "quorum" not in state_machine:
+                state_machine["quorum"] = {}
+            # Store only the current event's properties (minus raw_line/log_source/line_number)
+            state_machine["quorum"][key] = {k: v for k, v in e.items() if k not in ("raw_line", "log_source", "line_number")}
 
         # --- Update state machine for time-varying entities ---
         if et not in state_machine:
@@ -495,6 +507,20 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             cluster_state = filter_props(cluster_state)
             frame_clusters[cluster_key] = cluster_state
 
+        # --- Add quorum section: use latest quorum entity for this cluster, if any ---
+        # Try to match by group_uuid, cluster_uuid, or cluster_ref using state_machine['quorum']
+        cluster_keys = list(frame_clusters.keys())
+        quorum_section = None
+        quorum_sm = state_machine.get("quorum", {})
+        for ck in cluster_keys:
+            c = frame_clusters[ck]
+            for qk in [c.get("group_uuid"), c.get("cluster_uuid"), ck]:
+                if qk and qk in quorum_sm:
+                    quorum_section = quorum_sm[qk]
+                    break
+            if quorum_section:
+                break
+
         frame = {
             "index": idx,
             "event": {
@@ -506,6 +532,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             },
             "nodes": frame_nodes,
             "clusters": frame_clusters,
+            "quorum": quorum_section,
         }
         frames.append(frame)
 
