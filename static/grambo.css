@@ -1,0 +1,47 @@
+/* Grambo Timeline Visualization Styles */
+
+/* Basic styles for the timeline visualization */
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Timeline container styles */
+.timeline-wrapper {
+    position: relative;
+    margin: 1em 0;
+}
+
+/* Timeline markers and hotspots */
+.hotspot-marker {
+    position: absolute;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hotspot-marker:hover {
+    transform: scale(1.1);
+}
+
+/* Card grid layout */
+.card-grid {
+    display: grid;
+    gap: 1em;
+    padding: 1em;
+}
+
+.card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1em;
+}
+
+/* Basic responsive design */
+@media (max-width: 768px) {
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+}

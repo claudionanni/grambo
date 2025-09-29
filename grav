@@ -12,7 +12,8 @@ SOURCE_LOG_FILES = []
 TIMELINE_HOTSPOTS = {
     "cluster_non_primary": [],
     "node_non_member": [],
-    "node_component_non_primary": []
+    "node_component_non_primary": [],
+    "sst_operations": []
 }
 
 
@@ -20,7 +21,8 @@ def summarize_hotspots(frames):
     summary = {
         "cluster_non_primary": [],
         "node_non_member": [],
-        "node_component_non_primary": []
+        "node_component_non_primary": [],
+        "sst_operations": []
     }
     for idx, frame in enumerate(frames or []):
         hotspots = frame.get('hotspots') or {}
@@ -36,6 +38,27 @@ def summarize_hotspots(frames):
             entry = dict(item)
             entry['index'] = idx
             summary['node_component_non_primary'].append(entry)
+        
+        # Detect SST operations (DONOR + JOINER in same frame)
+        nodes = frame.get('nodes', {})
+        donors = []
+        joiners = []
+        for node_name, node_data in nodes.items():
+            node_state = node_data.get('node_state', '').upper()
+            if 'DONOR' in node_state or 'DESYNCED' in node_state:
+                donors.append(node_name)
+            elif node_state == 'JOINER':
+                joiners.append(node_name)
+        
+        if donors and joiners:
+            # Create SST hotspot entry
+            summary['sst_operations'].append({
+                'index': idx,
+                'donors': donors,
+                'joiners': joiners,
+                'description': f"SST: {', '.join(donors)} → {', '.join(joiners)}"
+            })
+    
     return summary
 
 
