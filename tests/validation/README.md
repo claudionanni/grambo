@@ -38,6 +38,40 @@ python3 tests/validation/analyze_pattern_details.py
 
 **Expected output**: Breakdown of extraction methods and duplicate analysis
 
+### `analyze_uuid_consistency.py`
+**Purpose**: Validates UUID assignment consistency across time and entity types.
+
+**Usage**:
+```bash
+cd /home/claudio/Projects/GITHUB/grambo
+python3 tests/validation/analyze_uuid_consistency.py
+```
+
+**What it tests**:
+- UUID consistency for each node over time
+- Correlation between node_state and view entity UUIDs
+- UUID timeline generation
+- Temporal UUID assignment patterns
+
+**Expected output**: UUID consistency report with timeline analysis
+
+### `analyze_entity_coverage.py`
+**Purpose**: Comprehensive entity extraction coverage and quality validation.
+
+**Usage**:
+```bash
+cd /home/claudio/Projects/GITHUB/grambo
+python3 tests/validation/analyze_entity_coverage.py
+```
+
+**What it tests**:
+- Entity type distribution and expected coverage
+- Quality metrics (confidence, timestamps, raw lines)
+- Temporal coverage analysis
+- Unexpected entity type detection
+
+**Expected output**: Entity coverage report with quality assessment
+
 ## Test Reports
 
 ### `NODE_STATE_RELIABILITY_REPORT.md`
@@ -77,7 +111,19 @@ python3 tests/validation/analyze_node_state_reliability.py
 echo -e "\n=== Running detailed pattern analysis ==="
 python3 tests/validation/analyze_pattern_details.py
 
+echo -e "\n=== Running UUID consistency validation ==="
+python3 tests/validation/analyze_uuid_consistency.py
+
+echo -e "\n=== Running entity coverage analysis ==="
+python3 tests/validation/analyze_entity_coverage.py
+
 echo -e "\n=== Validation complete. See NODE_STATE_RELIABILITY_REPORT.md for detailed findings ==="
+```
+
+**Or use the automated suite runner**:
+```bash
+cd /home/claudio/Projects/GITHUB/grambo
+./tests/validation/run_validation_suite.sh
 ```
 
 ## Test Data Requirements

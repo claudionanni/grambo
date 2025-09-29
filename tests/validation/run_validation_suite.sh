@@ -41,6 +41,14 @@ echo
 echo "=== Running Detailed Pattern Analysis ==="
 python3 tests/validation/analyze_pattern_details.py | tee "${REPORT_FILE}.patterns"
 
+echo
+echo "=== Running UUID Consistency Validation ==="
+python3 tests/validation/analyze_uuid_consistency.py | tee "${REPORT_FILE}.uuid"
+
+echo
+echo "=== Running Entity Coverage Analysis ==="
+python3 tests/validation/analyze_entity_coverage.py | tee "${REPORT_FILE}.coverage"
+
 # Generate summary report
 echo
 echo "=== Generating Summary Report ==="
@@ -64,6 +72,16 @@ $(cat "${REPORT_FILE}.reliability")
 ### Pattern Analysis Details  
 \`\`\`
 $(cat "${REPORT_FILE}.patterns")
+\`\`\`
+
+### UUID Consistency Validation
+\`\`\`
+$(cat "${REPORT_FILE}.uuid")
+\`\`\`
+
+### Entity Coverage Analysis
+\`\`\`
+$(cat "${REPORT_FILE}.coverage")
 \`\`\`
 
 ## Quick Assessment
@@ -119,7 +137,7 @@ cat >> "$REPORT_FILE" << EOF
 EOF
 
 # Cleanup temporary files
-rm -f "${REPORT_FILE}.reliability" "${REPORT_FILE}.patterns"
+rm -f "${REPORT_FILE}.reliability" "${REPORT_FILE}.patterns" "${REPORT_FILE}.uuid" "${REPORT_FILE}.coverage"
 
 echo "✅ Validation suite completed successfully"
 echo "📄 Summary report: $REPORT_FILE"
