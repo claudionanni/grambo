@@ -144,6 +144,24 @@
             color: #94a3b8;
             font-style: italic;
         }
+        .nav-link {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35em;
+            padding: 0.45em 0.9em;
+            border-radius: 999px;
+            background: rgba(29, 78, 216, 0.12);
+            color: #1d4ed8;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        .nav-link:hover {
+            background: rgba(29, 78, 216, 0.22);
+            color: #1e40af;
+        }
         #nav {
             backdrop-filter: blur(12px);
         }
@@ -164,6 +182,12 @@
             .entity-label {
                 min-width: 120px;
             }
+            .nav-link {
+                margin-left: 0;
+                margin-top: 0.6em;
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
@@ -175,13 +199,16 @@
         <div id="frame-info"></div>
     </div>
     <!-- Main content ...existing code... -->
-    <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03);">
-    <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-size: 14px;"></span>
+    <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03); flex-wrap: wrap;">
+        <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-size: 14px;"></span>
         <button id="prev-btn">Prev</button>
         <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
         / <span id="total-frames">0</span>
         <button id="next-btn">Next</button>
         <input type="range" id="timeline-bar" min="1" value="1" style="flex:1; margin-left:1em; margin-right:1em;">
+        {% if sst_available %}
+        <a class="nav-link" href="/sst" target="_blank" rel="noopener">View SST Sessions</a>
+        {% endif %}
     </div>
     <main class="board-wrapper">
         <div id="card-board" class="card-grid">

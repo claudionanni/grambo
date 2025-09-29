@@ -7,6 +7,7 @@ import argparse
 app = Flask(__name__)
 
 FRAMES = []
+SST_REPORT_PATH = None
 
 def propagate_node_states(frames):
     """Propagate latest node_state for each node across all frames."""
@@ -25,9 +26,35 @@ def propagate_node_states(frames):
                 nodes[node_name] = node_props
     return frames
 
+def _load_sst_report() -> str | None:
+    global SST_REPORT_PATH
+    if not SST_REPORT_PATH:
+        return None
+    try:
+        with open(SST_REPORT_PATH, 'r', encoding='utf-8') as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 @app.route('/')
 def index():
-    return render_template('index.html', total_frames=len(FRAMES))
+    report_available = bool(SST_REPORT_PATH and os.path.exists(SST_REPORT_PATH))
+    return render_template('index.html', total_frames=len(FRAMES), sst_available=report_available)
+
+
+@app.route('/sst')
+def sst_report():
+    report_text = _load_sst_report()
+    if report_text is None:
+        return render_template('sst.html', report_text=None)
+    if request.args.get('download'):
+        return app.response_class(
+            report_text,
+            mimetype='text/plain',
+            headers={'Content-Disposition': 'attachment; filename="graa_sst_report.txt"'}
+        )
+    return render_template('sst.html', report_text=report_text)
 
 @app.route('/frame/<int:idx>')
 def get_frame(idx):
@@ -96,10 +123,13 @@ def load_frames_from_file(path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='grav web visualizer')
     parser.add_argument('--frames', type=str, help='graf output file (json or ndjson) to load at startup')
+    parser.add_argument('--sst-report', type=str, help='graa --sst report file to expose via the SST viewer')
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=5000)
     args = parser.parse_args()
 
     if args.frames:
         FRAMES = load_frames_from_file(args.frames)
+    if args.sst_report:
+        SST_REPORT_PATH = args.sst_report
     app.run(debug=True, host=args.host, port=args.port)
