@@ -8,6 +8,39 @@ app = Flask(__name__)
 
 FRAMES = []
 SST_REPORT_PATH = None
+TIMELINE_HOTSPOTS = {
+    "cluster_non_primary": [],
+    "node_non_member": [],
+    "node_component_non_primary": []
+}
+
+
+def summarize_hotspots(frames):
+    summary = {
+        "cluster_non_primary": [],
+        "node_non_member": [],
+        "node_component_non_primary": []
+    }
+    for idx, frame in enumerate(frames or []):
+        hotspots = frame.get('hotspots') or {}
+        for item in hotspots.get('cluster_non_primary') or []:
+            entry = dict(item)
+            entry['index'] = idx
+            summary['cluster_non_primary'].append(entry)
+        for item in hotspots.get('node_non_member') or []:
+            entry = dict(item)
+            entry['index'] = idx
+            summary['node_non_member'].append(entry)
+        for item in hotspots.get('node_component_non_primary') or []:
+            entry = dict(item)
+            entry['index'] = idx
+            summary['node_component_non_primary'].append(entry)
+    return summary
+
+
+def refresh_hotspot_cache():
+    global TIMELINE_HOTSPOTS
+    TIMELINE_HOTSPOTS = summarize_hotspots(FRAMES)
 
 def propagate_node_states(frames):
     """Propagate latest node_state for each node across all frames."""
@@ -40,7 +73,12 @@ def _load_sst_report() -> str | None:
 @app.route('/')
 def index():
     report_available = bool(SST_REPORT_PATH and os.path.exists(SST_REPORT_PATH))
-    return render_template('index.html', total_frames=len(FRAMES), sst_available=report_available)
+    return render_template(
+        'index.html',
+        total_frames=len(FRAMES),
+        sst_available=report_available,
+        timeline_hotspots=TIMELINE_HOTSPOTS
+    )
 
 
 @app.route('/sst')
@@ -90,7 +128,8 @@ def get_frame(idx):
             'idx': idx,
             'total': len(FRAMES),
             'entities': all_entities,
-            'timestamp': frame_ts
+            'timestamp': frame_ts,
+            'hotspots': frame.get('hotspots')
         })
     return jsonify({'error': 'Frame out of range'}), 404
 
@@ -107,6 +146,7 @@ def load_frames():
         else:
             FRAMES = json.loads(content)
         FRAMES = propagate_node_states(FRAMES)
+        refresh_hotspot_cache()
     except Exception as e:
         return f'Error parsing file: {e}', 400
     return 'OK', 200
@@ -130,6 +170,7 @@ if __name__ == '__main__':
 
     if args.frames:
         FRAMES = load_frames_from_file(args.frames)
+        refresh_hotspot_cache()
     if args.sst_report:
         SST_REPORT_PATH = args.sst_report
     app.run(debug=True, host=args.host, port=args.port)

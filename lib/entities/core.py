@@ -8,7 +8,7 @@ This module implements the specific entity types used in Galera cluster analysis
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -82,6 +82,9 @@ class NodeEntity(Entity):
     # Performance metrics (when available)
     local_index: Optional[int] = None
     local_cached_downto: Optional[int] = None
+
+    # UUID history (full + aliases) tracked over time
+    uuid_history: Tuple[str, ...] = field(default_factory=tuple)
     
     def validate(self) -> bool:
         """Validate node entity data"""
@@ -101,13 +104,39 @@ class NodeEntity(Entity):
         return True
     
     def convert_long_uuid_to_short(self):
-        """Return a new instance with short node_id if possible"""
-        if self.long_uuid and not self.node_id:
-            parts = self.long_uuid.split('-')
-            if len(parts) == 5:
-                from dataclasses import replace
-                return replace(self, node_id=f"{parts[0]}-{parts[3]}")
-        return self
+        """Normalize long UUID and populate node_id when available."""
+        # Consolidate UUID history (long + aliases)
+        raw_candidates: List[str] = []
+        if self.long_uuid:
+            raw_candidates.append(self.long_uuid)
+        raw_candidates.extend(self.uuid_history)
+
+        normalized_history: List[str] = []
+        for value in raw_candidates:
+            if not value:
+                continue
+            normalized = str(value).strip().lower()
+            if normalized and normalized not in normalized_history:
+                normalized_history.append(normalized)
+
+        if normalized_history:
+            object.__setattr__(self, 'uuid_history', tuple(normalized_history))
+            object.__setattr__(self, 'long_uuid', normalized_history[0])
+
+        if self.node_id:
+            return
+
+        anchor_uuid = normalized_history[0] if normalized_history else (self.long_uuid or "")
+        if not anchor_uuid:
+            return
+
+        parts = anchor_uuid.split('-')
+        if len(parts) == 5:
+            short_uuid = f"{parts[0]}-{parts[3]}"
+            object.__setattr__(self, 'node_id', short_uuid)
+        else:
+            # Fallback: keep full UUID as identifier if format is unexpected
+            object.__setattr__(self, 'node_id', anchor_uuid)
     
     def __post_init__(self):
         """Post-initialization processing"""

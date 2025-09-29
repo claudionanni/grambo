@@ -25,7 +25,7 @@ import sys
 import json
 import re
 from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Set
 from datetime import datetime
 
 
@@ -181,6 +181,26 @@ def _normalize_node_state(raw: Optional[str]) -> str:
     return 'UNKNOWN'
 
 
+def _normalize_cluster_state(raw: Optional[str]) -> Optional[str]:
+    """Normalize cluster/component state strings to canonical tokens.
+
+    Returns one of PRIM, NON_PRIM or the uppercased value when recognisable.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    s_up = s.upper().replace('-', '_')
+    if s_up == 'NON_PRIMARY':
+        return 'NON_PRIM'
+    if s_up in {'PRIM', 'PRIMARY'}:
+        return 'PRIM'
+    if s_up == 'NON_PRIM':
+        return 'NON_PRIM'
+    return s_up
+
+
 # -----------------------------
 # Utilities
 # -----------------------------
@@ -211,7 +231,11 @@ def reduce_view(world: WorldState, e: Dict[str, Any]):
     if not cref:
         return
     c = world.clusters.setdefault(cref, ClusterState(cluster_ref=cref))
-    c.view_state = (e.get("cluster_state") or c.view_state or "UNKNOWN")
+    state = _normalize_cluster_state(e.get("cluster_state"))
+    if state:
+        c.view_state = state
+    elif not c.view_state:
+        c.view_state = "UNKNOWN"
     c.view_seq = e.get("view_seq") or c.view_seq
     c.view_id = e.get("view_id") or c.view_id
     c.cluster_uuid = e.get("cluster_uuid") or c.cluster_uuid
@@ -526,14 +550,9 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "member_role": e.get("member_role"),
                     "component_state": e.get("component_state"),
                     "members": e.get("members"),
-                    "joined_members": e.get("joined_members"),
-                    "left_members": e.get("left_members"),
-                    "partitioned_members": e.get("partitioned_members"),
-                    "member_segments": e.get("member_segments"),
-                    "members_with_segments": e.get("members_with_segments"),
-                    "joined_with_segments": e.get("joined_with_segments"),
-                    "left_with_segments": e.get("left_with_segments"),
-                    "partitioned_with_segments": e.get("partitioned_with_segments"),
+                    "joined": e.get("joined"),
+                    "left": e.get("left"),
+                    "partitioned": e.get("partitioned"),
                     "cluster_ref": e.get("cluster_ref"),
                     "timestamp": ts,
                 })
@@ -566,14 +585,9 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "member_role": nv.get("member_role"),
                     "component_state": nv.get("component_state"),
                     "members": nv.get("members"),
-                    "joined_members": nv.get("joined_members"),
-                    "left_members": nv.get("left_members"),
-                    "partitioned_members": nv.get("partitioned_members"),
-                    "member_segments": nv.get("member_segments"),
-                    "members_with_segments": nv.get("members_with_segments"),
-                    "joined_with_segments": nv.get("joined_with_segments"),
-                    "left_with_segments": nv.get("left_with_segments"),
-                    "partitioned_with_segments": nv.get("partitioned_with_segments"),
+                    "joined": nv.get("joined"),
+                    "left": nv.get("left"),
+                    "partitioned": nv.get("partitioned"),
                     "view_layer": nv.get("view_layer", "gcomm"),
                     "timestamp": nv.get("timestamp"),
                 }
@@ -662,6 +676,89 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if quorum_section:
                     break
 
+        hotspots: Dict[str, Any] = {}
+
+        # Cluster-level NON_PRIMARY detection (cluster + view layers)
+        cluster_non_primary: List[Dict[str, Any]] = []
+        cluster_seen: Set[Tuple[str, str, Optional[str]]] = set()
+        for cluster_key, cluster_state in frame_clusters.items():
+            state_candidate = (
+                cluster_state.get("cluster_state")
+                or cluster_state.get("component_state")
+                or cluster_state.get("status")
+            )
+            state_norm = _normalize_cluster_state(state_candidate)
+            if state_norm == "NON_PRIM":
+                sig = (cluster_key, "cluster", None)
+                if sig not in cluster_seen:
+                    cluster_seen.add(sig)
+                    cluster_non_primary.append({
+                        "cluster": cluster_key,
+                        "layer": "cluster",
+                        "state": state_norm,
+                        "view_id": cluster_state.get("view_id"),
+                    })
+        for cluster_key, layer_map in frame_views.items():
+            if not isinstance(layer_map, dict):
+                continue
+            for layer_name, payload in layer_map.items():
+                state_candidate = (
+                    payload.get("cluster_state")
+                    or payload.get("component_state")
+                    or payload.get("status")
+                )
+                state_norm = _normalize_cluster_state(state_candidate)
+                if state_norm == "NON_PRIM":
+                    sig = (cluster_key, layer_name or "view", payload.get("view_id") or str(payload.get("view_seq")))
+                    if sig not in cluster_seen:
+                        cluster_seen.add(sig)
+                        cluster_non_primary.append({
+                            "cluster": cluster_key,
+                            "layer": (layer_name or "view"),
+                            "state": state_norm,
+                            "view_id": payload.get("view_id"),
+                            "view_seq": payload.get("view_seq"),
+                        })
+        if cluster_non_primary:
+            hotspots["cluster_non_primary"] = cluster_non_primary
+
+        # Node-level hotspot detection - non-member or NON_PRIM component state
+        node_non_member: List[Dict[str, Any]] = []
+        node_component_non_primary: List[Dict[str, Any]] = []
+        node_non_member_seen: Set[Tuple[str, Optional[str], Optional[str]]] = set()
+        node_comp_seen: Set[Tuple[str, Optional[str]]] = set()
+        for node_key, node_state in frame_nodes.items():
+            gcomm = node_state.get("gcomm_view") or {}
+            if not gcomm:
+                continue
+            display_name = node_state.get("node_name") or node_key
+            member_role = str(gcomm.get("member_role") or "").strip().lower()
+            if member_role and member_role != "member":
+                sig = (display_name, member_role, gcomm.get("view_id"))
+                if sig not in node_non_member_seen:
+                    node_non_member_seen.add(sig)
+                    node_non_member.append({
+                        "node": display_name,
+                        "member_role": member_role,
+                        "view_id": gcomm.get("view_id"),
+                        "component_state": _normalize_cluster_state(gcomm.get("component_state")),
+                    })
+            comp_state = _normalize_cluster_state(gcomm.get("component_state"))
+            if comp_state == "NON_PRIM":
+                sig = (display_name, gcomm.get("view_id"))
+                if sig not in node_comp_seen:
+                    node_comp_seen.add(sig)
+                    node_component_non_primary.append({
+                        "node": display_name,
+                        "component_state": comp_state,
+                        "view_id": gcomm.get("view_id"),
+                        "member_role": member_role or None,
+                    })
+        if node_non_member:
+            hotspots["node_non_member"] = node_non_member
+        if node_component_non_primary:
+            hotspots["node_component_non_primary"] = node_component_non_primary
+
         frame = {
             "index": idx,
             "event": {
@@ -676,6 +773,8 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             "views": frame_views,
             "quorum": quorum_section,
         }
+        if hotspots:
+            frame["hotspots"] = hotspots
         frames.append(frame)
 
     return frames

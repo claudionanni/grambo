@@ -14,14 +14,14 @@ from typing import Dict, List, Optional, Tuple, Set, Any
 
 from lib.entities import Entity, ViewEntity, NodeEntity, ClusterEntity
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from enum import Enum
 from pathlib import Path
 import pickle
 import os
 
 # Version for cache invalidation
-GRAP_VERSION = "v2.5.0"  # WSREP view layer support and node UUID tracking
+GRAP_VERSION = "v2.5.1"  # Node UUID history exposure in node entities
 
 # Cache directory
 CACHE_DIR = Path.home() / ".cache" / "grap"
@@ -182,15 +182,9 @@ class NodeViewEntity(Entity):
     member_role: Optional[str] = None
     component_state: Optional[str] = None
     members: List[str] = field(default_factory=list)
-    joined_members: List[str] = field(default_factory=list)
-    left_members: List[str] = field(default_factory=list)
-    partitioned_members: List[str] = field(default_factory=list)
-    member_segments: Dict[str, int] = field(default_factory=dict)
-    members_with_segments: List[str] = field(default_factory=list)
-    joined_with_segments: List[str] = field(default_factory=list)
-    left_with_segments: List[str] = field(default_factory=list)
-    partitioned_with_segments: List[str] = field(default_factory=list)
-    #member_uuid_map: Dict[str, str] = field(default_factory=dict)
+    joined: List[str] = field(default_factory=list)
+    left: List[str] = field(default_factory=list)
+    partitioned: List[str] = field(default_factory=list)
     def __post_init__(self):
         super().__post_init__()
 
@@ -201,6 +195,92 @@ class NodeViewEntity(Entity):
     @classmethod
     def from_dict(cls, d):
         return cls(**d)
+
+# --- Node entity deduplication helpers ---
+
+def _node_entity_score(node: NodeEntity) -> int:
+    """Simple heuristic score to prefer richer node metadata."""
+    score = 0
+    if getattr(node, 'long_uuid', None):
+        score += 4
+    if getattr(node, 'node_id', None):
+        score += 2
+    if getattr(node, 'node_address', None):
+        score += 1
+    if getattr(node, 'cluster_uuid', None):
+        score += 1
+    if getattr(node, 'cluster_ref', None):
+        score += 1
+    if getattr(node, 'timestamp', None):
+        score += 1
+    return score
+
+
+def _merge_node_entities(primary: NodeEntity, candidate: NodeEntity) -> NodeEntity:
+    """Merge missing attributes from candidate into primary in an immutable-safe way."""
+    updates = {}
+    candidate_updates = {}
+
+    # Fill blanks on the primary with candidate data
+    for attr in (
+        'long_uuid', 'node_id', 'node_name', 'node_address', 'cluster_uuid',
+        'cluster_ref', 'state_uuid', 'wsrep_version', 'galera_version',
+        'mariadb_version', 'local_index', 'local_cached_downto'
+    ):
+        primary_val = getattr(primary, attr, None)
+        candidate_val = getattr(candidate, attr, None)
+        if (primary_val in (None, "", [])) and candidate_val not in (None, "", []):
+            updates[attr] = candidate_val
+        elif (candidate_val in (None, "", [])) and primary_val not in (None, "", []):
+            candidate_updates[attr] = primary_val
+
+    # Combine UUID history from both entities
+    primary_history = list(getattr(primary, 'uuid_history', ()))
+    candidate_history = list(getattr(candidate, 'uuid_history', ()))
+    if primary_history or candidate_history:
+        combined_history = list(dict.fromkeys(primary_history + candidate_history))
+        if tuple(combined_history) != tuple(primary_history):
+            updates['uuid_history'] = tuple(combined_history)
+        if tuple(combined_history) != tuple(candidate_history):
+            candidate_updates['uuid_history'] = tuple(combined_history)
+
+    merged_primary = replace(primary, **updates) if updates else primary
+    merged_candidate = replace(candidate, **candidate_updates) if candidate_updates else candidate
+
+    # Pick the richer of the merged entities
+    if _node_entity_score(merged_candidate) > _node_entity_score(merged_primary):
+        return merged_candidate
+    return merged_primary
+
+
+def _deduplicate_node_entities(entities: List[Entity]) -> List[Entity]:
+    """Ensure only one canonical NodeEntity per logical node is emitted."""
+    deduped: List[Entity] = []
+    seen: Dict[str, int] = {}
+
+    for entity in entities:
+        if isinstance(entity, NodeEntity):
+            key_candidates = [
+                getattr(entity, 'entity_id', None),
+                getattr(entity, 'node_name', None),
+                getattr(entity, 'long_uuid', None)
+            ]
+            key = next((k for k in key_candidates if k), None)
+            if not key:
+                deduped.append(entity)
+                continue
+
+            if key in seen:
+                idx = seen[key]
+                existing = deduped[idx]
+                if isinstance(existing, NodeEntity):
+                    deduped[idx] = _merge_node_entities(existing, entity)
+                continue
+
+            seen[key] = len(deduped)
+        deduped.append(entity)
+
+    return deduped
 
 # WSREP View Entity
 @dataclass(frozen=True)
@@ -436,7 +516,10 @@ class GaleraLogParser:
             node_entity = NodeEntity(
                 entity_id=f"node_{node_name}",
                 node_name=node_name,
-                cluster_ref=self.cluster_ref
+                long_uuid=primary_uuid or "",
+                cluster_ref=self.cluster_ref,
+                cluster_uuid=self.cluster_uuid or "",
+                uuid_history=tuple(history)
             )
             # Avoid duplicates if already present
             existing = [e for e in self.entities if type(e).__name__ == "NodeEntity" and getattr(e, "node_name", None) == node_name]
@@ -851,7 +934,8 @@ class GaleraLogParser:
                 'left': [],
                 'partitioned': [],
                 'member_segments': {},  # uuid -> segment mapping
-                'member_uuid_map': {}
+                'member_uuid_map': {},
+                'owner_name': self.current_node_name
             }
         else:  # alternative format
             self._current_view_data = {
@@ -863,7 +947,8 @@ class GaleraLogParser:
                 'left': [],
                 'partitioned': [],
                 'member_segments': {},
-                'member_uuid_map': {}
+                'member_uuid_map': {},
+                'owner_name': self.current_node_name
             }
             
         # Check if member section starts on same line
@@ -1179,7 +1264,6 @@ class GaleraLogParser:
         left_with_segments = _with_segments(left_list)
         partitioned_with_segments = _with_segments(partitioned_list)
         if view_seq is not None:
-            state_token = component_state or "UNKNOWN"
             anchor_uuid = component_uuid_value or effective_cluster_uuid or "unknown"
             view_id = f"{anchor_uuid},{view_seq}"
         else:
@@ -1202,44 +1286,83 @@ class GaleraLogParser:
             cluster_ref=cluster_ref
         )
         self.entities.append(entity)
-        # Emit NodeViewEntity for each member (time-varying, timestamped)
+        # Emit NodeViewEntity only for the node that owns this local view snapshot
         component_state = component_state or "UNKNOWN"
-        for role, member_list in [
-            ("member", members_list),
-            ("joined", joined_list),
-            ("left", left_list),
-            ("partitioned", partitioned_list),
-        ]:
-            for member in member_list:
-                node_name = member
-                node_uuid = self._name_uuid_map.get(node_name)
-                node_cluster_uuid = effective_cluster_uuid or component_uuid
-                node_view_entity = NodeViewEntity(
-                    timestamp=self._view_block_timestamp,
-                    line_number=self._view_block_start_line,
-                    raw_line='\n'.join(self._view_block_lines),
-                    log_source=self._view_block_log_source,
-                    entity_id=f"nodeview_{node_name}_{id_root[:8]}_{id_suffix}",
-                    node_name=node_name,
-                    node_uuid=node_uuid,
-                    component_uuid=component_uuid_value,
-                    view_id=view_id,
-                    cluster_uuid=node_cluster_uuid,
-                    view_seq=view_seq,
-                    member_role=role,
-                    component_state=component_state,
-                    members=members_list,
-                    joined_members=joined_list,
-                    left_members=left_list,
-                    partitioned_members=partitioned_list,
-                    member_segments=member_segments_dict,
-                    members_with_segments=members_with_segments,
-                    joined_with_segments=joined_with_segments,
-                    left_with_segments=left_with_segments,
-                    partitioned_with_segments=partitioned_with_segments,
-                    cluster_ref=cluster_ref
-                )
-                self.entities.append(node_view_entity)
+        owner_name = view.get('owner_name')
+        owner_uuid_norm = None
+        if component_uuid_value:
+            owner_uuid_norm = component_uuid_value.strip().lower()
+        owner_name = owner_name or None
+        if owner_uuid_norm:
+            owner_name = owner_name or self._uuid_name_map.get(owner_uuid_norm)
+            short_uuid = self._shorten_uuid(owner_uuid_norm)
+            if not owner_name and short_uuid:
+                owner_name = self._uuid_name_map.get(short_uuid)
+            compact_uuid = owner_uuid_norm.replace('-', '')
+            if not owner_name and compact_uuid:
+                owner_name = self._uuid_name_map.get(compact_uuid)
+        if not owner_name and self.current_node_name:
+            owner_name = self.current_node_name
+        member_uuid_map = view.get('member_uuid_map') or {}
+        owner_uuid = component_uuid_value or None
+        if not owner_uuid and owner_name:
+            owner_uuid = self._name_uuid_map.get(owner_name)
+        if not owner_uuid and owner_name:
+            owner_uuid = member_uuid_map.get(owner_name)
+
+        owner_key_candidates: Set[str] = set()
+        for candidate in [owner_name, owner_uuid, self._shorten_uuid(owner_uuid_norm) if owner_uuid_norm else None]:
+            if candidate:
+                owner_key_candidates.add(str(candidate).strip().lower())
+        if owner_uuid_norm:
+            owner_key_candidates.add(owner_uuid_norm)
+            owner_key_candidates.add(owner_uuid_norm.replace('-', ''))
+
+        def _to_lower_set(items: List[str]) -> Set[str]:
+            return {str(it).strip().lower() for it in items}
+
+        membership_sets = {
+            "member": _to_lower_set(members_list),
+            "joined": _to_lower_set(joined_list),
+            "left": _to_lower_set(left_list),
+            "partitioned": _to_lower_set(partitioned_list),
+        }
+
+        owner_role = None
+        for role_name, population in membership_sets.items():
+            if any(candidate in population for candidate in owner_key_candidates if candidate):
+                owner_role = role_name
+                break
+        if owner_role is None:
+            owner_role = "member" if members_list else None
+
+        display_node_name = owner_name or (owner_uuid if owner_uuid else "unknown")
+        node_uuid_value = owner_uuid or None
+        if display_node_name and not node_uuid_value:
+            node_uuid_value = self._name_uuid_map.get(display_node_name)
+
+        node_cluster_uuid = effective_cluster_uuid or component_uuid
+        node_view_entity = NodeViewEntity(
+            timestamp=self._view_block_timestamp,
+            line_number=self._view_block_start_line,
+            raw_line='\n'.join(self._view_block_lines),
+            log_source=self._view_block_log_source,
+            entity_id=f"nodeview_{display_node_name}_{id_root[:8]}_{id_suffix}",
+            node_name=display_node_name,
+            node_uuid=node_uuid_value,
+            component_uuid=component_uuid_value,
+            view_id=view_id,
+            cluster_uuid=node_cluster_uuid,
+            view_seq=view_seq,
+            member_role=owner_role,
+            component_state=component_state,
+            members=members_with_segments,
+            joined=joined_with_segments,
+            left=left_with_segments,
+            partitioned=partitioned_with_segments,
+            cluster_ref=cluster_ref
+        )
+        self.entities.append(node_view_entity)
     # Reset view block state
         self._view_block_active = False
         self._current_view_data = None
@@ -1479,6 +1602,9 @@ def main():
         all_entities = [e for e in all_entities if 
                        str(e.entity_type.value if hasattr(e.entity_type, 'value') 
                            else e.entity_type).lower() in filter_types]
+
+    # Deduplicate node entities across multiple source files
+    all_entities = _deduplicate_node_entities(all_entities)
 
     # Remove all normalization and mutation of node_state for immutable entities
     

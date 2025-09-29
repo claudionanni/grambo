@@ -134,6 +134,60 @@
             font-size: 0.85rem;
             line-height: 1.5;
         }
+        .uuid-history {
+            margin-top: 0.55em;
+            border: 1px solid rgba(22, 163, 74, 0.22);
+            border-radius: 10px;
+            background: rgba(22, 163, 74, 0.06);
+            overflow: hidden;
+        }
+        .uuid-history summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.55em 0.9em;
+            background: rgba(22, 163, 74, 0.08);
+            color: #16a34a;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .uuid-history summary::marker,
+        .uuid-history summary::-webkit-details-marker {
+            display: none;
+        }
+        .uuid-history summary span.toggle-icon {
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+        .uuid-history[open] summary span.toggle-icon {
+            transform: rotate(90deg);
+        }
+        .uuid-history-content {
+            padding: 0.55em 0.9em 0.7em;
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .uuid-history-content ol {
+            margin: 0;
+            padding-left: 1.1em;
+        }
+        .uuid-history-content li {
+            margin-bottom: 0.35em;
+            word-break: break-all;
+            color: #0f172a;
+        }
+        .uuid-history-content li span.badge {
+            display: inline-block;
+            margin-left: 0.4em;
+            padding: 0.05em 0.5em;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(22, 163, 74, 0.15);
+            color: #166534;
+        }
         .gcomm-local-content .entity-label {
             min-width: 120px;
             font-size: 0.8rem;
@@ -211,6 +265,55 @@
         #nav {
             backdrop-filter: blur(12px);
         }
+        .timeline-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            margin-left: 1em;
+            margin-right: 1em;
+        }
+        .timeline-wrapper input[type="range"] {
+            width: 100%;
+            margin: 0;
+        }
+        #timeline-hotspot-track {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            pointer-events: none;
+        }
+        .hotspot-marker {
+            position: absolute;
+            width: 4px;
+            top: 15%;
+            bottom: 15%;
+            border-radius: 4px;
+            transform: translateX(-50%);
+            opacity: 0.75;
+        }
+        .hotspot-marker.cluster {
+            background: #e53935;
+        }
+        .hotspot-marker.node {
+            background: #fb8c00;
+        }
+        .hotspot-marker.component {
+            background: #8e24aa;
+        }
+        #timeline-hotspot-info {
+            flex-basis: 100%;
+            margin-top: 0.4em;
+            font-size: 0.85rem;
+            color: #6d4c41;
+            min-height: 1.2em;
+        }
+        #timeline-hotspot-info.active {
+            color: #c62828;
+            font-weight: 600;
+        }
         #graph {
             width: 100%;
             min-height: 320px;
@@ -235,6 +338,15 @@
                 justify-content: center;
             }
         }
+        @media (min-width: 720px) {
+            #timeline-hotspot-info {
+                flex-basis: auto;
+                margin-top: 0;
+                margin-left: 0.6em;
+                min-width: 220px;
+                text-align: left;
+            }
+        }
     </style>
 </head>
 <body>
@@ -251,7 +363,11 @@
         <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
         / <span id="total-frames">0</span>
         <button id="next-btn">Next</button>
-        <input type="range" id="timeline-bar" min="1" value="1" style="flex:1; margin-left:1em; margin-right:1em;">
+        <div class="timeline-wrapper">
+            <div id="timeline-hotspot-track"></div>
+            <input type="range" id="timeline-bar" min="1" value="1">
+        </div>
+        <div id="timeline-hotspot-info"></div>
         {% if sst_available %}
         <a class="nav-link" href="/sst" target="_blank" rel="noopener">View SST Sessions</a>
         {% endif %}
@@ -282,7 +398,8 @@
             </div>
         </div>
     </main>
-    <script>
+        <script type="application/json" id="timeline-hotspot-data">{{ timeline_hotspots|tojson|safe }}</script>
+        <script>
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str)
@@ -313,6 +430,21 @@
             return String(value);
         }
 
+        const timelineHotspotDataElement = document.getElementById('timeline-hotspot-data');
+        let timelineHotspots = {};
+        if (timelineHotspotDataElement) {
+            try {
+                const raw = timelineHotspotDataElement.textContent || '{}';
+                timelineHotspots = JSON.parse(raw) || {};
+            } catch (err) {
+                console.warn('Unable to parse hotspot metadata', err);
+                timelineHotspots = {};
+            }
+        }
+    let timelineMarkersRendered = false;
+    let lastTimelineTotal = null;
+    let lastHotspotSignature = null;
+
         function renderPropertyList(props, allowed, accentClass) {
             let html = '';
             const labelClass = accentClass ? `entity-label ${accentClass}` : 'entity-label';
@@ -325,6 +457,97 @@
                 html += `<div class="entity-block"><span class="${labelClass}">${safeKey}:</span> <span class="entity-value">${formatted}</span></div>`;
             });
             return html;
+        }
+
+        function renderTimelineHotspots(totalFrames) {
+            const track = document.getElementById('timeline-hotspot-track');
+            if (!track) return;
+            track.innerHTML = '';
+            if (!timelineHotspots || totalFrames <= 1) return;
+            const denom = Math.max(1, totalFrames - 1);
+            const occupancy = {};
+            const addMarker = (percent, cssClass, title) => {
+                const marker = document.createElement('div');
+                marker.className = `hotspot-marker ${cssClass}`;
+                const clamped = Math.min(100, Math.max(0, percent));
+                marker.style.left = `${clamped}%`;
+                const bucket = Math.round(clamped * 10) / 10;
+                const offset = occupancy[bucket] || 0;
+                occupancy[bucket] = offset + 1;
+                if (offset > 0) {
+                    marker.style.top = `${15 + offset * 6}%`;
+                }
+                marker.title = title;
+                track.appendChild(marker);
+            };
+            (timelineHotspots.cluster_non_primary || []).forEach(item => {
+                const pct = (item.index / denom) * 100;
+                const label = item.cluster ? `Cluster ${item.cluster} NON-PRIMARY` : 'Cluster NON-PRIMARY';
+                addMarker(pct, 'cluster', label);
+            });
+            (timelineHotspots.node_non_member || []).forEach(item => {
+                const pct = (item.index / denom) * 100;
+                const role = item.member_role ? item.member_role.toUpperCase() : 'NON-MEMBER';
+                const nodeLabel = item.node || 'node';
+                addMarker(pct, 'node', `${nodeLabel} ${role}`);
+            });
+            (timelineHotspots.node_component_non_primary || []).forEach(item => {
+                const pct = (item.index / denom) * 100;
+                const nodeLabel = item.node || 'node';
+                addMarker(pct, 'component', `${nodeLabel} component NON-PRIM`);
+            });
+        }
+
+        function maybeRenderTimelineMarkers(totalFrames) {
+            if (!timelineHotspots) return;
+            if (totalFrames <= 0) return;
+            const signature = JSON.stringify(timelineHotspots);
+            if (timelineMarkersRendered && lastTimelineTotal === totalFrames && lastHotspotSignature === signature) {
+                return;
+            }
+            renderTimelineHotspots(totalFrames);
+            timelineMarkersRendered = true;
+            lastTimelineTotal = totalFrames;
+            lastHotspotSignature = signature;
+        }
+
+        function displayHotspotInfo(hotspots) {
+            const infoEl = document.getElementById('timeline-hotspot-info');
+            if (!infoEl) return;
+            if (!hotspots || Object.keys(hotspots).length === 0) {
+                infoEl.textContent = '';
+                infoEl.classList.remove('active');
+                return;
+            }
+            const messages = [];
+            if (Array.isArray(hotspots.cluster_non_primary) && hotspots.cluster_non_primary.length) {
+                const names = Array.from(new Set(hotspots.cluster_non_primary.map(item => item.cluster || 'cluster')));
+                messages.push(`Cluster NON-PRIMARY (${names.join(', ')})`);
+            }
+            const nonMemberNodes = new Set();
+            if (Array.isArray(hotspots.node_non_member) && hotspots.node_non_member.length) {
+                const nodes = hotspots.node_non_member.map(item => {
+                    const role = item.member_role ? item.member_role.toUpperCase() : 'NON-MEMBER';
+                    const name = item.node || 'node';
+                    nonMemberNodes.add(name);
+                    return `${name} (${role})`;
+                });
+                messages.push(`Node non-member: ${Array.from(new Set(nodes)).join(', ')}`);
+            }
+            if (Array.isArray(hotspots.node_component_non_primary) && hotspots.node_component_non_primary.length) {
+                const nodes = hotspots.node_component_non_primary.map(item => item.node || 'node')
+                    .filter(name => !nonMemberNodes.has(name));
+                if (nodes.length) {
+                    messages.push(`Component NON-PRIM: ${Array.from(new Set(nodes)).join(', ')}`);
+                }
+            }
+            if (messages.length === 0) {
+                infoEl.textContent = '';
+                infoEl.classList.remove('active');
+                return;
+            }
+            infoEl.textContent = messages.join(' • ');
+            infoEl.classList.add('active');
         }
 
         let latestGraphNodes = [];
@@ -341,6 +564,7 @@
                     document.getElementById('total-frames').textContent = data.total;
                     document.getElementById('timeline-bar').max = data.total;
                     document.getElementById('timeline-bar').value = currentFrame + 1;
+                    maybeRenderTimelineMarkers(data.total);
                     
                     let entities = data.entities || {};
                     // Show frame timestamp at left of timeline bar
@@ -374,6 +598,7 @@
                     const tsDisplay = ts ? ts.replace('T', ' ').replace('Z', '') : '—';
                     document.getElementById('frame-timestamp').textContent = tsDisplay;
                     document.getElementById('frame-info').textContent = tsDisplay;
+                    displayHotspotInfo(data.hotspots);
                     // Cluster card
                     const clusterDiv = document.getElementById('cluster-section');
                     clusterDiv.innerHTML = '';
@@ -461,11 +686,10 @@
                         'component_state',
                         'component_uuid',
                         'view_layer',
-                        'members_with_segments',
-                        'joined_with_segments',
-                        'left_with_segments',
-                        'partitioned_with_segments',
-                        'member_segments',
+                        'members',
+                        'joined',
+                        'left',
+                        'partitioned',
                         'timestamp'
                     ];
                     if (nodeEntities.length === 0) {
@@ -477,6 +701,30 @@
                             block += `<div class="entity-subtitle">${escapeHtml(title)}</div>`;
                             const metrics = renderPropertyList(props, nodeFields, 'accent-node');
                             block += metrics || `<div class="empty-state">No node metrics</div>`;
+                            const history = Array.isArray(props.uuid_history)
+                                ? props.uuid_history.filter(item => item !== null && item !== undefined && item !== '')
+                                : [];
+                            if (history.length > 0) {
+                                const historyItems = history.map((uuid, idx) => {
+                                    const safeUuid = escapeHtml(String(uuid));
+                                    const cleaned = String(uuid).replace(/-/g, '');
+                                    const isFull = safeUuid.split('-').length === 5 && cleaned.length === 32;
+                                    let badgeText = '';
+                                    if (idx === 0) {
+                                        badgeText = 'current';
+                                    } else {
+                                        badgeText = isFull ? 'full' : 'alias';
+                                    }
+                                    const badge = badgeText ? `<span class="badge">${escapeHtml(badgeText)}</span>` : '';
+                                    return `<li>${safeUuid}${badge}</li>`;
+                                }).join('');
+                                block += `<details class="uuid-history">
+                                    <summary>UUID history (${history.length}) <span class="toggle-icon">▶</span></summary>
+                                    <div class="uuid-history-content">
+                                        <ol>${historyItems}</ol>
+                                    </div>
+                                </details>`;
+                            }
                             const gcomm = props.gcomm_view;
                             if (gcomm && Object.keys(gcomm).length > 0) {
                                 const gcommMetrics = renderPropertyList(gcomm, gcommFields, 'accent-view');
