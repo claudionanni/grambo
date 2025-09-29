@@ -99,6 +99,52 @@
         .entity-block:last-child {
             border-bottom: none;
         }
+        .gcomm-local {
+            margin-top: 0.65em;
+            border: 1px solid rgba(37, 99, 235, 0.22);
+            border-radius: 10px;
+            background: rgba(37, 99, 235, 0.06);
+            overflow: hidden;
+        }
+        .gcomm-local summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.55em 0.9em;
+            background: rgba(37, 99, 235, 0.08);
+            color: #1d4ed8;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .gcomm-local summary::marker,
+        .gcomm-local summary::-webkit-details-marker {
+            display: none;
+        }
+        .gcomm-local summary span.toggle-icon {
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+        .gcomm-local[open] summary span.toggle-icon {
+            transform: rotate(90deg);
+        }
+        .gcomm-local-content {
+            padding: 0.55em 0.9em 0.7em;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .gcomm-local-content .entity-label {
+            min-width: 120px;
+            font-size: 0.8rem;
+        }
+        .gcomm-local-content .entity-value {
+            font-size: 0.8rem;
+        }
+        .empty-state.small {
+            font-size: 0.8rem;
+            padding: 0.4em 0;
+        }
         .entity-block-group {
             margin-bottom: 1em;
         }
@@ -410,6 +456,18 @@
                         'node_name', 'node_state', 'node_uuid', 'mariadb_version',
                         'galera_version', 'wsrep_version', 'node_address', 'node_id', 'timestamp'
                     ];
+                    const gcommFields = [
+                        'view_id',
+                        'component_state',
+                        'component_uuid',
+                        'view_layer',
+                        'members_with_segments',
+                        'joined_with_segments',
+                        'left_with_segments',
+                        'partitioned_with_segments',
+                        'member_segments',
+                        'timestamp'
+                    ];
                     if (nodeEntities.length === 0) {
                         nodesDiv.innerHTML = '<div class="empty-state">No node data for this frame</div>';
                     } else {
@@ -419,6 +477,15 @@
                             block += `<div class="entity-subtitle">${escapeHtml(title)}</div>`;
                             const metrics = renderPropertyList(props, nodeFields, 'accent-node');
                             block += metrics || `<div class="empty-state">No node metrics</div>`;
+                            const gcomm = props.gcomm_view;
+                            if (gcomm && Object.keys(gcomm).length > 0) {
+                                const gcommMetrics = renderPropertyList(gcomm, gcommFields, 'accent-view');
+                                const gcommContent = gcommMetrics || `<div class="empty-state small">No local gcomm data</div>`;
+                                block += `<details class="gcomm-local">
+                                    <summary>Local GComm View <span class="toggle-icon">▶</span></summary>
+                                    <div class="gcomm-local-content">${gcommContent}</div>
+                                </details>`;
+                            }
                             block += '</div>';
                             nodesDiv.innerHTML += block;
                         });

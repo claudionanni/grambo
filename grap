@@ -190,6 +190,7 @@ class NodeViewEntity(Entity):
     joined_with_segments: List[str] = field(default_factory=list)
     left_with_segments: List[str] = field(default_factory=list)
     partitioned_with_segments: List[str] = field(default_factory=list)
+    #member_uuid_map: Dict[str, str] = field(default_factory=dict)
     def __post_init__(self):
         super().__post_init__()
 
@@ -1180,7 +1181,7 @@ class GaleraLogParser:
         if view_seq is not None:
             state_token = component_state or "UNKNOWN"
             anchor_uuid = component_uuid_value or effective_cluster_uuid or "unknown"
-            view_id = f"view_id({state_token},{anchor_uuid},{view_seq})"
+            view_id = f"{anchor_uuid},{view_seq}"
         else:
             view_id = effective_cluster_uuid or component_uuid or ""
         # Emit the immutable ViewEntity (structural, not time-varying)
