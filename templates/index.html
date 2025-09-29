@@ -116,14 +116,16 @@
         .entity-label {
             display: inline-block;
             min-width: 140px;
-            font-weight: 500;
-            color: #475569;
+            font-weight: 400;
+            font-size: 0.9rem;
+            color: #4b5563;
             text-transform: lowercase;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.1px;
         }
         .entity-value {
-            color: #111827;
-            font-weight: 600;
+            color: #1f2937;
+            font-weight: 400;
+            font-size: 0.9rem;
         }
         .accent-cluster {
             color: #1d4ed8;
@@ -133,6 +135,9 @@
         }
         .accent-node {
             color: #16a34a;
+        }
+        .accent-view {
+            color: #f97316;
         }
         .empty-state {
             padding: 0.6em 0;
@@ -171,7 +176,7 @@
     </div>
     <!-- Main content ...existing code... -->
     <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03);">
-        <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-weight: bold; font-size: 14px;"></span>
+    <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-size: 14px;"></span>
         <button id="prev-btn">Prev</button>
         <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
         / <span id="total-frames">0</span>
@@ -189,6 +194,10 @@
             <div class="card" data-card="cluster" draggable="true">
                 <div class="card-header">Cluster Details <span class="hint">drag to reposition</span></div>
                 <div class="card-body" id="cluster-section"></div>
+            </div>
+            <div class="card" data-card="views" draggable="true">
+                <div class="card-header">View Layers <span class="hint">drag to reposition</span></div>
+                <div class="card-body" id="views-section"></div>
             </div>
             <div class="card" data-card="quorum" draggable="true">
                 <div class="card-header">Quorum State <span class="hint">drag to reposition</span></div>
@@ -312,6 +321,37 @@
                             block += metrics || `<div class="empty-state">No cluster metrics</div>`;
                             block += '</div>';
                             clusterDiv.innerHTML += block;
+                        });
+                    }
+
+                    // View layers card
+                    const viewsDiv = document.getElementById('views-section');
+                    viewsDiv.innerHTML = '';
+                    const viewEntities = Object.entries(entities).filter(([key]) => key.startsWith('view:'));
+                    const viewFields = ['status', 'cluster_state', 'view_id', 'view_seq', 'member_count', 'own_index', 'member_summary', 'members', 'capabilities', 'timestamp'];
+                    if (viewEntities.length === 0) {
+                        viewsDiv.innerHTML = '<div class="empty-state">No view data for this frame</div>';
+                    } else {
+                        const groupedViews = {};
+                        viewEntities.forEach(([entKey, props]) => {
+                            const parts = entKey.split(':');
+                            const clusterKey = parts[1] || (props.cluster_ref || 'cluster');
+                            const layerName = (parts[2] || props.view_layer || 'gcomm').toUpperCase();
+                            if (!groupedViews[clusterKey]) {
+                                groupedViews[clusterKey] = [];
+                            }
+                            groupedViews[clusterKey].push({ layer: layerName, props });
+                        });
+                        Object.entries(groupedViews).forEach(([clusterKey, layers]) => {
+                            let block = '<div class="entity-block-group">';
+                            block += `<div class="entity-subtitle">${escapeHtml(clusterKey)}</div>`;
+                            layers.sort((a, b) => a.layer.localeCompare(b.layer));
+                            layers.forEach(({ layer, props }) => {
+                                block += `<div class="entity-block"><span class="entity-label accent-view">layer:</span> <span class="entity-value">${escapeHtml(layer)}</span></div>`;
+                                block += renderPropertyList(props, viewFields, 'accent-view') || `<div class="empty-state">No data for ${escapeHtml(layer)}</div>`;
+                            });
+                            block += '</div>';
+                            viewsDiv.innerHTML += block;
                         });
                     }
 

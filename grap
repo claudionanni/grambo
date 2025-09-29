@@ -21,7 +21,7 @@ import pickle
 import os
 
 # Version for cache invalidation
-GRAP_VERSION = "v2.4.5"  # Track node UUID history and aliases
+GRAP_VERSION = "v2.5.0"  # WSREP view layer support and node UUID tracking
 
 # Cache directory
 CACHE_DIR = Path.home() / ".cache" / "grap"
@@ -189,9 +189,34 @@ class NodeViewEntity(Entity):
     def from_dict(cls, d):
         return cls(**d)
 
+# WSREP View Entity
+@dataclass(frozen=True)
+class WsrepViewEntity(Entity):
+    entity_type: EntityType = EntityType.VIEW
+    view_layer: str = "wsrep"
+    view_id: Optional[str] = None
+    cluster_uuid: Optional[str] = None
+    view_seq: Optional[int] = None
+    status: Optional[str] = None
+    cluster_state: Optional[str] = None
+    protocol_version: Optional[int] = None
+    capabilities: List[str] = field(default_factory=list)
+    final: Optional[bool] = None
+    own_index: Optional[int] = None
+    member_count: Optional[int] = None
+    members: List[str] = field(default_factory=list)
+    member_details: List[Dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    def validate(self):
+        return True
 
 
-
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
 
 # SST Entity
 @dataclass(frozen=True)
@@ -255,6 +280,11 @@ class GaleraLogParser:
         self._view_block_timestamp = None
         self._current_view_data = None
         self._current_view_section = None
+        self._wsrep_view_block_active = False
+        self._wsrep_view_lines = []
+        self._wsrep_view_start_line = 0
+        self._wsrep_view_log_source = ""
+        self._wsrep_view_timestamp = None
     
     def parse_log(self, log_content: str, log_source: str = "unknown") -> List[Entity]:
         """Parse log content and return entities"""
@@ -739,6 +769,16 @@ class GaleraLogParser:
     def _parse_view_events(self, line: str, line_num: int, log_source: str):
         """Parse WSREP view events - handles multi-line views correctly based on Galera source"""
         
+        # Check if we're continuing a WSREP provider-level view block
+        if self._wsrep_view_block_active:
+            self._continue_wsrep_view_block(line, line_num)
+            return
+
+        stripped_line = line.strip()
+        if 'WSREP:' in stripped_line and '====' in stripped_line and 'view(' not in stripped_line.lower():
+            self._start_wsrep_view_block(line, line_num, log_source)
+            return
+
         # Check if we're continuing a multi-line view block
         if self._view_block_active:
             self._continue_view_block(line, line_num)
@@ -854,6 +894,183 @@ class GaleraLogParser:
             member_line = line.strip()
             if member_line and member_line not in ['{', '}', '(', ')']:
                 self._parse_view_member_line(member_line)
+
+    def _start_wsrep_view_block(self, line: str, line_num: int, log_source: str):
+        if self._wsrep_view_block_active and self._wsrep_view_lines:
+            self._complete_wsrep_view_block(line_num - 1)
+        self._wsrep_view_block_active = True
+        self._wsrep_view_lines = [line]
+        self._wsrep_view_start_line = line_num
+        self._wsrep_view_log_source = log_source
+        self._wsrep_view_timestamp = self._extract_timestamp(line)
+
+    def _continue_wsrep_view_block(self, line: str, line_num: int):
+        self._wsrep_view_lines.append(line)
+        if re.match(r'^=+$', line.strip()):
+            self._complete_wsrep_view_block(line_num)
+
+    def _complete_wsrep_view_block(self, line_num: int):
+        lines = list(self._wsrep_view_lines)
+        self._wsrep_view_block_active = False
+        self._wsrep_view_lines = []
+        if not lines:
+            return
+
+        data: Dict[str, Any] = {}
+        members_detail: List[Dict[str, Any]] = []
+        in_member_section = False
+
+        for raw in lines:
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            normalized = stripped
+            if 'WSREP:' in normalized:
+                parts = normalized.split('WSREP:', 1)
+                normalized = parts[1].strip() if len(parts) > 1 else normalized
+                if not normalized:
+                    continue
+            if normalized.lower().startswith('view'):
+                continue
+            if normalized.startswith('id:'):
+                view_id = normalized.split(':', 1)[1].strip()
+                data['view_id'] = view_id
+                if ':' in view_id:
+                    uuid_part, seq_part = view_id.split(':', 1)
+                    data['cluster_uuid'] = uuid_part.strip()
+                    try:
+                        data['view_seq'] = int(seq_part.strip())
+                    except ValueError:
+                        data['view_seq'] = None
+                continue
+            if normalized.startswith('status:'):
+                data['status'] = normalized.split(':', 1)[1].strip()
+                continue
+            if normalized.startswith('protocol_version:'):
+                value = normalized.split(':', 1)[1].strip()
+                try:
+                    data['protocol_version'] = int(value)
+                except ValueError:
+                    data['protocol_version'] = None
+                continue
+            if normalized.startswith('capabilities:'):
+                caps = normalized.split(':', 1)[1].strip()
+                capabilities = [c.strip() for c in caps.split(',') if c.strip()]
+                data['capabilities'] = capabilities
+                continue
+            if normalized.startswith('final:'):
+                val = normalized.split(':', 1)[1].strip().lower()
+                data['final'] = val in {'yes', 'true', '1'}
+                continue
+            if normalized.startswith('own_index:'):
+                val = normalized.split(':', 1)[1].strip()
+                try:
+                    data['own_index'] = int(val)
+                except ValueError:
+                    data['own_index'] = None
+                continue
+            if normalized.startswith('members('):
+                in_member_section = True
+                count_match = re.search(r'members\((\d+)\)', normalized)
+                if count_match:
+                    try:
+                        data['member_count'] = int(count_match.group(1))
+                    except ValueError:
+                        pass
+                continue
+            if in_member_section:
+                if normalized.startswith('---') or normalized.startswith('==='):
+                    continue
+                if normalized.lower().startswith(('joined', 'left', 'partitioned')):
+                    in_member_section = False
+                    continue
+                member_match = re.match(r'^(\d+):\s*([^,]+?)(?:,\s*(.+))?$', normalized)
+                if member_match:
+                    idx = int(member_match.group(1))
+                    member_uuid = member_match.group(2).strip().strip(',')
+                    member_name = member_match.group(3).strip() if member_match.group(3) else None
+                    entry = {
+                        'index': idx,
+                        'uuid': member_uuid,
+                        'node_name': member_name
+                    }
+                    members_detail.append(entry)
+                    if member_name:
+                        self._register_member_name(member_name, index=idx, uuid=member_uuid)
+                    else:
+                        self._register_member_name(member_uuid, index=idx, uuid=member_uuid)
+                    continue
+                # If line doesn't match member pattern, leave section
+                in_member_section = False
+
+        member_names: List[str] = []
+        for entry in members_detail:
+            name = entry.get('node_name')
+            uuid = entry.get('uuid')
+            if name and not self._is_placeholder_name(name):
+                member_names.append(name)
+            elif uuid:
+                member_names.append(uuid)
+
+        if member_names and 'member_count' not in data:
+            data['member_count'] = len(member_names)
+
+        status_raw = data.get('status')
+        cluster_state = None
+        if status_raw:
+            lowered = status_raw.strip().lower()
+            if lowered == 'primary':
+                cluster_state = 'PRIM'
+            elif lowered == 'non-primary':
+                cluster_state = 'NON_PRIM'
+            else:
+                cluster_state = status_raw.strip().upper()
+        data['cluster_state'] = cluster_state
+
+        cluster_uuid = data.get('cluster_uuid')
+        if cluster_uuid and not self.cluster_uuid:
+            self.cluster_uuid = cluster_uuid
+
+        cluster_ref = self.cluster_ref
+        if not cluster_ref and cluster_uuid:
+            cluster_ref = f"cluster_{cluster_uuid[:8]}"
+            self.cluster_ref = cluster_ref
+
+        view_seq = data.get('view_seq')
+        entity_view_id = data.get('view_id')
+        if entity_view_id and cluster_uuid and view_seq is not None:
+            entity_id = f"wsrep_view_{cluster_uuid[:8]}_{view_seq}"
+        elif entity_view_id:
+            safe_id = entity_view_id.replace(':', '_')
+            entity_id = f"wsrep_view_{safe_id}"
+        else:
+            entity_id = f"wsrep_view_{self._wsrep_view_start_line}"
+
+        entity = WsrepViewEntity(
+            timestamp=self._wsrep_view_timestamp,
+            line_number=self._wsrep_view_start_line,
+            raw_line='\n'.join(lines),
+            log_source=self._wsrep_view_log_source,
+            entity_id=entity_id,
+            view_id=data.get('view_id'),
+            cluster_uuid=cluster_uuid,
+            view_seq=view_seq,
+            status=status_raw,
+            cluster_state=cluster_state,
+            protocol_version=data.get('protocol_version'),
+            capabilities=data.get('capabilities', []),
+            final=data.get('final'),
+            own_index=data.get('own_index'),
+            member_count=data.get('member_count'),
+            members=member_names,
+            member_details=members_detail,
+            cluster_ref=cluster_ref
+        )
+        self.entities.append(entity)
+        # Reset WSREP block metadata
+        self._wsrep_view_start_line = 0
+        self._wsrep_view_log_source = ""
+        self._wsrep_view_timestamp = None
     
     def _parse_view_member_line(self, line: str):
         """Parse a member entry from the view"""

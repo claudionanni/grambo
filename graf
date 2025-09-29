@@ -486,12 +486,24 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             state_machine[et][key]["timestamp"] = ts
         elif et == "view":
             key = e.get("cluster_ref") or eid
+            layer = (e.get("view_layer") or "gcomm").lower()
             if key not in state_machine[et]:
                 state_machine[et][key] = {}
+            payload = {}
             for k, v in e.items():
-                if k not in ("entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source"):
-                    state_machine[et][key][k] = v
-            state_machine[et][key]["timestamp"] = ts
+                if k in {"entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source"}:
+                    continue
+                payload[k] = v
+            if layer == "wsrep":
+                existing = dict(state_machine[et][key].get("wsrep_view", {}))
+                existing.update(payload)
+                existing["timestamp"] = ts
+                existing["view_layer"] = "wsrep"
+                state_machine[et][key]["wsrep_view"] = existing
+            else:
+                payload.pop("view_layer", None)
+                state_machine[et][key].update(payload)
+                state_machine[et][key]["timestamp"] = ts
         # Add other time-varying entity types as needed
 
         # --- Build frame: join latest state for all entities up to this timestamp ---
@@ -520,6 +532,48 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     cluster_state[k] = v
             cluster_state = filter_props(cluster_state)
             frame_clusters[cluster_key] = cluster_state
+
+        frame_views = {}
+        view_sm = state_machine.get("view", {})
+        for cluster_key, view_state in view_sm.items():
+            layer_payloads: Dict[str, Dict[str, Any]] = {}
+            wsrep_payload = view_state.get("wsrep_view")
+            if wsrep_payload:
+                wsrep_filtered = filter_props(dict(wsrep_payload))
+                details = wsrep_filtered.pop("member_details", None)
+                if isinstance(details, list):
+                    summary: List[str] = []
+                    for detail in details:
+                        if not isinstance(detail, dict):
+                            continue
+                        idx = detail.get("index")
+                        node_name = detail.get("node_name")
+                        uuid = detail.get("uuid")
+                        label = ""
+                        if node_name and not _is_placeholder_name(node_name):
+                            label = node_name
+                            if uuid:
+                                label = f"{node_name} ({uuid})"
+                        elif uuid:
+                            label = uuid
+                        if idx is not None:
+                            if label:
+                                label = f"{idx}: {label}"
+                            else:
+                                label = f"{idx}:"
+                        if label:
+                            summary.append(label)
+                    if summary:
+                        wsrep_filtered["member_summary"] = summary
+                wsrep_filtered["view_layer"] = "wsrep"
+                layer_payloads["wsrep"] = wsrep_filtered
+            gcomm_payload = {k: v for k, v in view_state.items() if k != "wsrep_view"}
+            if gcomm_payload:
+                gcomm_filtered = filter_props(dict(gcomm_payload))
+                gcomm_filtered.setdefault("view_layer", "gcomm")
+                layer_payloads["gcomm"] = gcomm_filtered
+            if layer_payloads:
+                frame_views[cluster_key] = layer_payloads
 
         # --- Add quorum section: use the latest quorum entity (by timestamp) for this cluster, if any ---
         cluster_keys = list(frame_clusters.keys())
@@ -558,6 +612,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             },
             "nodes": frame_nodes,
             "clusters": frame_clusters,
+            "views": frame_views,
             "quorum": quorum_section,
         }
         frames.append(frame)

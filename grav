@@ -32,7 +32,7 @@ def index():
 @app.route('/frame/<int:idx>')
 def get_frame(idx):
     if 0 <= idx < len(FRAMES):
-        # Collect all entities from 'entities', 'nodes', and 'clusters'
+        # Collect all entities from 'entities', 'nodes', 'clusters', and derived views
         frame = FRAMES[idx]
         all_entities = {}
         for key in ('entities', 'nodes', 'clusters'):
@@ -40,6 +40,16 @@ def get_frame(idx):
             if ents:
                 for ent_name, ent_props in ents.items():
                     all_entities[f"{key[:-1]}:{ent_name}"] = ent_props
+        views = frame.get('views', {})
+        for cluster_key, layer_map in (views or {}).items():
+            if not isinstance(layer_map, dict):
+                continue
+            for layer_name, props in layer_map.items():
+                entry = dict(props)
+                entry.setdefault('cluster_ref', cluster_key)
+                entry.setdefault('view_layer', layer_name)
+                composite_key = f"view:{cluster_key}:{layer_name}"
+                all_entities[composite_key] = entry
         # Inject quorum entity if present (as 'quorum:<id>' or 'quorum:main')
         quorum = frame.get('quorum')
         if quorum:
