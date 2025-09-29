@@ -410,6 +410,7 @@ class ViewEntity(Event):
     # View identification
     view_id: str = ""  # Unique view identifier
     view_seq: Optional[int] = None  # Sequential view number
+    component_uuid: str = ""
     
     # Cluster state
     cluster_uuid: str = ""
@@ -512,6 +513,7 @@ class ViewEntity(Event):
             duration_ms=data.get('duration_ms'),
             view_id=data.get('view_id', ''),
             view_seq=data.get('view_seq'),
+            component_uuid=data.get('component_uuid', ''),
             cluster_uuid=data.get('cluster_uuid', ''),
             cluster_state=data.get('cluster_state', 'unknown'),
             members=data.get('members', []),

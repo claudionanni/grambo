@@ -172,12 +172,24 @@ class ISTEventEntity(Entity):
 @dataclass(frozen=True)
 class NodeViewEntity(Entity):
     entity_type: EntityType = EntityType.VIEW
+    view_layer: str = "gcomm"
     node_name: Optional[str] = None
     node_uuid: Optional[str] = None
+    component_uuid: Optional[str] = None
     view_id: Optional[str] = None
     cluster_uuid: Optional[str] = None
     view_seq: Optional[int] = None
     member_role: Optional[str] = None
+    component_state: Optional[str] = None
+    members: List[str] = field(default_factory=list)
+    joined_members: List[str] = field(default_factory=list)
+    left_members: List[str] = field(default_factory=list)
+    partitioned_members: List[str] = field(default_factory=list)
+    member_segments: Dict[str, int] = field(default_factory=dict)
+    members_with_segments: List[str] = field(default_factory=list)
+    joined_with_segments: List[str] = field(default_factory=list)
+    left_with_segments: List[str] = field(default_factory=list)
+    partitioned_with_segments: List[str] = field(default_factory=list)
     def __post_init__(self):
         super().__post_init__()
 
@@ -1123,8 +1135,54 @@ class GaleraLogParser:
         if not self._current_view_data:
             return
         view = self._current_view_data
-        cluster_ref = self.cluster_ref or f"cluster_{view['uuid'][:8]}"
-        view_entity_id = f"view_{view['uuid'][:8]}_{view['seq']}"
+        component_uuid = view.get('uuid')
+        view_seq = view.get('seq')
+        effective_cluster_uuid = self.cluster_uuid or component_uuid
+
+        cluster_ref = self.cluster_ref
+        if not cluster_ref:
+            base_uuid = (effective_cluster_uuid or component_uuid or "unknown")
+            cluster_ref = f"cluster_{base_uuid[:8]}"
+
+        if view_seq is not None:
+            id_suffix = view_seq
+        else:
+            id_suffix = self._view_block_start_line
+
+        id_root = (effective_cluster_uuid or component_uuid or "unknown")
+        view_entity_id = f"view_{id_root[:8]}_{id_suffix}"
+
+        raw_component_state = view.get('type') or ""
+        component_state = raw_component_state if raw_component_state else None
+        component_uuid_value = component_uuid or ""
+        members_list = list(view.get('members', []))
+        joined_list = list(view.get('joined', []))
+        left_list = list(view.get('left', []))
+        partitioned_list = list(view.get('partitioned', []))
+        member_segments_dict = dict(view.get('member_segments', {}))
+
+        def _with_segments(items: List[str]) -> List[str]:
+            detailed: List[str] = []
+            for item in items:
+                seg = member_segments_dict.get(item)
+                if seg is None and item in self._name_uuid_map:
+                    seg = member_segments_dict.get(self._name_uuid_map[item])
+                if seg is not None:
+                    detailed.append(f"{item},{seg}")
+                else:
+                    detailed.append(item)
+            return detailed
+
+        members_with_segments = _with_segments(members_list)
+        joined_with_segments = _with_segments(joined_list)
+        left_with_segments = _with_segments(left_list)
+        partitioned_with_segments = _with_segments(partitioned_list)
+        if view_seq is not None:
+            state_token = component_state or "UNKNOWN"
+            anchor_uuid = component_uuid_value or effective_cluster_uuid or "unknown"
+            view_id = f"view_id({state_token},{anchor_uuid},{view_seq})"
+        else:
+            view_id = effective_cluster_uuid or component_uuid or ""
         # Emit the immutable ViewEntity (structural, not time-varying)
         entity = ViewEntity(
             timestamp=self._view_block_timestamp,
@@ -1132,43 +1190,56 @@ class GaleraLogParser:
             raw_line='\n'.join(self._view_block_lines),
             log_source=self._view_block_log_source,
             entity_id=view_entity_id,
-            view_id=f"{view['uuid']}:{view['seq']}",
-            cluster_uuid=view['uuid'],
-            view_seq=view['seq'],
-            cluster_state=view['type'],
-            members=view['members'],
-            joined_nodes=view.get('joined', []),
-            left_nodes=view.get('left', []),
+            view_id=view_id,
+            cluster_uuid=(effective_cluster_uuid or ""),
+            component_uuid=component_uuid_value,
+            view_seq=view_seq,
+            cluster_state=(component_state or "unknown"),
+            members=members_list,
+            joined_nodes=joined_list,
+            left_nodes=left_list,
             cluster_ref=cluster_ref
         )
         self.entities.append(entity)
         # Emit NodeViewEntity for each member (time-varying, timestamped)
+        component_state = component_state or "UNKNOWN"
         for role, member_list in [
-            ("member", view['members']),
-            ("joined", view.get('joined', [])),
-            ("left", view.get('left', [])),
-            ("partitioned", view.get('partitioned', [])),
+            ("member", members_list),
+            ("joined", joined_list),
+            ("left", left_list),
+            ("partitioned", partitioned_list),
         ]:
             for member in member_list:
                 node_name = member
                 node_uuid = self._name_uuid_map.get(node_name)
+                node_cluster_uuid = effective_cluster_uuid or component_uuid
                 node_view_entity = NodeViewEntity(
                     timestamp=self._view_block_timestamp,
                     line_number=self._view_block_start_line,
                     raw_line='\n'.join(self._view_block_lines),
                     log_source=self._view_block_log_source,
-                    entity_id=f"nodeview_{node_name}_{view['uuid'][:8]}_{view['seq']}",
+                    entity_id=f"nodeview_{node_name}_{id_root[:8]}_{id_suffix}",
                     node_name=node_name,
                     node_uuid=node_uuid,
-                    view_id=f"{view['uuid']}:{view['seq']}",
-                    cluster_uuid=view['uuid'],
-                    view_seq=view['seq'],
+                    component_uuid=component_uuid_value,
+                    view_id=view_id,
+                    cluster_uuid=node_cluster_uuid,
+                    view_seq=view_seq,
                     member_role=role,
+                    component_state=component_state,
+                    members=members_list,
+                    joined_members=joined_list,
+                    left_members=left_list,
+                    partitioned_members=partitioned_list,
+                    member_segments=member_segments_dict,
+                    members_with_segments=members_with_segments,
+                    joined_with_segments=joined_with_segments,
+                    left_with_segments=left_with_segments,
+                    partitioned_with_segments=partitioned_with_segments,
                     cluster_ref=cluster_ref
                 )
                 self.entities.append(node_view_entity)
-        # Do NOT assign cluster_uuid from view block (enforce group-only extraction)
-        # Reset view block state
+    # Reset view block state
         self._view_block_active = False
         self._current_view_data = None
         self._current_view_section = None

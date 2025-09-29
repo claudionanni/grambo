@@ -485,25 +485,58 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     state_machine[et][key][k] = v
             state_machine[et][key]["timestamp"] = ts
         elif et == "view":
-            key = e.get("cluster_ref") or eid
+            cluster_key = e.get("cluster_ref") or eid
             layer = (e.get("view_layer") or "gcomm").lower()
-            if key not in state_machine[et]:
-                state_machine[et][key] = {}
-            payload = {}
-            for k, v in e.items():
-                if k in {"entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source"}:
-                    continue
-                payload[k] = v
-            if layer == "wsrep":
-                existing = dict(state_machine[et][key].get("wsrep_view", {}))
-                existing.update(payload)
-                existing["timestamp"] = ts
-                existing["view_layer"] = "wsrep"
-                state_machine[et][key]["wsrep_view"] = existing
-            else:
-                payload.pop("view_layer", None)
-                state_machine[et][key].update(payload)
-                state_machine[et][key]["timestamp"] = ts
+            node_name = e.get("node_name")
+            node_uuid = e.get("node_uuid")
+            is_node_view = bool(node_name or node_uuid)
+
+            if not is_node_view:
+                # Track cluster-level view (gcomm + wsrep layers)
+                if cluster_key not in state_machine[et]:
+                    state_machine[et][cluster_key] = {}
+                payload = {
+                    k: v
+                    for k, v in e.items()
+                    if k not in {"entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source"}
+                }
+                if layer == "wsrep":
+                    existing = dict(state_machine[et][cluster_key].get("wsrep_view", {}))
+                    existing.update(payload)
+                    existing["timestamp"] = ts
+                    existing["view_layer"] = "wsrep"
+                    state_machine[et][cluster_key]["wsrep_view"] = existing
+                else:
+                    payload.pop("view_layer", None)
+                    state_machine[et][cluster_key].update(payload)
+                    state_machine[et][cluster_key]["timestamp"] = ts
+
+            # Track per-node local view snapshots when node information present
+            if node_name or node_uuid:
+                nv_key = node_name or node_uuid
+                node_view_sm = state_machine.setdefault("node_view", {})
+                node_entry = node_view_sm.setdefault(nv_key, {})
+                node_entry.update({
+                    "node_name": node_name,
+                    "node_uuid": node_uuid,
+                    "component_uuid": e.get("component_uuid"),
+                    "view_id": e.get("view_id"),
+                    "cluster_uuid": e.get("cluster_uuid"),
+                    "view_seq": e.get("view_seq"),
+                    "member_role": e.get("member_role"),
+                    "component_state": e.get("component_state"),
+                    "members": e.get("members"),
+                    "joined_members": e.get("joined_members"),
+                    "left_members": e.get("left_members"),
+                    "partitioned_members": e.get("partitioned_members"),
+                    "member_segments": e.get("member_segments"),
+                    "members_with_segments": e.get("members_with_segments"),
+                    "joined_with_segments": e.get("joined_with_segments"),
+                    "left_with_segments": e.get("left_with_segments"),
+                    "partitioned_with_segments": e.get("partitioned_with_segments"),
+                    "cluster_ref": e.get("cluster_ref"),
+                    "timestamp": ts,
+                })
         # Add other time-varying entity types as needed
 
         # --- Build frame: join latest state for all entities up to this timestamp ---
@@ -520,6 +553,34 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if k not in node_state:
                     node_state[k] = v
             node_state = filter_props(node_state)
+            # Overlay latest node view snapshot if available
+            nv = state_machine.get("node_view", {}).get(node_key)
+            if not nv and node_state.get("node_uuid"):
+                nv = state_machine.get("node_view", {}).get(node_state.get("node_uuid"))
+            if nv:
+                view_payload = {
+                    "view_id": nv.get("view_id"),
+                    "view_seq": nv.get("view_seq"),
+                    "cluster_uuid": nv.get("cluster_uuid"),
+                    "component_uuid": nv.get("component_uuid"),
+                    "member_role": nv.get("member_role"),
+                    "component_state": nv.get("component_state"),
+                    "members": nv.get("members"),
+                    "joined_members": nv.get("joined_members"),
+                    "left_members": nv.get("left_members"),
+                    "partitioned_members": nv.get("partitioned_members"),
+                    "member_segments": nv.get("member_segments"),
+                    "members_with_segments": nv.get("members_with_segments"),
+                    "joined_with_segments": nv.get("joined_with_segments"),
+                    "left_with_segments": nv.get("left_with_segments"),
+                    "partitioned_with_segments": nv.get("partitioned_with_segments"),
+                    "view_layer": nv.get("view_layer", "gcomm"),
+                    "timestamp": nv.get("timestamp"),
+                }
+                # Drop keys that have no value to keep JSON tidy
+                view_payload = {k: v for k, v in view_payload.items() if v is not None}
+                if view_payload:
+                    node_state.setdefault("gcomm_view", view_payload)
             frame_nodes[node_key] = node_state
 
         frame_clusters = {}
@@ -531,6 +592,11 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if k not in cluster_state:
                     cluster_state[k] = v
             cluster_state = filter_props(cluster_state)
+            cluster_state["nodes_view"] = {
+                key: filter_props(value)
+                for key, value in state_machine.get("node_view", {}).items()
+                if value.get("cluster_ref") == cluster_key
+            }
             frame_clusters[cluster_key] = cluster_state
 
         frame_views = {}
@@ -567,11 +633,6 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                         wsrep_filtered["member_summary"] = summary
                 wsrep_filtered["view_layer"] = "wsrep"
                 layer_payloads["wsrep"] = wsrep_filtered
-            gcomm_payload = {k: v for k, v in view_state.items() if k != "wsrep_view"}
-            if gcomm_payload:
-                gcomm_filtered = filter_props(dict(gcomm_payload))
-                gcomm_filtered.setdefault("view_layer", "gcomm")
-                layer_payloads["gcomm"] = gcomm_filtered
             if layer_payloads:
                 frame_views[cluster_key] = layer_payloads
 
