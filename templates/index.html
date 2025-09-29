@@ -227,6 +227,14 @@
             font-weight: 400;
             font-size: 0.9rem;
         }
+        .status-ok {
+            color: #059669;
+            font-weight: 500;
+        }
+        .status-warning {
+            color: #dc2626;
+            font-weight: 500;
+        }
         .accent-cluster {
             color: #1d4ed8;
         }
@@ -402,7 +410,7 @@
                 <div class="card-body" id="cluster-section"></div>
             </div>
             <div class="card" data-card="views" draggable="true">
-                <div class="card-header">View Layers <span class="hint">drag to reposition</span></div>
+                <div class="card-header">Wsrep Layer View <span class="hint">drag to reposition</span></div>
                 <div class="card-body" id="views-section"></div>
             </div>
             <div class="card" data-card="quorum" draggable="true">
@@ -620,10 +628,7 @@
                     const clusterDiv = document.getElementById('cluster-section');
                     clusterDiv.innerHTML = '';
                     const clusterEntities = Object.entries(entities).filter(([key]) => key.startsWith('cluster:'));
-                    const clusterFields = [
-                        'analysis_start_time', 'cluster_name', 'cluster_ref', 'cluster_uuid',
-                        'members', 'split_brain_detected', 'sst_operations', 'views'
-                    ];
+                    
                     if (clusterEntities.length === 0) {
                         clusterDiv.innerHTML = `<div class="empty-state">No cluster data for this frame</div>`;
                     } else {
@@ -632,8 +637,73 @@
                             if (clusterEntities.length > 1) {
                                 block += `<div class="entity-subtitle">${escapeHtml(entKey.replace('cluster:', ''))}</div>`;
                             }
-                            const metrics = renderPropertyList(props, clusterFields, 'accent-cluster');
-                            block += metrics || `<div class="empty-state">No cluster metrics</div>`;
+                            
+                            // Format cluster information in a user-friendly way
+                            if (props.analysis_start_time) {
+                                const startTime = props.analysis_start_time.replace('T', ' ').replace('Z', '');
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Analysis Started:</span> <span class="entity-value">${escapeHtml(startTime)}</span></div>`;
+                            }
+                            
+                            if (props.cluster_name) {
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Cluster Name:</span> <span class="entity-value">${escapeHtml(props.cluster_name)}</span></div>`;
+                            }
+                            
+                            if (props.cluster_ref) {
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Cluster ID:</span> <span class="entity-value">${escapeHtml(props.cluster_ref)}</span></div>`;
+                            }
+                            
+                            if (props.cluster_uuid) {
+                                const shortUuid = props.cluster_uuid.length > 36 ? props.cluster_uuid.substring(0, 8) + '...' : props.cluster_uuid;
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">UUID:</span> <span class="entity-value" title="${escapeHtml(props.cluster_uuid)}">${escapeHtml(shortUuid)}</span></div>`;
+                            }
+                            
+                            // Member count and status
+                            if (props.members && typeof props.members === 'object') {
+                                let memberInfo = '';
+                                if (props.members.members_by_name && typeof props.members.members_by_name === 'object') {
+                                    const memberCount = Object.keys(props.members.members_by_name).length;
+                                    memberInfo = `${memberCount} node${memberCount !== 1 ? 's' : ''}`;
+                                    
+                                    if (memberCount <= 5) {
+                                        const memberNames = Object.keys(props.members.members_by_name);
+                                        memberInfo += ` (${memberNames.join(', ')})`;
+                                    }
+                                } else {
+                                    memberInfo = 'Structure available';
+                                }
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Members:</span> <span class="entity-value">${escapeHtml(memberInfo)}</span></div>`;
+                            }
+                            
+                            // Split brain detection
+                            if (props.split_brain_detected !== undefined) {
+                                const status = props.split_brain_detected ? '⚠️ Detected' : '✅ None detected';
+                                const statusClass = props.split_brain_detected ? 'status-warning' : 'status-ok';
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Split Brain:</span> <span class="entity-value ${statusClass}">${status}</span></div>`;
+                            }
+                            
+                            // SST operations
+                            if (props.sst_operations !== undefined) {
+                                let sstInfo = '';
+                                if (Array.isArray(props.sst_operations)) {
+                                    sstInfo = props.sst_operations.length === 0 ? 'None active' : `${props.sst_operations.length} operation${props.sst_operations.length !== 1 ? 's' : ''}`;
+                                } else {
+                                    sstInfo = 'No operations';
+                                }
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">SST Operations:</span> <span class="entity-value">${escapeHtml(sstInfo)}</span></div>`;
+                            }
+                            
+                            // Views summary
+                            if (props.views && typeof props.views === 'object') {
+                                let viewInfo = '';
+                                if (props.views.views_by_id && typeof props.views.views_by_id === 'object') {
+                                    const viewCount = Object.keys(props.views.views_by_id).length;
+                                    viewInfo = `${viewCount} view${viewCount !== 1 ? 's' : ''} recorded`;
+                                } else {
+                                    viewInfo = 'View data available';
+                                }
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Views:</span> <span class="entity-value">${escapeHtml(viewInfo)}</span></div>`;
+                            }
+                            
                             block += '</div>';
                             clusterDiv.innerHTML += block;
                         });
@@ -696,7 +766,7 @@
                     const nodeEntities = Object.entries(entities).filter(([key]) => key.startsWith('node:'));
                     const nodeFields = [
                         'node_name', 'node_state', 'node_uuid', 'mariadb_version',
-                        'galera_version', 'wsrep_version', 'node_address', 'node_id', 'timestamp'
+                        'galera_version', 'wsrep_version', 'node_address', 'timestamp'
                     ];
                     const gcommFields = [
                         'view_id',

@@ -1,6 +1,25 @@
-# Grambo - Galera Log Analysis Suite
+# Grambo - Galera LArtifacts are written to `grax_output/` by default:
+- `graa_sst.txt` – hierarchical SST/IST report displayed in the SST viewer
+- `grap_output.json` – structured entity stream  
+- `graf_frames.ndjson` – timeline frames loaded by `grav`
 
-A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log files, now featuring a complete **3-tool pipeline** for single-node analysis, multi-node correlation, and interactive web visualization.
+The web UI includes a **"View SST Sessions"** link when the SST report is available, opening a styled page with download option.
+
+## 🔧 GRAA - SST/IST Analysis Tool
+
+**GRAA** (Galera Real-time Analysis Analyzer) provides hierarchical SST and IST relationship analysis:
+
+```bash
+# Generate SST/IST hierarchical report
+./graa --sst 11407/error.11407.log
+
+# Basic log summary
+./graa 11407/error.11407.log
+```
+
+## 🔧 GRAP - Enhanced Entity Extraction (Production Ready)sis Suite
+
+A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log files, featuring a complete **4-tool pipeline** for entity extraction, frame generation, and interactive web visualization with SST analysis.
 
 ## � GRAX - One-Command Pipeline Runner (New)
 
@@ -8,13 +27,13 @@ Use the new `grax` helper to generate the SST relationship report, structured en
 
 ```bash
 # Run graa --sst, grap, graf, and grav in sequence
-./grax db3.log other-node.log
+./grax 11407/error.11407.log
 
 # Skip launching the web UI (artifacts only)
-./grax db3.log --no-serve
+./grax 11407/error.11407.log --no-serve
 
 # Customize output directory and port
-./grax db3.log --output-dir=out --host=0.0.0.0 --port=5050
+./grax 11407/error.11407.log --output-dir=out --host=0.0.0.0 --port=5050
 ```
 
 Artifacts are written to `grax_output/` by default:
@@ -29,9 +48,9 @@ When the SST report is available, the web UI exposes a **“View SST Sessions”
 **GRAP** (Galera Real-time Analysis Parser) is the enhanced production implementation featuring:
 
 - **🎯 Entity-Based Architecture** - Extracts structured entities (SST, IST, VIEW, NODE, ERROR, TRANSACTION)
-- **� IST Workflow Tracking** - Complete Incremental State Transfer lifecycle monitoring
+- **🔄 IST Workflow Tracking** - Complete Incremental State Transfer lifecycle monitoring
 - **📊 Multi-Format Output** - Text, JSON, and YAML output formats
-- **� Intelligent Caching** - Cache analysis results for faster re-processing
+- **💾 Intelligent Caching** - Cache analysis results for faster re-processing
 - **🌐 Multi-Node Analysis** - Analyze multiple log files with cluster correlation
 - **⚡ Advanced Filtering** - Filter by entity types and confidence thresholds
 
@@ -51,6 +70,27 @@ When the SST report is available, the web UI exposes a **“View SST Sessions”
 
 # Hierarchical SST+IST visualization with graa
 ./grap --entities=SST,IST --format=json galera-node.log | python3 graa --stdin --sst-ist-tree
+```
+
+## 🔧 GRAF - Timeline Frame Generator
+
+**GRAF** converts structured entities into timeline frames for visualization:
+
+```bash
+# Generate timeline frames from entity data
+./graf grap_output.json --ndjson -o graf_frames.ndjson
+```
+
+## 🔧 GRAV - Interactive Web Visualizer
+
+**GRAV** provides a Flask-based web interface for timeline visualization:
+
+```bash
+# Launch web visualizer with timeline and SST report
+./grav --frames=graf_frames.ndjson --sst-report=graa_sst.txt
+
+# Custom host and port
+./grav --frames=graf_frames.ndjson --host=0.0.0.0 --port=5050
 ```
 
 ### SST+IST Hierarchical Visualization
@@ -277,27 +317,44 @@ cat /var/log/mysql/error.log | ./gra
 ./graw cluster.json --debug
 ```
 
-## 🔍 Cluster Analysis Features
+## Understanding Galera Events
 
-### Multi-Node Correlation
-- **SST Workflow Tracking** - Correlates joiner requests with donor responses across nodes
-- **Split-Brain Detection** - Identifies when nodes have different cluster views
-- **Timeline Synchronization** - Aligns events across all nodes chronologically
-- **State Transition Analysis** - Tracks node state changes cluster-wide
+### State Transitions
+Galera nodes go through various states:
+- **JOINING** → **JOINED** → **SYNCED** → **DONOR** (normal flow)
+- **SYNCED** is the healthy operational state
+- **DONOR** means the node is providing SST/IST to other nodes
 
-### Web Dashboard Capabilities
-- **Interactive Timeline** - Navigate through cluster events frame by frame
-- **Dynamic Network Topology** - Visual representation of cluster state at any point in time
-- **Node Classification** - Automatic categorization of nodes (established/uncertain/excluded)
-- **Temporal Precision** - Nodes appear only when they actually interact with the cluster
-- **Event Correlation** - Links related events across different nodes
+### SST vs IST
+- **IST (Incremental State Transfer)**: First attempt when a node needs to resync; donor serves missing write sets from gcache. If gcache doesn't contain the full required range or IST isn't possible, it falls back to SST.
+- **SST (State Snapshot Transfer)**: Full resync via wsrep_sst_mariabackup (default). Donor runs mariabackup and streams to the joiner on port 4568; the joiner wipes datadir, restores and prepares the backup, then starts MariaDB. After SST, a short IST catch-up typically follows.
 
-### Real-World Scenarios Supported
-- **Node Bootstrap** - Visualize how nodes join an existing cluster
-- **Rolling Restarts** - Track state transitions during maintenance
-- **Network Partitions** - Identify split-brain scenarios and recovery
-- **SST/IST Analysis** - Deep-dive into state transfer workflows
-- **Performance Issues** - Correlate timing issues across cluster members
+### Cluster Views
+Track which nodes are members of the cluster at any given time, including:
+- Nodes that joined the cluster
+- Nodes that left gracefully  
+- Nodes that were partitioned (network split)
+
+## Requirements
+
+### Core Analysis Tools
+- Python 3.7 or higher
+- Flask for web visualization (`pip install flask`)
+
+```bash
+# Install web dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install flask
+```
+
+## Legacy Compatibility
+
+The original bash grambo is still available as `grambo` (without .py extension). The modern Python tools (`graa`, `grap`, `graf`, `grav`) provide enhanced analysis with entity extraction, timeline visualization, and SST relationship tracking.
+
+## License
+
+Same license as the original grambo project.
 
 ### Command Line Flags
 

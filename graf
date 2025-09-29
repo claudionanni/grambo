@@ -214,6 +214,13 @@ def parse_iso(ts: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def to_iso_string(dt: Optional[datetime]) -> Optional[str]:
+    """Convert datetime to ISO string, handling None values."""
+    if dt is None:
+        return None
+    return dt.isoformat()
+
+
 def sort_entities(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     def key(e: Dict[str, Any]) -> Tuple:
         ts = parse_iso(e.get("timestamp"))
@@ -463,7 +470,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     for idx, e in enumerate(entities):
         et = (e.get("entity_type") or "").lower()
         eid = e.get("entity_id")
-        ts = e.get("timestamp")
+        ts = parse_iso(e.get("timestamp"))
         timestamps.append(ts)
 
         # --- Track immutable entities ---
@@ -498,16 +505,51 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         # --- Update state machine for time-varying entities ---
         if et not in state_machine:
             state_machine[et] = {}
+        
+        # Track UUIDs ONLY from node_state entities (they have reliable node linkage)
+        if e.get("node_uuid") and et == "node_state":
+            node_key = e.get("node_name") or e.get("node_uuid") or eid
+            # Initialize node_uuid tracking if not present
+            if "node_uuid" not in state_machine:
+                state_machine["node_uuid"] = {}
+            if node_key not in state_machine["node_uuid"]:
+                state_machine["node_uuid"][node_key] = []
+            
+            # Check if we already have a UUID entry for this exact timestamp
+            current_uuid = e["node_uuid"]
+            existing_entry = None
+            for entry in state_machine["node_uuid"][node_key]:
+                if entry["timestamp"] == to_iso_string(ts):
+                    existing_entry = entry
+                    break
+            
+            if existing_entry:
+                # If we have an existing UUID for this timestamp, prefer the longer/more complete one
+                existing_uuid = existing_entry["uuid"]
+                if len(current_uuid) > len(existing_uuid):
+                    # Current UUID is longer, replace the existing one
+                    existing_entry["uuid"] = current_uuid
+                # Otherwise keep the existing UUID (it's longer or equal)
+            else:
+                # Store new timestamped UUID entry
+                timestamped_uuid = {
+                    "timestamp": to_iso_string(ts),
+                    "uuid": current_uuid
+                }
+                state_machine["node_uuid"][node_key].append(timestamped_uuid)
+        
         # Use node_name or node_uuid as key for node_state, etc.
         if et == "node_state":
             key = e.get("node_name") or e.get("node_uuid") or eid
             if key not in state_machine[et]:
-                state_machine[et][key] = {}
-            # Update all time-varying properties for this node at this timestamp
-            for k, v in e.items():
-                if k not in ("entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source", "cluster_ref"):
-                    state_machine[et][key][k] = v
-            state_machine[et][key]["timestamp"] = ts
+                state_machine[et][key] = []  # Store list of timestamped states
+            # Create timestamped state entry
+            timestamped_state = {
+                "timestamp": to_iso_string(ts),
+                "state": {k: v for k, v in e.items() 
+                         if k not in ("entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source", "cluster_ref")}
+            }
+            state_machine[et][key].append(timestamped_state)
         elif et == "view":
             cluster_key = e.get("cluster_ref") or eid
             layer = (e.get("view_layer") or "gcomm").lower()
@@ -527,13 +569,13 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if layer == "wsrep":
                     existing = dict(state_machine[et][cluster_key].get("wsrep_view", {}))
                     existing.update(payload)
-                    existing["timestamp"] = ts
+                    existing["timestamp"] = to_iso_string(ts)
                     existing["view_layer"] = "wsrep"
                     state_machine[et][cluster_key]["wsrep_view"] = existing
                 else:
                     payload.pop("view_layer", None)
                     state_machine[et][cluster_key].update(payload)
-                    state_machine[et][cluster_key]["timestamp"] = ts
+                    state_machine[et][cluster_key]["timestamp"] = to_iso_string(ts)
 
             # Track per-node local view snapshots when node information present
             if node_name or node_uuid:
@@ -554,7 +596,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "left": e.get("left"),
                     "partitioned": e.get("partitioned"),
                     "cluster_ref": e.get("cluster_ref"),
-                    "timestamp": ts,
+                    "timestamp": to_iso_string(ts),
                 })
         # Add other time-varying entity types as needed
 
@@ -563,14 +605,56 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         def filter_props(d):
             return {k: v for k, v in d.items() if k not in ("line_number", "log_source", "raw_line")}
 
+        def get_node_state_at_timestamp(node_key: str, target_ts: datetime) -> Dict[str, Any]:
+            """Get the node state that was active at the given timestamp."""
+            node_states = state_machine.get("node_state", {}).get(node_key, [])
+            if not node_states:
+                return {}
+            
+            # Find the most recent state at or before the target timestamp
+            applicable_state = {}
+            for timestamped_state in node_states:
+                state_ts = parse_iso(timestamped_state["timestamp"])
+                if state_ts and state_ts <= target_ts:
+                    applicable_state = timestamped_state["state"]
+                else:
+                    break  # States are ordered by timestamp
+            
+            return applicable_state
+
+        def get_node_uuid_at_timestamp(node_key: str, target_ts: datetime) -> Optional[str]:
+            """Get the node UUID that was active at the given timestamp."""
+            node_uuids = state_machine.get("node_uuid", {}).get(node_key, [])
+            if not node_uuids:
+                return None
+                
+            # Find the most recent UUID at or before the target timestamp
+            applicable_uuid = None
+            for timestamped_uuid in node_uuids:
+                uuid_ts = parse_iso(timestamped_uuid["timestamp"])
+                if uuid_ts and uuid_ts <= target_ts:
+                    applicable_uuid = timestamped_uuid["uuid"]
+                else:
+                    break  # UUIDs are ordered by timestamp
+            
+            return applicable_uuid
+
         frame_nodes = {}
         for node_key, node_core in node_immutable.items():
-            node_state = filter_props(dict(node_core))
-            # Overlay latest node_state properties if present
-            ns = state_machine.get("node_state", {}).get(node_key, {})
-            for k, v in ns.items():
-                if k not in node_state:
-                    node_state[k] = v
+            node_state = filter_props(dict(node_core))  # Make a deep copy
+            # Overlay node_state properties that were active at this timestamp
+            if ts is not None:
+                ns = get_node_state_at_timestamp(node_key, ts)
+                for k, v in ns.items():
+                    if k not in node_state:
+                        node_state[k] = v
+                # Override UUID with time-aware UUID - ONLY for this specific node
+                time_aware_uuid = get_node_uuid_at_timestamp(node_key, ts)
+                if time_aware_uuid:
+                    node_state["node_uuid"] = time_aware_uuid
+                # Debug: print UUID assignment
+                # if to_iso_string(ts) == "2025-09-23T10:30:56":
+                #     print(f"DEBUG: Assigning UUID {time_aware_uuid} to node {node_key} at {to_iso_string(ts)}")
             node_state = filter_props(node_state)
             # Overlay latest node view snapshot if available
             nv = state_machine.get("node_view", {}).get(node_key)
@@ -764,7 +848,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             "event": {
                 "entity_type": et,
                 "entity_id": eid,
-                "timestamp": ts,
+                "timestamp": to_iso_string(ts),
                 "line_number": e.get("line_number"),
                 "cluster_ref": e.get("cluster_ref"),
             },
