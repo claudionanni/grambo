@@ -2283,8 +2283,7 @@ def main():
     
     parser.add_argument('logfile', nargs='?', help='Galera log file to analyze')
     parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap)')
-    parser.add_argument('--sst-sessions', action='store_true', help='Show detailed SST session timeline (like gra format)')
-    parser.add_argument('--sst-ist-tree', action='store_true', help='Show hierarchical SST+IST relationship tree')
+    parser.add_argument('--sst', action='store_true', help='Show hierarchical SST+IST relationship tree')
     parser.add_argument('--version', action='version', version=f'gra-analyzer {__version__}')
     
     args = parser.parse_args()
@@ -2316,9 +2315,7 @@ def main():
     analysis = analyzer.analyze()
     
     # Print results
-    if args.sst_sessions:
-        print_sst_sessions_timeline(analyzer)
-    elif args.sst_ist_tree:
+    if args.sst:
         print_sst_ist_tree(analyzer)
     else:
         print_analysis(analysis)

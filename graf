@@ -454,8 +454,22 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             key = e.get("group_uuid") or e.get("cluster_uuid") or e.get("cluster_ref") or "_default"
             if "quorum" not in state_machine:
                 state_machine["quorum"] = {}
-            # Store only the current event's properties (minus raw_line/log_source/line_number)
-            state_machine["quorum"][key] = {k: v for k, v in e.items() if k not in ("raw_line", "log_source", "line_number")}
+            prev = state_machine["quorum"].get(key, {})
+            merged = dict(prev)
+            # Track all keys ever seen for this quorum key
+            if "_quorum_keys" not in state_machine:
+                state_machine["_quorum_keys"] = {}
+            prev_keys = set(prev.keys())
+            new_keys = set(k for k in e.keys() if k not in ("raw_line", "log_source", "line_number"))
+            all_keys = prev_keys | new_keys
+            state_machine["_quorum_keys"].setdefault(key, set()).update(all_keys)
+            # Update with new values, even if they are None or empty (explicit clear)
+            for k in all_keys:
+                if k in e and k not in ("raw_line", "log_source", "line_number"):
+                    merged[k] = e[k]
+                elif k not in ("raw_line", "log_source", "line_number"):
+                    merged[k] = None
+            state_machine["quorum"][key] = merged
 
         # --- Update state machine for time-varying entities ---
         if et not in state_machine:
@@ -507,19 +521,31 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             cluster_state = filter_props(cluster_state)
             frame_clusters[cluster_key] = cluster_state
 
-        # --- Add quorum section: use latest quorum entity for this cluster, if any ---
-        # Try to match by group_uuid, cluster_uuid, or cluster_ref using state_machine['quorum']
+        # --- Add quorum section: use the latest quorum entity (by timestamp) for this cluster, if any ---
         cluster_keys = list(frame_clusters.keys())
         quorum_section = None
         quorum_sm = state_machine.get("quorum", {})
+        best_ts = None
         for ck in cluster_keys:
             c = frame_clusters[ck]
             for qk in [c.get("group_uuid"), c.get("cluster_uuid"), ck]:
                 if qk and qk in quorum_sm:
-                    quorum_section = quorum_sm[qk]
+                    qent = quorum_sm[qk]
+                    qts = qent.get("timestamp")
+                    if qts:
+                        if best_ts is None or (qts > best_ts):
+                            quorum_section = qent
+                            best_ts = qts
+        # If no timestamped quorum found, fallback to any match
+        if quorum_section is None:
+            for ck in cluster_keys:
+                c = frame_clusters[ck]
+                for qk in [c.get("group_uuid"), c.get("cluster_uuid"), ck]:
+                    if qk and qk in quorum_sm:
+                        quorum_section = quorum_sm[qk]
+                        break
+                if quorum_section:
                     break
-            if quorum_section:
-                break
 
         frame = {
             "index": idx,

@@ -370,14 +370,18 @@ class GaleraLogParser:
         
         # Add cluster entity if we have UUID
         if self.cluster_uuid:
+            # Ensure analysis_start_time is always a datetime (never None)
+            first_ts = self.entities[0].timestamp if self.entities and getattr(self.entities[0], 'timestamp', None) else None
+            analysis_start_time = first_ts if isinstance(first_ts, datetime) else datetime.now()
             cluster_entity = ClusterEntity(
-                timestamp=self.entities[0].timestamp if self.entities else None,
+                timestamp=first_ts,
                 line_number=0,
                 raw_line="",
                 log_source=log_source,
                 entity_id=f"cluster_{self.cluster_uuid[:8]}",
                 cluster_uuid=self.cluster_uuid,
-                cluster_ref=self.cluster_ref
+                cluster_ref=self.cluster_ref,
+                analysis_start_time=analysis_start_time
             )
             self.entities.insert(0, cluster_entity)
 
@@ -1071,7 +1075,7 @@ def entity_to_dict(entity) -> Any:
     elif is_dataclass(entity):
         result = {}
         for field in fields(entity):
-            value = getattr(entity, field.name)
+            value = getattr(entity, field.name, None)
             if value is not None:
                 if field.name == 'entity_type':
                     # Always use the Enum value (canonical, lowercase)
