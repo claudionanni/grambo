@@ -304,19 +304,33 @@
             background: #8e24aa;
         }
         #timeline-hotspot-info {
-            flex-basis: 100%;
+            flex: 0 0 100%;
             margin-top: 0.4em;
             font-size: 0.85rem;
             color: #6d4c41;
-            min-height: 1.2em;
+            min-height: 1.4em;
+            line-height: 1.35;
         }
         #timeline-hotspot-info.active {
             color: #c62828;
-            font-weight: 600;
         }
         #graph {
             width: 100%;
             min-height: 320px;
+        }
+        #graph-sst-status {
+            margin-top: 0.75em;
+            font-size: 0.84rem;
+            color: #c2410c;
+            background: rgba(249, 115, 22, 0.12);
+            border-left: 3px solid #fb923c;
+            border-radius: 8px;
+            padding: 0.55em 0.8em;
+            line-height: 1.4;
+            transition: opacity 0.2s ease;
+        }
+        #graph-sst-status.hidden {
+            display: none;
         }
         #nodes-section .entity-block {
             min-height: 0;
@@ -340,10 +354,12 @@
         }
         @media (min-width: 720px) {
             #timeline-hotspot-info {
-                flex-basis: auto;
+                flex: 0 0 280px;
+                max-width: 320px;
                 margin-top: 0;
                 margin-left: 0.6em;
-                min-width: 220px;
+                min-width: 260px;
+                min-height: 1.8em;
                 text-align: left;
             }
         }
@@ -378,6 +394,7 @@
                 <div class="card-header">Cluster Graph <span class="hint">drag to reposition</span></div>
                 <div class="card-body">
                     <div id="graph"></div>
+                    <div id="graph-sst-status" class="hidden"></div>
                 </div>
             </div>
             <div class="card" data-card="cluster" draggable="true">
@@ -752,8 +769,13 @@
         // Draw SVG node graph
         function drawNodeGraph(nodeEntities) {
             const graphDiv = document.getElementById('graph');
+            const statusDiv = document.getElementById('graph-sst-status');
             if (!graphDiv) return;
             graphDiv.innerHTML = '';
+            if (statusDiv) {
+                statusDiv.textContent = '';
+                statusDiv.classList.add('hidden');
+            }
             if (nodeEntities.length === 0) {
                 graphDiv.innerHTML = '<div class="empty-state">No nodes available for graph</div>';
                 return;
@@ -771,30 +793,82 @@
             svg.setAttribute('height', height);
             svg.style.width = '100%';
             svg.style.height = `${height}px`;
-            // Draw connecting lines
+
+            const nodePositions = nodeEntities.map(([ent, props], i) => {
+                const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+                const x = centerX + graphRadius * Math.cos(angle);
+                const y = centerY + graphRadius * Math.sin(angle);
+                const name = props.node_name || ent.replace('node:', '');
+                return { ent, props, x, y, name };
+            });
+
             for (let i = 0; i < n; i++) {
-                const angle1 = (2 * Math.PI * i) / n - Math.PI / 2;
-                const x1 = centerX + graphRadius * Math.cos(angle1);
-                const y1 = centerY + graphRadius * Math.sin(angle1);
-                const angle2 = (2 * Math.PI * ((i + 1) % n)) / n - Math.PI / 2;
-                const x2 = centerX + graphRadius * Math.cos(angle2);
-                const y2 = centerY + graphRadius * Math.sin(angle2);
+                const current = nodePositions[i];
+                const next = nodePositions[(i + 1) % n];
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', x1);
-                line.setAttribute('y1', y1);
-                line.setAttribute('x2', x2);
-                line.setAttribute('y2', y2);
+                line.setAttribute('x1', current.x);
+                line.setAttribute('y1', current.y);
+                line.setAttribute('x2', next.x);
+                line.setAttribute('y2', next.y);
                 line.setAttribute('stroke', '#b0bec5');
                 line.setAttribute('stroke-width', 2);
                 svg.appendChild(line);
             }
-            // Draw nodes
-            nodeEntities.forEach(([ent, props], i) => {
-                const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-                const x = centerX + graphRadius * Math.cos(angle);
-                const y = centerY + graphRadius * Math.sin(angle);
+
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'sst-arrow-head');
+            marker.setAttribute('markerWidth', 10);
+            marker.setAttribute('markerHeight', 6);
+            marker.setAttribute('refX', 8);
+            marker.setAttribute('refY', 3);
+            marker.setAttribute('orient', 'auto');
+            marker.setAttribute('markerUnits', 'strokeWidth');
+            const markerPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            markerPath.setAttribute('d', 'M0,0 L10,3 L0,6 Z');
+            markerPath.setAttribute('fill', '#fb923c');
+            marker.appendChild(markerPath);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            const donors = nodePositions.filter(node => (node.props.node_state || '').toUpperCase() === 'DONOR');
+            const joiners = nodePositions.filter(node => (node.props.node_state || '').toUpperCase() === 'JOINER');
+
+            const arrowPairs = [];
+            if (donors.length && joiners.length) {
+                joiners.forEach((joiner, idx) => {
+                    const donor = donors[idx % donors.length];
+                    if (donor.ent !== joiner.ent) {
+                        arrowPairs.push({ donor, joiner });
+                    }
+                });
+            }
+
+            arrowPairs.forEach(({ donor, joiner }) => {
+                const dx = joiner.x - donor.x;
+                const dy = joiner.y - donor.y;
+                const dist = Math.hypot(dx, dy);
+                if (!dist) return;
+                const trim = circleRadius * 0.75;
+                const startX = donor.x + (dx / dist) * trim;
+                const startY = donor.y + (dy / dist) * trim;
+                const endX = joiner.x - (dx / dist) * trim;
+                const endY = joiner.y - (dy / dist) * trim;
+                const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                arrow.setAttribute('x1', startX);
+                arrow.setAttribute('y1', startY);
+                arrow.setAttribute('x2', endX);
+                arrow.setAttribute('y2', endY);
+                arrow.setAttribute('stroke', '#fb923c');
+                arrow.setAttribute('stroke-width', 3);
+                arrow.setAttribute('stroke-linecap', 'round');
+                arrow.setAttribute('opacity', '0.9');
+                arrow.setAttribute('marker-end', 'url(#sst-arrow-head)');
+                svg.appendChild(arrow);
+            });
+
+            nodePositions.forEach(({ ent, props, x, y, name }) => {
                 const color = nodeStateColor(props.node_state);
-                // Circle
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', x);
                 circle.setAttribute('cy', y);
@@ -802,7 +876,6 @@
                 circle.setAttribute('fill', color);
                 circle.setAttribute('stroke', '#333');
                 circle.setAttribute('stroke-width', 2);
-                // Tooltip
                 circle.addEventListener('mouseenter', function(e) {
                     const tooltip = document.createElement('div');
                     tooltip.id = 'node-tooltip';
@@ -816,7 +889,7 @@
                     tooltip.style.fontSize = '12px';
                     tooltip.style.pointerEvents = 'none';
                     tooltip.style.zIndex = 1000;
-                    tooltip.textContent = props.node_name || ent.replace('node:', '');
+                    tooltip.textContent = name;
                     document.body.appendChild(tooltip);
                 });
                 circle.addEventListener('mouseleave', function() {
@@ -824,16 +897,44 @@
                     if (tooltip) tooltip.remove();
                 });
                 svg.appendChild(circle);
-                // Node name
+
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', x);
                 text.setAttribute('y', y + circleRadius + 14);
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('font-size', '12px');
                 text.setAttribute('fill', '#333');
-                text.textContent = props.node_name || ent.replace('node:', '');
+                text.textContent = name;
                 svg.appendChild(text);
             });
+
+            if (statusDiv) {
+                if (arrowPairs.length) {
+                    const methodFields = ['transfer_method', 'sst_method', 'state_transfer_method', 'sst_transfer_method'];
+                    const methods = new Set();
+                    arrowPairs.forEach(({ donor, joiner }) => {
+                        methodFields.forEach(field => {
+                            if (donor.props && donor.props[field]) {
+                                methods.add(String(donor.props[field]));
+                            }
+                            if (joiner.props && joiner.props[field]) {
+                                methods.add(String(joiner.props[field]));
+                            }
+                        });
+                    });
+                    const pairLabels = arrowPairs.map(({ donor, joiner }) => `${donor.name} → ${joiner.name}`);
+                    let message = `SST in progress: ${pairLabels.join(', ')}`;
+                    if (methods.size) {
+                        message += ` (method: ${Array.from(methods).join(', ')})`;
+                    }
+                    statusDiv.textContent = message;
+                    statusDiv.classList.remove('hidden');
+                } else {
+                    statusDiv.textContent = '';
+                    statusDiv.classList.add('hidden');
+                }
+            }
+
             graphDiv.appendChild(svg);
         }
 
