@@ -311,6 +311,58 @@
         .hotspot-marker.component {
             background: #8e24aa;
         }
+        .timeline-status-panel {
+            flex: 0 0 100%;
+            margin-bottom: 0.6em;
+            padding: 0.7em 1em;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            height: 5.5em;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        #timeline-status-info {
+            font-size: 0.8rem;
+            color: #495057;
+            line-height: 1.3;
+            margin: 0;
+        }
+        #timeline-status-info.active {
+            color: #dc3545;
+            font-weight: 500;
+        }
+        #timeline-status-info.active::before {
+            content: "⚠️ ";
+            margin-right: 0.3em;
+        }
+        #timeline-status-info:empty::after {
+            content: "No timeline issues detected";
+            color: #6c757d;
+            font-style: italic;
+            font-size: 0.85em;
+        }
+        .timeline-issue-header {
+            font-weight: 600;
+            color: #dc3545;
+            margin-bottom: 0.4em;
+            font-size: 0.8rem;
+        }
+        .issue-item {
+            margin-bottom: 0.3em;
+            line-height: 1.2;
+            font-size: 0.75rem;
+        }
+        .issue-item:last-child {
+            margin-bottom: 0;
+        }
+        .issue-item strong {
+            color: #495057;
+            font-weight: 600;
+        }
         #timeline-hotspot-info {
             flex: 0 0 100%;
             margin-top: 0.4em;
@@ -359,8 +411,32 @@
                 width: 100%;
                 justify-content: center;
             }
+            .timeline-status-panel {
+                padding: 0.5em 0.7em;
+                font-size: 0.8em;
+                height: 4.5em;
+            }
+            .timeline-issue-header {
+                font-size: 0.75rem;
+                margin-bottom: 0.3em;
+            }
+            .issue-item {
+                margin-bottom: 0.25em;
+                font-size: 0.7rem;
+            }
         }
         @media (min-width: 720px) {
+            .timeline-status-panel {
+                max-width: none;
+                padding: 0.8em 1.2em;
+                height: 6em;
+            }
+            .timeline-issue-header {
+                font-size: 0.85rem;
+            }
+            .issue-item {
+                font-size: 0.8rem;
+            }
             #timeline-hotspot-info {
                 flex: 0 0 280px;
                 max-width: 320px;
@@ -387,11 +463,13 @@
         <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
         / <span id="total-frames">0</span>
         <button id="next-btn">Next</button>
+        <div class="timeline-status-panel">
+            <div id="timeline-status-info"></div>
+        </div>
         <div class="timeline-wrapper">
             <div id="timeline-hotspot-track"></div>
             <input type="range" id="timeline-bar" min="1" value="1">
         </div>
-        <div id="timeline-hotspot-info"></div>
         {% if sst_available %}
         <a class="nav-link" href="/sst" target="_blank" rel="noopener">View SST Sessions</a>
         {% endif %}
@@ -537,41 +615,68 @@
         }
 
         function displayHotspotInfo(hotspots) {
-            const infoEl = document.getElementById('timeline-hotspot-info');
+            const infoEl = document.getElementById('timeline-status-info');
             if (!infoEl) return;
+            
             if (!hotspots || Object.keys(hotspots).length === 0) {
-                infoEl.textContent = '';
+                infoEl.innerHTML = '';
                 infoEl.classList.remove('active');
                 return;
             }
-            const messages = [];
+            
+            const issues = [];
+            
+            // Cluster-level issues
             if (Array.isArray(hotspots.cluster_non_primary) && hotspots.cluster_non_primary.length) {
-                const names = Array.from(new Set(hotspots.cluster_non_primary.map(item => item.cluster || 'cluster')));
-                messages.push(`Cluster NON-PRIMARY (${names.join(', ')})`);
+                const clusters = Array.from(new Set(hotspots.cluster_non_primary.map(item => item.cluster || 'cluster')));
+                issues.push({
+                    type: 'Cluster Issues',
+                    details: `NON-PRIMARY state detected (${clusters.join(', ')})`
+                });
             }
+            
+            // Node membership issues
             const nonMemberNodes = new Set();
             if (Array.isArray(hotspots.node_non_member) && hotspots.node_non_member.length) {
-                const nodes = hotspots.node_non_member.map(item => {
+                const nodeDetails = hotspots.node_non_member.map(item => {
                     const role = item.member_role ? item.member_role.toUpperCase() : 'NON-MEMBER';
                     const name = item.node || 'node';
                     nonMemberNodes.add(name);
                     return `${name} (${role})`;
                 });
-                messages.push(`Node non-member: ${Array.from(new Set(nodes)).join(', ')}`);
+                issues.push({
+                    type: 'Membership Issues',
+                    details: `Nodes not properly joined: ${Array.from(new Set(nodeDetails)).join(', ')}`
+                });
             }
+            
+            // Component state issues
             if (Array.isArray(hotspots.node_component_non_primary) && hotspots.node_component_non_primary.length) {
                 const nodes = hotspots.node_component_non_primary.map(item => item.node || 'node')
                     .filter(name => !nonMemberNodes.has(name));
                 if (nodes.length) {
-                    messages.push(`Component NON-PRIM: ${Array.from(new Set(nodes)).join(', ')}`);
+                    issues.push({
+                        type: 'Component Issues',
+                        details: `NON-PRIMARY component state: ${Array.from(new Set(nodes)).join(', ')}`
+                    });
                 }
             }
-            if (messages.length === 0) {
-                infoEl.textContent = '';
+            
+            if (issues.length === 0) {
+                infoEl.innerHTML = '';
                 infoEl.classList.remove('active');
                 return;
             }
-            infoEl.textContent = messages.join(' • ');
+            
+            // Format as structured information
+            const issueHtml = issues.map(issue => 
+                `<div class="issue-item"><strong>${issue.type}:</strong> ${issue.details}</div>`
+            ).join('');
+            
+            infoEl.innerHTML = `
+                <div class="timeline-issue-header">Timeline Issues Detected:</div>
+                ${issueHtml}
+            `;
             infoEl.classList.add('active');
         }
 
