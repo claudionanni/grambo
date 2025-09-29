@@ -690,9 +690,15 @@ class GaleraLogParser:
         for pattern in state_patterns:
             match = re.search(pattern, line)
             if match:
+                prev_node_name = self.current_node_name
                 candidate_name = None
+                state_token = None
+                donor_match = None
                 if pattern == state_patterns[1] and len(match.groups()) >= 1:
                     candidate_name = match.group(1).strip()
+                    if len(match.groups()) >= 2:
+                        state_token = (match.group(2) or "").strip().lower()
+                    donor_match = re.search(r"Selected\s+[0-9.]+\s*\(([^)]+)\)", line)
                 if candidate_name:
                     self.current_node_name = candidate_name
                 timestamp = self._extract_timestamp(line)
@@ -721,6 +727,13 @@ class GaleraLogParser:
                         cluster_ref=self.cluster_ref
                     )
                     self.entities.append(entity)
+                if pattern == state_patterns[1]:
+                    if state_token and state_token.startswith("request"):
+                        self.current_node_name = prev_node_name
+                    if donor_match:
+                        donor_name = donor_match.group(1).strip()
+                        if donor_name:
+                            self.current_node_name = donor_name
                 break
     
     def _parse_view_events(self, line: str, line_num: int, log_source: str):

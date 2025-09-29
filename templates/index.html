@@ -5,13 +5,169 @@
     <title>grav: Galera Cluster Timeline</title>
     <link href="https://fonts.googleapis.com/css?family=Inter:400,500,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/grambo.css">
+    <style>
+        :root {
+            color-scheme: light;
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: #f3f6fc;
+            color: #1f2933;
+        }
+        .main-header {
+            padding: 1.6em 4vw 0.8em;
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(30,58,138,0.25);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        #main-title {
+            margin: 0;
+            font-size: clamp(26px, 3vw, 36px);
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .board-wrapper {
+            padding: 2em 4vw 6em;
+        }
+        .frame-meta {
+            display: flex;
+            justify-content: flex-end;
+            padding: 0.6em 4vw 0;
+        }
+        #frame-info {
+            color: #1d4ed8;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5em;
+            align-items: stretch;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            display: flex;
+            flex-direction: column;
+            transition: box-shadow 0.2s ease;
+            cursor: grab;
+        }
+        .card:active {
+            cursor: grabbing;
+        }
+        .card.dragging {
+            opacity: 0.6;
+            box-shadow: 0 20px 32px rgba(15, 23, 42, 0.18);
+        }
+        .card-header {
+            padding: 1.1em 1.3em 0.6em;
+            font-weight: 600;
+            font-size: 1.05rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+            color: #1d4ed8;
+        }
+        .card-header span.hint {
+            font-size: 0.75rem;
+            color: rgba(29, 78, 216, 0.7);
+            letter-spacing: 0.4px;
+        }
+        .card-body {
+            padding: 1.1em 1.3em 1.3em;
+            overflow: auto;
+        }
+        .card-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .card-body::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.5);
+            border-radius: 999px;
+        }
+        .entity-block {
+            padding: 0.45em 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        }
+        .entity-block:last-child {
+            border-bottom: none;
+        }
+        .entity-block-group {
+            margin-bottom: 1em;
+        }
+        .entity-block-group:last-child {
+            margin-bottom: 0;
+        }
+        .entity-subtitle {
+            font-weight: 600;
+            color: #0f172a;
+            letter-spacing: 0.35px;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            margin-bottom: 0.35em;
+        }
+        .entity-label {
+            display: inline-block;
+            min-width: 140px;
+            font-weight: 500;
+            color: #475569;
+            text-transform: lowercase;
+            letter-spacing: 0.2px;
+        }
+        .entity-value {
+            color: #111827;
+            font-weight: 600;
+        }
+        .accent-cluster {
+            color: #1d4ed8;
+        }
+        .accent-quorum {
+            color: #7c3aed;
+        }
+        .accent-node {
+            color: #16a34a;
+        }
+        .empty-state {
+            padding: 0.6em 0;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        #nav {
+            backdrop-filter: blur(12px);
+        }
+        #graph {
+            width: 100%;
+            min-height: 320px;
+        }
+        #nodes-section .entity-block {
+            min-height: 0;
+        }
+        @media (max-width: 640px) {
+            .board-wrapper {
+                padding: 1.3em 5vw 6em;
+            }
+            .card-header {
+                font-size: 1rem;
+            }
+            .entity-label {
+                min-width: 120px;
+            }
+        }
+    </style>
 </head>
 <body>
     <header class="main-header">
         <h1 id="main-title">Grambo Cluster Timeline</h1>
     </header>
-    <div style="display: flex; flex-direction: row; justify-content: flex-end; align-items: flex-start; width: 100%;">
-        <div id="frame-info" style="margin: 0 2em 0 0; color: #1976d2; font-weight: 500; font-size: 15px;"></div>
+    <div class="frame-meta">
+        <div id="frame-info"></div>
     </div>
     <!-- Main content ...existing code... -->
     <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03);">
@@ -22,18 +178,75 @@
         <button id="next-btn">Next</button>
         <input type="range" id="timeline-bar" min="1" value="1" style="flex:1; margin-left:1em; margin-right:1em;">
     </div>
-    <div style="display: flex; flex-direction: row; gap: 2em; align-items: flex-start; width: 100%;">
-        <div style="flex:1;"></div>
-        <div id="graph-container" style="flex:0 0 350px; display: flex; flex-direction: column; align-items: center;">
-            <div id="graph"></div>
+    <main class="board-wrapper">
+        <div id="card-board" class="card-grid">
+            <div class="card" data-card="graph" draggable="true">
+                <div class="card-header">Cluster Graph <span class="hint">drag to reposition</span></div>
+                <div class="card-body">
+                    <div id="graph"></div>
+                </div>
+            </div>
+            <div class="card" data-card="cluster" draggable="true">
+                <div class="card-header">Cluster Details <span class="hint">drag to reposition</span></div>
+                <div class="card-body" id="cluster-section"></div>
+            </div>
+            <div class="card" data-card="quorum" draggable="true">
+                <div class="card-header">Quorum State <span class="hint">drag to reposition</span></div>
+                <div class="card-body" id="quorum-section"></div>
+            </div>
+            <div class="card" data-card="nodes" draggable="true">
+                <div class="card-header">Nodes <span class="hint">drag to reposition</span></div>
+                <div class="card-body" id="nodes-section"></div>
+            </div>
         </div>
-        <div style="flex:1; min-width: 320px; max-width: 500px;">
-            <div id="cluster-section" style="margin-bottom: 1.5em;"></div>
-            <div id="quorum-section" style="margin-bottom: 1.5em;"></div>
-            <div id="nodes-section"></div>
-        </div>
-    </div>
+    </main>
     <script>
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatEntityValue(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            if (Array.isArray(value)) {
+                if (value.length === 0) return '[]';
+                return value.map(item => {
+                    if (item === null || item === undefined) return '';
+                    if (typeof item === 'object') return '[object]';
+                    return String(item);
+                }).join(', ');
+            }
+            if (typeof value === 'object') {
+                const keys = Object.keys(value || {});
+                if (keys.length === 0) return '[object]';
+                return `{${keys.join(', ')}}`;
+            }
+            return String(value);
+        }
+
+        function renderPropertyList(props, allowed, accentClass) {
+            let html = '';
+            const labelClass = accentClass ? `entity-label ${accentClass}` : 'entity-label';
+            allowed.forEach(key => {
+                if (!Object.prototype.hasOwnProperty.call(props, key)) return;
+                const raw = props[key];
+                if (raw === undefined || raw === null || raw === '') return;
+                const formatted = escapeHtml(formatEntityValue(raw));
+                const safeKey = escapeHtml(key);
+                html += `<div class="entity-block"><span class="${labelClass}">${safeKey}:</span> <span class="entity-value">${formatted}</span></div>`;
+            });
+            return html;
+        }
+
+        let latestGraphNodes = [];
+
         function updateFrame(idx) {
             // Always clear timestamp field at start
             document.getElementById('frame-timestamp').textContent = '';
@@ -79,112 +292,112 @@
                     const tsDisplay = ts ? ts.replace('T', ' ').replace('Z', '') : '—';
                     document.getElementById('frame-timestamp').textContent = tsDisplay;
                     document.getElementById('frame-info').textContent = tsDisplay;
-                    // Cluster section (top right)
-                    let clusterDiv = document.getElementById('cluster-section');
+                    // Cluster card
+                    const clusterDiv = document.getElementById('cluster-section');
                     clusterDiv.innerHTML = '';
-                    for (let ent in entities) {
-                        if (ent.startsWith('cluster:')) {
-                            let props = entities[ent];
-                            // Only show allowed fields for cluster
-                            const allowed = [
-                                'analysis_start_time', 'cluster_name', 'cluster_ref', 'cluster_uuid',
-                                'members', 'split_brain_detected', 'sst_operations', 'views'
-                            ];
-                            let html = `<div class='entity cluster'>`;
-                            html += `<div class='entity-title'>Cluster</div>`;
-                            for (let p of allowed) {
-                                if (props[p] !== undefined && props[p] !== '' && props[p] !== null) {
-                                    html += `<div style='margin-bottom:2px;'><span style='color:#2196f3;'>${p}:</span> <b style='color:#222;'>${typeof props[p] === 'object' ? '[object]' : props[p]}</b></div>`;
-                                }
+                    const clusterEntities = Object.entries(entities).filter(([key]) => key.startsWith('cluster:'));
+                    const clusterFields = [
+                        'analysis_start_time', 'cluster_name', 'cluster_ref', 'cluster_uuid',
+                        'members', 'split_brain_detected', 'sst_operations', 'views'
+                    ];
+                    if (clusterEntities.length === 0) {
+                        clusterDiv.innerHTML = `<div class="empty-state">No cluster data for this frame</div>`;
+                    } else {
+                        clusterEntities.forEach(([entKey, props]) => {
+                            let block = '<div class="entity-block-group">';
+                            if (clusterEntities.length > 1) {
+                                block += `<div class="entity-subtitle">${escapeHtml(entKey.replace('cluster:', ''))}</div>`;
                             }
-                            html += '</div>';
-                            clusterDiv.innerHTML += html;
-                        }
+                            const metrics = renderPropertyList(props, clusterFields, 'accent-cluster');
+                            block += metrics || `<div class="empty-state">No cluster metrics</div>`;
+                            block += '</div>';
+                            clusterDiv.innerHTML += block;
+                        });
                     }
-                    // Quorum section (below cluster)
-                    let quorumDiv = document.getElementById('quorum-section');
+
+                    // Quorum card
+                    const quorumDiv = document.getElementById('quorum-section');
                     quorumDiv.innerHTML = '';
-                    let quorumEntities = Object.entries(entities).filter(([k, v]) => k.startsWith('quorum:'));
+                    const quorumEntities = Object.entries(entities).filter(([key]) => key.startsWith('quorum:'));
+                    const quorumFields = ['component', 'conf_id', 'group_uuid', 'last_appl', 'protocols', 'quorum_members', 'version', 'vote_policy'];
                     if (quorumEntities.length === 0) {
-                        quorumDiv.innerHTML = `<div class='entity quorum' style='opacity:0.7; border-style: dashed;'>`
-                            + `<div class='entity-title'>Quorum</div>`
-                            + `<div style='color:#888;'>No quorum data for this frame</div>`
-                            + `</div>`;
+                        quorumDiv.innerHTML = `<div class="empty-state">No quorum data for this frame</div>`;
                     } else {
-                        for (let [ent, props] of quorumEntities) {
-                            // Only show allowed fields for quorum
-                            const allowed = [
-                                'component', 'conf_id', 'group_uuid', 'last_appl',
-                                'protocols', 'quorum_members', 'version', 'vote_policy'
-                            ];
-                            let html = `<div class='entity quorum'>`;
-                            html += `<div class='entity-title'>Quorum</div>`;
-                            for (let p of allowed) {
-                                if (props[p] !== undefined && props[p] !== '' && props[p] !== null) {
-                                    html += `<div style='margin-bottom:2px;'><span style='color:#8e24aa;'>${p}:</span> <b style='color:#222;'>${typeof props[p] === 'object' ? '[object]' : props[p]}</b></div>`;
-                                }
+                        quorumEntities.forEach(([entKey, props]) => {
+                            let block = '<div class="entity-block-group">';
+                            if (quorumEntities.length > 1) {
+                                block += `<div class="entity-subtitle">${escapeHtml(entKey.replace('quorum:', ''))}</div>`;
                             }
-                            html += '</div>';
-                            quorumDiv.innerHTML += html;
-                        }
+                            const metrics = renderPropertyList(props, quorumFields, 'accent-quorum');
+                            block += metrics || `<div class="empty-state">No quorum metrics</div>`;
+                            block += '</div>';
+                            quorumDiv.innerHTML += block;
+                        });
                     }
-                    // Nodes section (right, below cluster)
-                    let nodesDiv = document.getElementById('nodes-section');
+
+                    // Nodes card
+                    const nodesDiv = document.getElementById('nodes-section');
                     nodesDiv.innerHTML = '';
-                    let nodeEntities = Object.entries(entities).filter(([k, v]) => k.startsWith('node:'));
+                    const nodeEntities = Object.entries(entities).filter(([key]) => key.startsWith('node:'));
+                    const nodeFields = [
+                        'node_name', 'node_state', 'node_uuid', 'mariadb_version',
+                        'galera_version', 'wsrep_version', 'node_address', 'node_id', 'timestamp'
+                    ];
                     if (nodeEntities.length === 0) {
-                        nodesDiv.innerHTML = '<i>No nodes</i>';
+                        nodesDiv.innerHTML = '<div class="empty-state">No node data for this frame</div>';
                     } else {
-                        for (let [ent, props] of nodeEntities) {
-                            // Only show allowed fields for node
-                            const allowed = [
-                                'node_name', 'node_state', 'node_uuid', 'mariadb_version',
-                                'galera_version', 'wsrep_version', 'node_address', 'node_id', 'timestamp'
-                            ];
-                            let html = `<div class='entity node'>`;
-                            html += `<div class='entity-title'>${ent.replace('node:', '')}</div>`;
-                            for (let p of allowed) {
-                                if (props[p] !== undefined && props[p] !== '' && props[p] !== null) {
-                                    html += `<div style='margin-bottom:1px;'><span style='color:#43a047;'>${p}:</span> <b style='color:#222;'>${props[p]}</b></div>`;
-                                }
-                            }
-                            html += '</div>';
-                            nodesDiv.innerHTML += html;
-                        }
+                        nodeEntities.forEach(([entKey, props]) => {
+                            let block = '<div class="entity-block-group">';
+                            const title = props.node_name || entKey.replace('node:', '');
+                            block += `<div class="entity-subtitle">${escapeHtml(title)}</div>`;
+                            const metrics = renderPropertyList(props, nodeFields, 'accent-node');
+                            block += metrics || `<div class="empty-state">No node metrics</div>`;
+                            block += '</div>';
+                            nodesDiv.innerHTML += block;
+                        });
                     }
+
                     // Graph section (center)
-                    drawNodeGraph(nodeEntities);
+                    latestGraphNodes = nodeEntities;
+                    drawNodeGraph(latestGraphNodes);
                 });
         }
-        let totalFrames = {{ total_frames }};
+    let totalFrames = Number('{{ total_frames }}') || 0;
         let currentFrame = 0;
 
         
 
         // Draw SVG node graph
         function drawNodeGraph(nodeEntities) {
-            let graphDiv = document.getElementById('graph');
+            const graphDiv = document.getElementById('graph');
+            if (!graphDiv) return;
             graphDiv.innerHTML = '';
-            if (nodeEntities.length === 0) return;
-            let n = nodeEntities.length;
-            let width = 320;
-            let height = 320;
-            let centerX = width / 2;
-            let centerY = height / 2;
-            let circleRadius = 28;
-            let graphRadius = Math.max(70, Math.min(centerX, centerY) - circleRadius - 10);
-            let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            if (nodeEntities.length === 0) {
+                graphDiv.innerHTML = '<div class="empty-state">No nodes available for graph</div>';
+                return;
+            }
+            const n = nodeEntities.length;
+            const width = Math.max(280, graphDiv.clientWidth || 320);
+            const height = Math.max(280, Math.min(width + 40, 420));
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const circleRadius = 28;
+            const graphRadius = Math.max(70, Math.min(centerX, centerY) - circleRadius - 10);
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
             svg.setAttribute('width', width);
             svg.setAttribute('height', height);
+            svg.style.width = '100%';
+            svg.style.height = `${height}px`;
             // Draw connecting lines
             for (let i = 0; i < n; i++) {
-                let angle1 = (2 * Math.PI * i) / n - Math.PI / 2;
-                let x1 = centerX + graphRadius * Math.cos(angle1);
-                let y1 = centerY + graphRadius * Math.sin(angle1);
-                let angle2 = (2 * Math.PI * ((i + 1) % n)) / n - Math.PI / 2;
-                let x2 = centerX + graphRadius * Math.cos(angle2);
-                let y2 = centerY + graphRadius * Math.sin(angle2);
-                let line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                const angle1 = (2 * Math.PI * i) / n - Math.PI / 2;
+                const x1 = centerX + graphRadius * Math.cos(angle1);
+                const y1 = centerY + graphRadius * Math.sin(angle1);
+                const angle2 = (2 * Math.PI * ((i + 1) % n)) / n - Math.PI / 2;
+                const x2 = centerX + graphRadius * Math.cos(angle2);
+                const y2 = centerY + graphRadius * Math.sin(angle2);
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line.setAttribute('x1', x1);
                 line.setAttribute('y1', y1);
                 line.setAttribute('x2', x2);
@@ -195,12 +408,12 @@
             }
             // Draw nodes
             nodeEntities.forEach(([ent, props], i) => {
-                let angle = (2 * Math.PI * i) / n - Math.PI / 2;
-                let x = centerX + graphRadius * Math.cos(angle);
-                let y = centerY + graphRadius * Math.sin(angle);
-                let color = nodeStateColor(props.node_state);
+                const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+                const x = centerX + graphRadius * Math.cos(angle);
+                const y = centerY + graphRadius * Math.sin(angle);
+                const color = nodeStateColor(props.node_state);
                 // Circle
-                let circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', x);
                 circle.setAttribute('cy', y);
                 circle.setAttribute('r', circleRadius);
@@ -209,7 +422,7 @@
                 circle.setAttribute('stroke-width', 2);
                 // Tooltip
                 circle.addEventListener('mouseenter', function(e) {
-                    let tooltip = document.createElement('div');
+                    const tooltip = document.createElement('div');
                     tooltip.id = 'node-tooltip';
                     tooltip.style.position = 'fixed';
                     tooltip.style.left = (e.clientX + 10) + 'px';
@@ -225,12 +438,12 @@
                     document.body.appendChild(tooltip);
                 });
                 circle.addEventListener('mouseleave', function() {
-                    let tooltip = document.getElementById('node-tooltip');
+                    const tooltip = document.getElementById('node-tooltip');
                     if (tooltip) tooltip.remove();
                 });
                 svg.appendChild(circle);
                 // Node name
-                let text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', x);
                 text.setAttribute('y', y + circleRadius + 14);
                 text.setAttribute('text-anchor', 'middle');
@@ -240,6 +453,76 @@
                 svg.appendChild(text);
             });
             graphDiv.appendChild(svg);
+        }
+
+        function initCardDragging() {
+            const board = document.getElementById('card-board');
+            if (!board) return;
+
+            const savedOrder = window.localStorage ? window.localStorage.getItem('grav-card-order') : null;
+            if (savedOrder) {
+                try {
+                    const order = JSON.parse(savedOrder);
+                    order.forEach(key => {
+                        const card = board.querySelector(`.card[data-card="${key}"]`);
+                        if (card) {
+                            board.appendChild(card);
+                        }
+                    });
+                } catch (err) {
+                    console.warn('Unable to restore card layout', err);
+                }
+            }
+
+            let activeCard = null;
+
+            board.addEventListener('dragstart', (event) => {
+                const card = event.target.closest('.card');
+                if (!card) return;
+                activeCard = card;
+                card.classList.add('dragging');
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', card.dataset.card || '');
+            });
+
+            board.addEventListener('dragend', () => {
+                if (activeCard) {
+                    activeCard.classList.remove('dragging');
+                    activeCard = null;
+                    persistOrder();
+                }
+            });
+
+            board.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                const afterElement = getDragAfterElement(board, event.clientY);
+                const dragging = board.querySelector('.card.dragging');
+                if (!dragging) return;
+                if (afterElement == null) {
+                    board.appendChild(dragging);
+                } else if (afterElement !== dragging) {
+                    board.insertBefore(dragging, afterElement);
+                }
+            });
+
+            function persistOrder() {
+                if (!window.localStorage) return;
+                const order = [...board.querySelectorAll('.card')].map(card => card.dataset.card);
+                window.localStorage.setItem('grav-card-order', JSON.stringify(order));
+            }
+        }
+
+        function getDragAfterElement(container, mouseY) {
+            const cards = [...container.querySelectorAll('.card:not(.dragging)')];
+            let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+            cards.forEach(card => {
+                const rect = card.getBoundingClientRect();
+                const offset = mouseY - rect.top - rect.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    closest = { offset, element: card };
+                }
+            });
+            return closest.element;
         }
 
         // Map node_state to color
@@ -271,6 +554,11 @@
             if (val >= 0 && val < totalFrames) updateFrame(val);
         };
         // (upload-form removed)
+        initCardDragging();
+        window.addEventListener('resize', () => {
+            if (!latestGraphNodes) return;
+            drawNodeGraph(latestGraphNodes);
+        });
         // Initial state
         updateFrame(0);
     </script>
