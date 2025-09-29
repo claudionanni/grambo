@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 FRAMES = []
 SST_REPORT_PATH = None
+SOURCE_LOG_FILES = []
 TIMELINE_HOTSPOTS = {
     "cluster_non_primary": [],
     "node_non_member": [],
@@ -129,9 +130,90 @@ def get_frame(idx):
             'total': len(FRAMES),
             'entities': all_entities,
             'timestamp': frame_ts,
-            'hotspots': frame.get('hotspots')
+            'hotspots': frame.get('hotspots'),
+            'log_files': SOURCE_LOG_FILES
         })
     return jsonify({'error': 'Frame out of range'}), 404
+
+@app.route('/logs/<path:log_path>')
+def get_log_context(log_path):
+    """Get log lines around a specific timestamp"""
+    timestamp = request.args.get('timestamp')
+    context_lines = int(request.args.get('context', 30))
+    
+    if not timestamp:
+        return jsonify({'error': 'timestamp parameter required'}), 400
+    
+    try:
+        # Find the log file
+        log_file_path = None
+        for log_file in SOURCE_LOG_FILES:
+            if log_file['path'] == log_path:
+                log_file_path = log_file['path']
+                break
+        
+        if not log_file_path or not os.path.exists(log_file_path):
+            return jsonify({'error': 'Log file not found'}), 404
+        
+        # Read the log file and find lines around the timestamp
+        lines = []
+        target_line_idx = None
+        
+        # Clean the timestamp for better matching
+        # Handle different timestamp formats: "2025-09-24T08:39:36" -> "2025-09-24 08:39:36"
+        search_timestamp = timestamp.replace('T', ' ').replace('Z', '')
+        # Also try just the time part if full timestamp doesn't match
+        time_part = search_timestamp.split(' ')[-1] if ' ' in search_timestamp else search_timestamp
+        
+        with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.rstrip('\n\r')
+                
+                # Try multiple timestamp matching strategies
+                line_matches = (
+                    search_timestamp in line or           # Full timestamp match
+                    time_part in line or                  # Time part match
+                    timestamp in line                     # Original timestamp format
+                )
+                
+                if line_matches and target_line_idx is None:
+                    target_line_idx = len(lines)
+                
+                lines.append({
+                    'line_number': line_num,
+                    'text': line,
+                    'is_target': False
+                })
+        
+        # If we found a target line, extract context around it
+        if target_line_idx is not None:
+            start_idx = max(0, target_line_idx - context_lines)
+            end_idx = min(len(lines), target_line_idx + context_lines + 1)
+            context_lines_data = lines[start_idx:end_idx]
+            
+            # Mark the target line(s) - there might be multiple lines with the same timestamp
+            target_line_num = lines[target_line_idx]['line_number']
+            for line_data in context_lines_data:
+                # Mark line if it contains the timestamp
+                if (search_timestamp in line_data['text'] or 
+                    time_part in line_data['text'] or 
+                    timestamp in line_data['text']):
+                    line_data['is_target'] = True
+        else:
+            # If no exact match, try to find the closest timestamp
+            # This is a fallback for when exact matching fails
+            context_lines_data = lines[:min(len(lines), context_lines * 2)] if lines else []
+        
+        return jsonify({
+            'lines': context_lines_data,
+            'target_timestamp': timestamp,
+            'search_timestamp': search_timestamp,
+            'total_lines': len(lines),
+            'found_target': target_line_idx is not None
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error reading log file: {str(e)}'}), 500
 
 @app.route('/load', methods=['POST'])
 def load_frames():
@@ -164,6 +246,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='grav web visualizer')
     parser.add_argument('--frames', type=str, help='graf output file (json or ndjson) to load at startup')
     parser.add_argument('--sst-report', type=str, help='graa --sst report file to expose via the SST viewer')
+    parser.add_argument('--logs', type=str, nargs='*', help='source log files to make available for context viewing')
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=5000)
     args = parser.parse_args()
@@ -173,4 +256,10 @@ if __name__ == '__main__':
         refresh_hotspot_cache()
     if args.sst_report:
         SST_REPORT_PATH = args.sst_report
+    if args.logs:
+        SOURCE_LOG_FILES = [
+            {'path': log_path, 'name': os.path.basename(log_path)}
+            for log_path in args.logs
+            if os.path.exists(log_path)
+        ]
     app.run(debug=True, host=args.host, port=args.port)

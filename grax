@@ -169,6 +169,8 @@ def main(argv: List[str] | None = None) -> int:
         f"--sst-report={sst_path}",
         f"--host={args.host}",
         f"--port={args.port}",
+        "--logs",
+        *map(str, args.logs)
     ]
     print(f"[grax] launching grav with frames and SST report…")
     run_step(grav_cmd)

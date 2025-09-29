@@ -14,6 +14,8 @@
             font-family: 'Inter', sans-serif;
             background: #f3f6fc;
             color: #1f2933;
+            height: 100vh;
+            overflow: hidden; /* Prevent body scroll */
         }
         .main-header {
             padding: 1.6em 4vw 0.8em;
@@ -23,6 +25,17 @@
             position: sticky;
             top: 0;
             z-index: 20;
+            flex-shrink: 0;
+        }
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .main-content-area {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
         #main-title {
             margin: 0;
@@ -31,7 +44,8 @@
             letter-spacing: 0.3px;
         }
         .board-wrapper {
-            padding: 2em 4vw 6em;
+            padding: 2em 4vw 2em; /* Reduced bottom padding */
+            min-height: calc(100% - 4em); /* Ensure full height usage */
         }
         .frame-meta {
             display: flex;
@@ -311,19 +325,98 @@
         .hotspot-marker.component {
             background: #8e24aa;
         }
-        .timeline-status-panel {
+        .detail-inspector-panel {
             flex: 0 0 100%;
             margin-bottom: 0.6em;
-            padding: 0.7em 1em;
             background: #f8f9fa;
             border: 1px solid #e9ecef;
             border-radius: 6px;
-            height: 5.5em;
+            height: 15em;
+            min-height: 8em;
+            max-height: 40em;
             box-sizing: border-box;
-            overflow-y: auto;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
+            position: relative;
+        }
+        
+        /* Panel Resize Handle */
+        .panel-resize-handle {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(to bottom, transparent 0%, #cbd5e1 40%, #cbd5e1 60%, transparent 100%);
+            cursor: ns-resize;
+            z-index: 10;
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+        }
+        .panel-resize-handle:hover {
+            opacity: 1;
+            background: linear-gradient(to bottom, transparent 0%, #64748b 40%, #64748b 60%, transparent 100%);
+        }
+        .panel-resize-handle.resizing {
+            opacity: 1;
+            background: linear-gradient(to bottom, transparent 0%, #3b82f6 40%, #3b82f6 60%, transparent 100%);
+        }
+        .inspector-header {
+            background: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+            padding: 0.4em 0.8em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .inspector-title {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #495057;
+            justify-content: flex-end;
+        }
+        #inspector-icon {
+            margin-right: 0.4em;
+            font-size: 0.9rem;
+        }
+        .inspector-tabs {
+            display: flex;
+            gap: 0.3em;
+        }
+        .inspector-tab {
+            background: transparent;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 0.2em 0.6em;
+            font-size: 0.7rem;
+            color: #6c757d;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .inspector-tab:hover {
+            background: #fff;
+            color: #495057;
+        }
+        .inspector-tab.active {
+            background: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        .inspector-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.7em 1em;
+        }
+        .inspector-tab-content {
+            display: none;
+            height: 100%;
+        }
+        .inspector-tab-content.active {
+            display: block;
         }
         #timeline-status-info {
             font-size: 0.8rem;
@@ -411,10 +504,15 @@
                 width: 100%;
                 justify-content: center;
             }
-            .timeline-status-panel {
-                padding: 0.5em 0.7em;
+            .detail-inspector-panel {
                 font-size: 0.8em;
-                height: 4.5em;
+                height: 12em;
+            }
+            .inspector-header {
+                padding: 0.3em 0.6em;
+            }
+            .inspector-content {
+                padding: 0.5em 0.7em;
             }
             .timeline-issue-header {
                 font-size: 0.75rem;
@@ -426,10 +524,15 @@
             }
         }
         @media (min-width: 720px) {
-            .timeline-status-panel {
+            .detail-inspector-panel {
                 max-width: none;
+                height: 15em;
+            }
+            .inspector-header {
+                padding: 0.5em 1em;
+            }
+            .inspector-content {
                 padding: 0.8em 1.2em;
-                height: 6em;
             }
             .timeline-issue-header {
                 font-size: 0.85rem;
@@ -447,35 +550,210 @@
                 text-align: left;
             }
         }
+        
+        /* Detail Inspector Context Analysis Styles */
+        .context-analysis {
+            padding: 0.8em 0;
+        }
+        .analysis-header {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.8em;
+            padding-bottom: 0.5em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .analysis-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6em;
+        }
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4em 0.6em;
+            background: rgba(248, 250, 252, 0.8);
+            border-radius: 6px;
+            border-left: 3px solid #cbd5e1;
+        }
+        .detail-label {
+            font-weight: 500;
+            color: #475569;
+            font-size: 0.85rem;
+        }
+        .detail-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            color: #1e293b;
+            background: white;
+            padding: 0.2em 0.5em;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
+        .logs-placeholder {
+            padding: 1.5em;
+            text-align: center;
+            color: #64748b;
+            font-style: italic;
+            background: rgba(248, 250, 252, 0.5);
+            border-radius: 6px;
+            border: 1px dashed #cbd5e1;
+        }
+        .no-data {
+            padding: 1em;
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        
+        /* Raw Logs Display */
+        .raw-logs-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .logs-header {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #475569;
+            padding: 0.5em 0;
+            border-bottom: 1px solid #e2e8f0;
+            background: rgba(248, 250, 252, 0.8);
+        }
+        .logs-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5em 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            background: white;
+        }
+        .log-line {
+            padding: 0.2em 0.5em;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.3);
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        .log-line:hover {
+            background: rgba(248, 250, 252, 0.7);
+        }
+        .log-more {
+            padding: 0.5em;
+            text-align: center;
+            color: #64748b;
+            font-style: italic;
+            background: rgba(248, 250, 252, 0.5);
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        /* Log File Controls */
+        .log-file-controls {
+            padding: 0.6em 0.8em;
+            background: rgba(248, 250, 252, 0.8);
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 0.8em;
+        }
+        .log-selector-label {
+            font-weight: 500;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+        .log-file-selector {
+            flex: 1;
+            padding: 0.4em 0.6em;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: white;
+            font-size: 0.8rem;
+            color: #1e293b;
+        }
+        .log-file-selector:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Log Line Highlighting */
+        .log-line-target {
+            background: rgba(59, 130, 246, 0.1) !important;
+            border-left: 3px solid #3b82f6 !important;
+            font-weight: 500;
+        }
+        .log-line-target:hover {
+            background: rgba(59, 130, 246, 0.15) !important;
+        }
+        
+        @media (max-width: 640px) {
+            .detail-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.3em;
+            }
+            .detail-value {
+                align-self: stretch;
+                text-align: left;
+            }
+        }
     </style>
 </head>
 <body>
-    <header class="main-header">
-        <h1 id="main-title">Grambo Cluster Timeline</h1>
-    </header>
-    <div class="frame-meta">
-        <div id="frame-info"></div>
-    </div>
-    <!-- Main content ...existing code... -->
-    <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03); flex-wrap: wrap;">
-        <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-size: 14px;"></span>
-        <button id="prev-btn">Prev</button>
-        <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
-        / <span id="total-frames">0</span>
-        <button id="next-btn">Next</button>
-        <div class="timeline-status-panel">
-            <div id="timeline-status-info"></div>
-        </div>
-        <div class="timeline-wrapper">
-            <div id="timeline-hotspot-track"></div>
-            <input type="range" id="timeline-bar" min="1" value="1">
-        </div>
-        {% if sst_available %}
-        <a class="nav-link" href="/sst" target="_blank" rel="noopener">View SST Sessions</a>
-        {% endif %}
-    </div>
-    <main class="board-wrapper">
-        <div id="card-board" class="card-grid">
+    <div class="content-wrapper">
+        <header class="main-header">
+            <h1 id="main-title">Grambo Cluster Timeline</h1>
+        </header>
+        <div class="main-content-area">
+            <div class="frame-meta">
+                <div id="frame-info"></div>
+            </div>
+            <!-- Main content ...existing code... -->
+            <div id="nav" style="position: fixed; bottom: 0; left: 0; width: 100vw; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; gap: 1em; padding: 0.7em 2vw 0.7em 2vw; z-index: 10; box-shadow: 0 -2px 8px rgba(0,0,0,0.03); flex-wrap: wrap;">
+                <button id="timeline-issues-btn" class="timeline-btn" title="Show Timeline Issues" style="background: #e3f2fd; border: 1px solid #1976d2; color: #1976d2; padding: 0.3em 0.6em; border-radius: 4px; font-size: 12px; cursor: pointer;">⚠️</button>
+                <span id="frame-timestamp" style="min-width: 140px; color: #1976d2; font-size: 14px;"></span>
+                <button id="prev-btn">Prev</button>
+                <input type="number" id="frame-num" min="1" value="1" style="width:4em;">
+                / <span id="total-frames">0</span>
+                <button id="next-btn">Next</button>
+                <div class="detail-inspector-panel">
+                    <div class="panel-resize-handle"></div>
+                    <div class="inspector-header">
+                        <div class="inspector-tabs">
+                            <button class="inspector-tab active" data-tab="overview">Overview</button>
+                            <button class="inspector-tab" data-tab="logs">Logs</button>
+                        </div>
+                        <div class="inspector-title">
+                            <span id="inspector-icon">⚠️</span>
+                            <span id="inspector-title-text">Timeline Issues</span>
+                        </div>
+                    </div>
+                    <div class="inspector-content">
+                        <div id="inspector-overview" class="inspector-tab-content active">
+                            <div id="timeline-status-info"></div>
+                        </div>
+                        <div id="inspector-logs" class="inspector-tab-content">
+                            <div class="log-file-controls">
+                                <label for="log-file-selector" class="log-selector-label">Log File:</label>
+                                <select id="log-file-selector" class="log-file-selector">
+                                    <option value="">Select log file...</option>
+                                </select>
+                            </div>
+                            <div id="raw-logs-content"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-wrapper">
+                    <div id="timeline-hotspot-track"></div>
+                    <input type="range" id="timeline-bar" min="1" value="1">
+                </div>
+                {% if sst_available %}
+                <a class="nav-link" href="/sst" target="_blank" rel="noopener">View SST Sessions</a>
+                {% endif %}
+            </div>
+            <main class="board-wrapper">
+                <div id="card-board" class="card-grid">
             <div class="card" data-card="graph" draggable="true">
                 <div class="card-header">Cluster Graph <span class="hint">drag to reposition</span></div>
                 <div class="card-body">
@@ -487,7 +765,7 @@
                 <div class="card-header">Cluster Details <span class="hint">drag to reposition</span></div>
                 <div class="card-body" id="cluster-section"></div>
             </div>
-            <div class="card" data-card="views" draggable="true">
+            <div class="card" data-card="wsrep" draggable="true">
                 <div class="card-header">Wsrep Layer View <span class="hint">drag to reposition</span></div>
                 <div class="card-body" id="views-section"></div>
             </div>
@@ -618,6 +896,36 @@
             const infoEl = document.getElementById('timeline-status-info');
             if (!infoEl) return;
             
+            // Store hotspots data for timeline button
+            detailInspector.currentHotspots = hotspots;
+            
+            // Update timeline button appearance based on issues
+            const timelineBtn = document.getElementById('timeline-issues-btn');
+            if (timelineBtn) {
+                const hasIssues = hotspots && Object.keys(hotspots).length > 0 && 
+                    (hotspots.cluster_non_primary?.length || hotspots.node_non_member?.length || hotspots.node_component_non_primary?.length);
+                
+                if (hasIssues) {
+                    timelineBtn.style.background = '#ffebee';
+                    timelineBtn.style.borderColor = '#f44336';
+                    timelineBtn.style.color = '#f44336';
+                    timelineBtn.title = 'Timeline Issues Found - Click to View';
+                } else {
+                    timelineBtn.style.background = '#e8f5e8';
+                    timelineBtn.style.borderColor = '#4caf50';
+                    timelineBtn.style.color = '#4caf50';
+                    timelineBtn.title = 'No Timeline Issues';
+                }
+            }
+            
+            // Only update timeline content if currently in timeline mode
+            if (detailInspector.currentMode !== 'timeline') {
+                return;
+            }
+            
+            // Set timeline context in Detail Inspector
+            detailInspector.setContext('timeline', null, { hotspots });
+            
             if (!hotspots || Object.keys(hotspots).length === 0) {
                 infoEl.innerHTML = '';
                 infoEl.classList.remove('active');
@@ -680,6 +988,419 @@
             infoEl.classList.add('active');
         }
 
+        // Detail Inspector System
+        const detailInspector = {
+            panel: null,
+            resizeHandle: null,
+            isResizing: false,
+            startY: 0,
+            startHeight: 0,
+            
+            init() {
+                this.panel = document.querySelector('.detail-inspector-panel');
+                this.resizeHandle = document.querySelector('.panel-resize-handle');
+                
+                // Load saved height preference
+                const savedHeight = localStorage.getItem('detail-panel-height');
+                if (savedHeight) {
+                    this.panel.style.height = savedHeight;
+                }
+                
+                // Setup resize handle events
+                this.resizeHandle.addEventListener('mousedown', this.startResize.bind(this));
+                document.addEventListener('mousemove', this.doResize.bind(this));
+                document.addEventListener('mouseup', this.stopResize.bind(this));
+                
+                // Prevent text selection during resize
+                document.addEventListener('selectstart', (e) => {
+                    if (this.isResizing) e.preventDefault();
+                });
+            },
+            
+            startResize(e) {
+                this.isResizing = true;
+                this.startY = e.clientY;
+                this.startHeight = parseInt(window.getComputedStyle(this.panel).height, 10);
+                this.resizeHandle.classList.add('resizing');
+                document.body.style.cursor = 'ns-resize';
+                e.preventDefault();
+            },
+            
+            doResize(e) {
+                if (!this.isResizing) return;
+                
+                const deltaY = e.clientY - this.startY;
+                const newHeight = this.startHeight + deltaY;
+                
+                // Apply constraints
+                const minHeight = 8 * 16; // 8em in pixels (assuming 16px base)
+                const maxHeight = 40 * 16; // 40em in pixels
+                const constrainedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+                
+                this.panel.style.height = constrainedHeight + 'px';
+                e.preventDefault();
+            },
+            
+            stopResize(e) {
+                if (!this.isResizing) return;
+                
+                this.isResizing = false;
+                this.resizeHandle.classList.remove('resizing');
+                document.body.style.cursor = '';
+                
+                // Save height preference
+                localStorage.setItem('detail-panel-height', this.panel.style.height);
+            },
+            currentMode: 'timeline',
+            currentEntity: null,
+            currentFrame: null,
+            currentHotspots: null,
+            
+            contexts: {
+                timeline: { title: 'Timeline Issues', icon: '⚠️' },
+                quorum: { title: 'Quorum Analysis', icon: '🗳️' },
+                node: { title: 'Node Analysis', icon: '🖥️' },
+                wsrep: { title: 'View Changes', icon: '👁️' },
+                cluster: { title: 'Cluster Details', icon: '🔗' }
+            },
+            
+            init() {
+                // Setup tab switching
+                document.querySelectorAll('.inspector-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        this.switchTab(e.target.dataset.tab);
+                        // If switching to logs tab, reload current log
+                        if (e.target.dataset.tab === 'logs') {
+                            this.reloadCurrentLog();
+                        }
+                    });
+                });
+                
+                // Setup timeline issues button
+                const timelineBtn = document.getElementById('timeline-issues-btn');
+                if (timelineBtn) {
+                    timelineBtn.addEventListener('click', () => {
+                        this.setContext('timeline', null, { hotspots: this.currentHotspots });
+                        // Also reload logs when switching to timeline mode
+                        this.reloadCurrentLog();
+                    });
+                }
+                
+                // Setup log file selector
+                this.setupLogFileSelector();
+                
+                // Setup resize functionality
+                this.setupResize();
+            },
+            
+            setupResize() {
+                const panel = document.querySelector('.detail-inspector-panel');
+                const handle = document.querySelector('.panel-resize-handle');
+                const mainContentArea = document.querySelector('.main-content-area');
+                
+                if (!panel || !handle || !mainContentArea) return;
+                
+                let isResizing = false;
+                let startY = 0;
+                let startHeight = 0;
+                let isCollapsed = false;
+                let lastHeight = 300; // Remember last height before collapse
+                
+                // Function to update main content area based on panel height
+                const updateMainContentArea = (panelHeight) => {
+                    const navHeight = 80; // Approximate nav bar height
+                    const availableHeight = panelHeight + navHeight;
+                    mainContentArea.style.paddingBottom = `${availableHeight}px`;
+                };
+                
+                // Double-click to collapse/expand
+                handle.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    
+                    if (isCollapsed) {
+                        // Expand to last height
+                        panel.style.height = `${lastHeight}px`;
+                        panel.style.overflow = 'visible';
+                        handle.style.cursor = 'ns-resize';
+                        handle.title = 'Drag to resize, double-click to collapse';
+                        updateMainContentArea(lastHeight);
+                        isCollapsed = false;
+                    } else {
+                        // Collapse - save current height first
+                        lastHeight = parseInt(window.getComputedStyle(panel).height, 10);
+                        panel.style.height = '40px'; // Just show the handle and tabs
+                        panel.style.overflow = 'hidden';
+                        handle.style.cursor = 'pointer';
+                        handle.title = 'Double-click to expand';
+                        updateMainContentArea(40);
+                        isCollapsed = true;
+                    }
+                });
+                
+                handle.addEventListener('mousedown', (e) => {
+                    // Don't resize if collapsed
+                    if (isCollapsed) return;
+                    
+                    isResizing = true;
+                    startY = e.clientY;
+                    startHeight = parseInt(window.getComputedStyle(panel).height, 10);
+                    
+                    // Add visual feedback
+                    handle.style.background = '#3b82f6';
+                    document.body.style.cursor = 'ns-resize';
+                    document.body.style.userSelect = 'none';
+                    
+                    e.preventDefault();
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (!isResizing || isCollapsed) return;
+                    
+                    const deltaY = startY - e.clientY; // Positive when dragging up
+                    const newHeight = Math.max(150, Math.min(600, startHeight + deltaY)); // Min 150px, Max 600px
+                    
+                    panel.style.height = `${newHeight}px`;
+                    updateMainContentArea(newHeight);
+                    lastHeight = newHeight; // Update last height during resize
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    if (isResizing) {
+                        isResizing = false;
+                        handle.style.background = '';
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    }
+                });
+                
+                // Set initial tooltip and main content area
+                handle.title = 'Drag to resize, double-click to collapse';
+                updateMainContentArea(300); // Initial height
+            },
+            
+            switchTab(tabName) {
+                // Update tab buttons
+                document.querySelectorAll('.inspector-tab').forEach(tab => {
+                    tab.classList.toggle('active', tab.dataset.tab === tabName);
+                });
+                
+                // Update tab content
+                document.querySelectorAll('.inspector-tab-content').forEach(content => {
+                    content.classList.toggle('active', content.id === `inspector-${tabName}`);
+                });
+            },
+            
+            setContext(mode, entity = null, data = null) {
+                this.currentMode = mode;
+                this.currentEntity = entity;
+                
+                const context = this.contexts[mode];
+                if (context) {
+                    document.getElementById('inspector-icon').textContent = context.icon;
+                    document.getElementById('inspector-title-text').textContent = context.title;
+                }
+                
+                // Update content based on mode
+                this.updateContent(data);
+            },
+            
+            updateContent(data) {
+                const overviewContent = document.getElementById('timeline-status-info');
+                
+                // For now, only handle timeline mode
+                if (this.currentMode === 'timeline') {
+                    // Timeline content is handled by displayHotspotInfo
+                    return;
+                }
+                
+                // Future: could add other overview contexts here
+                overviewContent.innerHTML = '<div class="no-data">Select a log file to view context</div>';
+            },
+            
+            displayRawLogs(logsEl, data, entityType, entityKey = null) {
+                // Check if frame has raw_logs or source_lines
+                let logLines = [];
+                
+                if (data.raw_logs) {
+                    logLines = data.raw_logs;
+                } else if (data.source_lines) {
+                    logLines = data.source_lines;
+                } else if (data.entities) {
+                    // Try to extract logs from entity data
+                    for (const [entKey, entData] of Object.entries(data.entities)) {
+                        if (entData.source_lines) {
+                            logLines = logLines.concat(entData.source_lines);
+                        }
+                        if (entData.raw_log_lines) {
+                            logLines = logLines.concat(entData.raw_log_lines);
+                        }
+                    }
+                }
+                
+                if (logLines.length === 0) {
+                    logsEl.innerHTML = '<div class="logs-placeholder">No raw log data available for this frame</div>';
+                    return;
+                }
+                
+                // Filter logs based on context if needed
+                let filteredLogs = logLines;
+                if (entityType && entityKey) {
+                    // Filter for specific entity
+                    filteredLogs = logLines.filter(line => 
+                        line.toLowerCase().includes(entityKey.toLowerCase()) ||
+                        line.toLowerCase().includes(entityType.toLowerCase())
+                    );
+                }
+                
+                if (filteredLogs.length === 0) {
+                    filteredLogs = logLines; // Fall back to all logs if no matches
+                }
+                
+                // Limit to reasonable number of lines
+                const maxLines = 20;
+                const displayLogs = filteredLogs.slice(0, maxLines);
+                
+                const logHtml = displayLogs.map(line => {
+                    const escapedLine = this.escapeHtml(line);
+                    return `<div class="log-line">${escapedLine}</div>`;
+                }).join('');
+                
+                const moreIndicator = filteredLogs.length > maxLines ? 
+                    `<div class="log-more">... and ${filteredLogs.length - maxLines} more lines</div>` : '';
+                
+                logsEl.innerHTML = `
+                    <div class="raw-logs-container">
+                        <div class="logs-header">Raw Log Lines (${displayLogs.length}${filteredLogs.length > maxLines ? `/${filteredLogs.length}` : ''})</div>
+                        <div class="logs-content">
+                            ${logHtml}
+                            ${moreIndicator}
+                        </div>
+                    </div>
+                `;
+            },
+            
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+            
+            setupLogFileSelector() {
+                // This will be called when frame data is loaded with log file info
+                const logSelector = document.getElementById('log-file-selector');
+                if (logSelector) {
+                    logSelector.addEventListener('change', (e) => {
+                        this.loadLogContext(e.target.value);
+                    });
+                }
+            },
+            
+            updateLogFiles(logFiles) {
+                const selector = document.getElementById('log-file-selector');
+                if (!selector || !logFiles) return;
+                
+                // Preserve current selection
+                const currentSelection = selector.value;
+                
+                selector.innerHTML = '<option value="">Select log file...</option>';
+                logFiles.forEach(logFile => {
+                    const option = document.createElement('option');
+                    option.value = logFile.path;
+                    option.textContent = logFile.name || logFile.path.split('/').pop();
+                    selector.appendChild(option);
+                });
+                
+                // Restore previous selection if it still exists
+                if (currentSelection) {
+                    selector.value = currentSelection;
+                }
+            },
+            
+            reloadCurrentLog() {
+                const selector = document.getElementById('log-file-selector');
+                if (selector && selector.value && this.currentFrame?.timestamp) {
+                    console.log('Reloading log for timestamp:', this.currentFrame.timestamp);
+                    this.loadLogContext(selector.value);
+                }
+            },
+            
+            loadLogContext(logPath) {
+                if (!logPath || !this.currentFrame?.timestamp) {
+                    console.log('Cannot load log context: missing logPath or timestamp', { logPath, timestamp: this.currentFrame?.timestamp });
+                    this.displayRawLogs(document.getElementById('raw-logs-content'), null, 'logs');
+                    return;
+                }
+                
+                console.log('Loading log context for:', { logPath, timestamp: this.currentFrame.timestamp });
+                
+                // Fetch log lines around the current timestamp (30 lines context)
+                const url = `/logs/${encodeURIComponent(logPath)}?timestamp=${encodeURIComponent(this.currentFrame.timestamp)}&context=30`;
+                console.log('Fetching:', url);
+                
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Log context response:', data);
+                        if (data.error) {
+                            console.error('Error loading logs:', data.error);
+                            this.displayRawLogs(document.getElementById('raw-logs-content'), null, 'logs');
+                            return;
+                        }
+                        this.displayContextLogs(data);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching logs:', error);
+                        this.displayRawLogs(document.getElementById('raw-logs-content'), null, 'logs');
+                    });
+            },
+            
+            displayContextLogs(logData) {
+                const logsEl = document.getElementById('raw-logs-content');
+                if (!logsEl) {
+                    console.error('raw-logs-content element not found');
+                    return;
+                }
+                
+                if (!logData.lines) {
+                    console.error('No log lines in response:', logData);
+                    this.displayRawLogs(logsEl, null, 'logs');
+                    return;
+                }
+                
+                const lines = logData.lines;
+                const targetTimestamp = logData.target_timestamp;
+                
+                console.log(`Displaying ${lines.length} log lines around timestamp ${targetTimestamp}`);
+                
+                const logHtml = lines.map((line, index) => {
+                    const isTarget = line.is_target;
+                    const lineClass = isTarget ? 'log-line log-line-target' : 'log-line';
+                    const escapedLine = this.escapeHtml(line.text);
+                    return `<div class="${lineClass}" data-line-number="${line.line_number}">${escapedLine}</div>`;
+                }).join('');
+                
+                logsEl.innerHTML = `
+                    <div class="raw-logs-container">
+                        <div class="logs-header">
+                            Log Context (${lines.length} lines around ${targetTimestamp})
+                            ${logData.found_target ? ' ✓ Found match' : ' ⚠ No exact match'}
+                        </div>
+                        <div class="logs-content">
+                            ${logHtml}
+                        </div>
+                    </div>
+                `;
+                
+                // Scroll to target line with a slight delay to ensure DOM is updated
+                setTimeout(() => {
+                    const targetLine = logsEl.querySelector('.log-line-target');
+                    if (targetLine) {
+                        targetLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                }, 100);
+            }
+        };
+
         let latestGraphNodes = [];
 
         function updateFrame(idx) {
@@ -728,7 +1449,19 @@
                     const tsDisplay = ts ? ts.replace('T', ' ').replace('Z', '') : '—';
                     document.getElementById('frame-timestamp').textContent = tsDisplay;
                     document.getElementById('frame-info').textContent = tsDisplay;
+                    
+                    // Store frame data for Detail Inspector
+                    detailInspector.currentFrame = data;
+                    
+                    // Update log files if available
+                    if (data.log_files) {
+                        detailInspector.updateLogFiles(data.log_files);
+                    }
+                    
                     displayHotspotInfo(data.hotspots);
+                    
+                    // Auto-reload current log with new timestamp (after frame is fully processed)
+                    detailInspector.reloadCurrentLog();
                     // Cluster card
                     const clusterDiv = document.getElementById('cluster-section');
                     clusterDiv.innerHTML = '';
@@ -1217,6 +1950,10 @@
             if (!latestGraphNodes) return;
             drawNodeGraph(latestGraphNodes);
         });
+        
+        // Initialize Detail Inspector
+        detailInspector.init();
+        
         // Initial state
         updateFrame(0);
     </script>
