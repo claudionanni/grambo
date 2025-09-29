@@ -1,205 +1,51 @@
-# GRAP - Galera Regex Analysis Parser (Next Generation)
-
-**Entity-based log parsing system for MariaDB/Galera cluster analysis**
-
-This is the next-generation implementation of grambo, featuring an entity-based architecture with interactive learning capabilities and versioned pattern registries.
-
-## Features
-
-- **Entity-based parsing**: Extract structured entities instead of simple regex matches
-- **Interactive learning**: Train new patterns interactively
-- **Versioned patterns**: YAML-based pattern registry with version management
-- **Multiple output formats**: Text, JSON, YAML with backward compatibility
-- **Quality gates**: Comprehensive unit testing and validation
-- **Extensible architecture**: Easy to add new entity types and patterns
-
-## Installation
-
-```bash
-# Clone the grambo repository
-git clone https://github.com/claudionanni/grambo
-cd grambo
-
-# Install Python dependencies (PyYAML for pattern files)
 pip install PyYAML
+# GRAP Quick Reference
 
-# Make CLI executable
-chmod +x grap.py
-```
+`grap` converts Galera / MariaDB error logs into a structured entity stream that powers downstream analysis (`graf` and `grav`).
 
-## Quick Start
+## Usage
 
 ```bash
-# Basic analysis
-./grap test_logs/db3.log
+# Single log → JSON entities
+.venv/bin/python3 grap --no-cache --format=json error.log > grap_output.json
 
-# JSON output for integration  
-./grap --format=json test_logs/db3.log
+# Multiple logs (merged chronologically)
+.venv/bin/python3 grap --no-cache --format=json node1.log node2.log > grap_output.json
 
-# Filter specific entity types
-./grap --entities=SST,IST test_logs/db3.log
-
-# Multi-node cluster analysis
-./grap node1.log node2.log --multi
-
-# IST workflow analysis
-./grap --entities=IST --format=json test_logs/db3.log
-
-# YAML output with confidence filtering
-./grap --format=yaml --confidence-threshold=0.9 test_logs/db3.log
+# Only emit certain entity types
+.venv/bin/python3 grap --no-cache --format=json --filter=view,node error.log
 ```
 
-## Architecture
+Key flags:
 
-### Entity Types
+- `--no-cache` — force a fresh parse when logs change.
+- `--format=json` — required for the `graf` pipeline.
+- `--filter` — optional comma-separated entity types.
 
-- **SST**: State Snapshot Transfer operations and lifecycle tracking
-- **IST**: Incremental State Transfer with comprehensive workflow monitoring
-- **VIEW**: Cluster membership and view changes
-- **NODE**: Galera cluster nodes and their state transitions  
-- **ERROR**: Error conditions and critical issues
-- **TRANSACTION**: Transaction processing events
+## Output
 
-### Pattern Registry
+JSON payload shaped as:
 
-Patterns are defined in YAML files under the `patterns/` directory:
-
-- `node_patterns.yaml`: Node state and identification patterns
-- `sst_patterns.yaml`: State transfer (SST/IST) patterns  
-- `view_patterns.yaml`: Cluster view and membership patterns
-
-### Output Formats
-
-#### Text Format (Human-readable)
-```
-GRAP Entity Extraction Results
-========================================
-Generated: 2024-09-22 10:30:45
-Total entities: 15
-
-NODE (5 entities)
-------------------------------------------------------------
-  10:25:30 (0.90)
-    Node: a1b2c3d4... | State: Synced -> Donor/Desynced | Address: 192.168.1.100:4567
-```
-
-#### JSON Format (Machine-readable)
 ```json
 {
-  "metadata": {
-    "generator": "grap",
-    "version": "2.0.0-alpha1",
-    "timestamp": "2024-09-22T10:30:45",
-    "total_entities": 15
-  },
-  "entities": [
-    {
-      "entity_type": "NODE",
-      "node_id": "a1b2c3d4-e5f6-7890-abcd-123456789012",
-      "current_state": "DONOR",
-      "previous_state": "SYNCED",
-      "timestamp": "2024-09-15T10:30:45",
-      "confidence": 0.9
-    }
-  ]
+  "grap_version": "v2.x",
+  "extraction_time": "2025-09-29T17:00:00",
+  "total_entities": 417,
+  "entities": [ ... ]
 }
 ```
 
-#### Compatible Format (grambo-web integration)
-```json
-{
-  "metadata": {
-    "generator": "grap",
-    "processing_method": "entity_extraction"
-  },
-  "detailed_events": [...],
-  "cluster_events": [...],
-  "summary": {
-    "node_count": 3,
-    "state_transfers": 2,
-    "view_changes": 1
-  }
-}
-```
-
-## Command Line Reference
-
-### Basic Options
-```bash
-grap [options] <logfile(s)>
-```
-
-### Output Options
-- `--format={text,json,yaml}`: Output format (default: text)
-- `--output=FILE`: Write output to file (default: stdout)
-- `-v, --verbose`: Enable verbose logging
-
-### Entity Options
-- `--entities=LIST`: Comma-separated entity types to extract (SST,IST,VIEW,NODE,ERROR,TRANSACTION)
-- `--confidence-threshold=N`: Minimum confidence threshold for entity extraction (default: 0.0)
-
-### Analysis Options
-- `--multi`: Multi-node cluster analysis mode
-- `--no-cache`: Disable cache usage (force re-analysis)
-- `--cache-dir=DIR`: Cache directory (default: ./grap_cache)
-
-## Pattern Development
-
-### Creating New Patterns
-
-1. **Define Pattern Structure**
-```yaml
-patterns:
-  NODE:
-    - name: "my_custom_pattern"
-      description: "Captures custom node information"
-      confidence: 0.85
-      regex: 'Custom (?P<node_id>\\w+) pattern (?P<custom_field>\\w+)'
-      field_mappings:
-        node_id: "node_id"
-        custom_field: "custom_data"
-      required_fields: ["node_id"]
-      test_cases:
-        - input: "Custom node123 pattern data456"
-          expected:
-            node_id: "node123"
-            custom_data: "data456"
-```
-
-2. **Test Patterns**
-```bash
-# Validate all patterns
-./grap.py --show-patterns
-
-# Test with specific version
-./grap.py --pattern-version=10.6 --show-patterns
-```
-
-3. **Learn Interactively**
-```bash
-# Use learning mode to develop patterns
-./grap.py --learn --interactive new_log_file.log
-```
-
-### Pattern Best Practices
-
-- Use descriptive pattern names
-- Set appropriate confidence levels (0.7-0.95)
-- Include comprehensive test cases
-- Use field mappings for consistent entity attributes
-- Test with multiple MariaDB versions
-
-## Testing
+`entities` contains dictionaries for each event (views, nodes, sst/ist, errors, etc). Feed this file to `graf`:
 
 ```bash
-# Run all unit tests
-cd tests
-python run_tests.py
+.venv/bin/python3 graf grap_output.json --ndjson -o graf_frames.ndjson
+```
 
-# Run specific test module
-python -m unittest test_entities
-python -m unittest test_patterns
-python -m unittest test_output
+## Integration Notes
+
+- Log order matters: pass every relevant log file in one invocation to keep a single timeline.
+- `grap` automatically records the version used; bump `GRAP_VERSION` in the script to invalidate caches after structural changes.
+- For quick experimentation, pipe output directly: `./grap --format=json log | ./graf --ndjson`.
 ```
 
 ## Integration with Existing Tools

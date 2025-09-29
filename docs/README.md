@@ -2,7 +2,29 @@
 
 A comprehensive suite of tools for analyzing MySQL/MariaDB Galera cluster log files, now featuring a complete **3-tool pipeline** for single-node analysis, multi-node correlation, and interactive web visualization.
 
-## 🔧 GRAP - Enhanced Entity Extraction (Production Ready)
+## � GRAX - One-Command Pipeline Runner (New)
+
+Use the new `grax` helper to generate the SST relationship report, structured entities, timeline frames, and launch the interactive viewer in a single command. It automatically prefers the repository's `.venv` interpreter (when present) so Flask and other Python dependencies are loaded correctly, while still allowing overrides via `--python` if you need a custom environment:
+
+```bash
+# Run graa --sst, grap, graf, and grav in sequence
+./grax db3.log other-node.log
+
+# Skip launching the web UI (artifacts only)
+./grax db3.log --no-serve
+
+# Customize output directory and port
+./grax db3.log --output-dir=out --host=0.0.0.0 --port=5050
+```
+
+Artifacts are written to `grax_output/` by default:
+- `graa_sst.txt` – hierarchical SST/IST report displayed in the new SST viewer
+- `grap_output.json` – structured entity stream
+- `graf_frames.ndjson` – timeline frames loaded by `grav`
+
+When the SST report is available, the web UI exposes a **“View SST Sessions”** link that opens a styled summary page with optional raw download.
+
+## �🔧 GRAP - Enhanced Entity Extraction (Production Ready)
 
 **GRAP** (Galera Real-time Analysis Parser) is the enhanced production implementation featuring:
 
@@ -59,207 +81,67 @@ GRAP combined with GRAA now provides comprehensive **hierarchical SST+IST relati
     ├─ 🔄 RELATED IST EVENTS:
     │      ├─ 📥 IST ist_processing_1469 │ Progress: 28.4% (13072/46040 events)
     │      ├─ 📥 IST ist_processing_1486 │ Progress: 88.2% (224288/254219 events)
-    │      └─ 📥 IST ist_processing_1493 │ Progress: 100.0% (303719/303719 events)
-```
+    # Grambo Documentation
 
-Features:
-- **🔗 Clear Relationships**: Visual mapping between SST sessions and related IST events
-- **📊 Progress Tracking**: IST completion percentages and event counts
-- **⚡ Status Indicators**: Icons for different SST types and transfer modes
-- **🎯 Session Grouping**: Logical organization by time ranges and workflows
+    Minimal quick reference for the active toolchain: `graa`, `grap`, `graf`, `grav`, and the wrapper `grax`.
 
-**Current Implementation:**
-- **`grap`** - Complete entity extraction with IST workflow support
-- **`graa`** - Analysis summaries (legacy compatibility)
-- **`gras`** - Multi-node correlation (legacy)
-- **`graw`** - Web visualization (legacy)
+    ## Tool Map
 
-**Entity Types Extracted:**
-- **SST** - State Snapshot Transfer operations and lifecycle
-- **IST** - Incremental State Transfer with 8-stage workflow tracking  
-- **VIEW** - Cluster membership changes and view formations
-- **NODE** - State transitions, configuration, membership
-- **ERROR** - Error conditions and critical issues
-- **TRANSACTION** - Transaction processing events
+    | Tool | Purpose | Typical Output |
+    | --- | --- | --- |
+    | `graa` | Summarise logs and build SST/IST tree (`--sst`) | Plain-text report |
+    | `grap` | Parse logs into structured entities | `grap_output.json` |
+    | `graf` | Turn entities into timeline frames | `graf_frames.ndjson` |
+    | `grav` | Flask viewer for the frames + SST page | Web UI on localhost |
+    | `grax` | Runs the full chain and launches `grav` | Artifacts under `grax_output/` |
 
-For detailed documentation, see [README_grap.md](README_grap.md).
+    ## Quick Start (recommended)
 
-### 📁 Repository Structure
+    ```bash
+    # Runs graa → grap → graf → grav using the repo virtualenv when available
+    ./grax /path/to/galera/error.log
+    ```
 
-- **`master` branch** - Stable original tools (`gra`, `gras`, `graw`)
-- **`v2-rewrite` branch** - Modern GRAP system (future main implementation)
+    By default `grax` writes to `grax_output/` and opens the web UI on port 5000. Add `--no-serve` to skip launching `grav`, or `--python=/path/to/python` to use a specific interpreter.
 
-## 🔧 Original Tool Pipeline Overview (Legacy - master branch)
+    ## Manual Pipeline
 
-The original Grambo consists of three complementary bash-based tools that work together:
+    ```bash
+    # 1. Build the SST/IST summary (optional but recommended)
+    .venv/bin/python3 graa --sst node.log > graa_sst.txt
 
-1. **`gra`** - Single-node log analysis (legacy version, now replaced by `graa.py`)
-2. **`gras`** - Multi-node cluster correlation (grambo state)
-3. **`graw`** - Interactive web visualization (grambo web)
+    # 2. Extract entities
+    .venv/bin/python3 grap --no-cache --format=json node.log > grap_output.json
 
-### 📊 Complete Analysis Workflow
+    # 3. Generate timeline frames
+    .venv/bin/python3 graf grap_output.json --ndjson -o graf_frames.ndjson
 
-```bash
-# Step 1: Analyze individual node logs
-./gra --format=json node1.log > node1.json
-./gra --format=json node2.log > node2.json  
-./gra --format=json node3.log > node3.json
+    # 4. Launch the visualizer (provides “View SST Sessions” link when report is present)
+    .venv/bin/python3 grav --frames=graf_frames.ndjson --sst-report=graa_sst.txt
+    ```
 
-# Step 2: Correlate cluster-wide events
-./gras --format=json node1.json node2.json node3.json > cluster-analysis.json
+    ## Key Options
 
-# Step 3: Launch interactive web visualization
-./graw cluster-analysis.json
-# Opens browser at http://127.0.0.1:8050
-```
+    - `graa --sst`: Emits the hierarchical SST + related IST sessions tree used by the viewer.
+    - `grap --no-cache`: Forces a fresh parse whenever logs change. Drop the flag to reuse cache.
+    - `graf --ndjson`: Streams frames; pass `-o` to capture them in a file.
+    - `grav --frames=... --sst-report=...`: Loads data on startup. Use `--host`/`--port` to expose it elsewhere.
+    - `grax --no-serve`: Produce artifacts without running the web UI.
 
-### 🌐 Web Visualization Features
+    ## Output Snapshot
 
-The new **`graw`** provides an interactive dashboard with:
+    ```
+    grax_output/
+    ├── graa_sst.txt        # graa --sst report shown in the SST page
+    ├── grap_output.json    # structured entities
+    └── graf_frames.ndjson  # timeline frames consumed by grav
+    ```
 
-- **📈 Timeline Navigation** - Scrub through cluster events chronologically
-- **🌐 Network Topology** - Visual cluster state with dynamic node positioning
-- **📊 Real-time State Display** - Current cluster members, uncertain nodes, active transfers
-- **🔍 Event Details** - Detailed event logs for each timeline frame
-- **⚙️ Dynamic Node Management** - Nodes appear only when they interact with the cluster
-- **🎯 Temporal Precision** - Accurate timing of node joins, SST workflows, state transitions
+    ## Tips
 
-#### Visual Elements
-- **Green nodes**: SYNCED (healthy)
-- **Blue nodes**: DONOR/DESYNCED (providing SST/IST)
-- **Orange nodes**: JOINER/JOINING (receiving transfers)
-- **Dark orange nodes**: JOINED (synchronized but not yet stable)
-- **Node positioning**: Established members (inner circle), uncertain nodes (outer circle), excluded nodes (isolated)
-
-## Overview
-
-Grambo Python Edition provides a clean, organized analysis of Galera cluster logs with separate sections for different types of events. This makes it much easier to understand what's happening in your Galera cluster compared to the verbose output of the original bash version.
-
-## Features
-
-### 🎯 **Organized Event Categories**
-- **📊 Server Information** - Version, socket, port, configuration
-- **🔗 Galera Cluster Info** - Node UUID, group UUID, cluster details
-  - Now with explicit labeling:
-    - Node Instance UUID (My UUID): full 36-char per-node identity
-    - Group UUID: short 8-4 view/cluster UUID with current seqno
-    - Local State: provider state UUID:seqno on this node
-  - Local node: resolved node name for this log (when known)
-- **🔄 State Transitions** - Node state changes (JOINED→SYNCED, etc.)
-- **👥 Cluster Views** - Membership changes, nodes joining/leaving
-- **💾 SST Events** - State Snapshot Transfer operations
-- **📈 IST Events** - Incremental State Transfer operations
-  - Now includes ranges, roles (sender/receiver), async serve peer and preload start
-  - Detects receiver prepare/apply start/completion and incomplete ranges
-  - NEW: correlates end-to-end State Transfer workflows (IST attempt → SST fallback → IST catch-up)
-- **⚠️ Communication Issues** - Node suspicions, network problems
-- **⚡ Warnings** - Non-critical issues
-- **🚨 Errors** - Critical problems
- - **🛠️ Flow Control** - Summary of FC interval, STOP/CONT signals, SYNC decisions (from gcs.cpp)
-
-### 🔧 **Advanced Features**
-- **Multiple output formats**: Human-readable text and JSON
-- **Event filtering**: Focus on specific event types
-- **Timeline analysis**: Chronological view of cluster events
-- **Cross-node analysis**: Analyze multiple log files together
-- **Structured data**: Machine-readable JSON for integration
-
-### 🎯 **Dialect Dictionary System**
-
-Grambo Python Edition features a comprehensive **dialect registry** that organizes 80+ regex patterns into logical categories for parsing different Galera/MariaDB/PXC log formats. This system provides:
-
-#### **Pattern Categories**
-- **📬 IST Patterns** (20) - Incremental State Transfer events
-- **💾 SST Patterns** (18) - State Snapshot Transfer events  
-- **🔄 State Transition Patterns** (6) - WSREP state changes
-- **👁️ View Change Patterns** (8) - Cluster membership changes
-- **🌐 Communication Patterns** (6) - Network and connection events
-- **ℹ️ Server Info Patterns** (12) - Version, configuration, and startup
-- **⚡ Flow Control Patterns** (5) - Replication flow control
-- **🔧 General Patterns** (5) - Timestamps and dialect detection
-
-#### **Current Implementation**
-- ✅ **Comprehensive Pattern Registry** - 80+ patterns organized in 8 logical categories
-- ✅ **Universal Default Dialect** - Works across all Galera/MariaDB/PXC versions  
-- ✅ **Zero breaking changes** - All existing functionality preserved
-- ✅ **Automatic detection framework** - Ready for version-specific pattern activation
-
-#### **Future-Ready Extensions**
-The dialect system is designed for easy extension:
-
-```python
-# Example: Adding MariaDB 10.6 specific patterns
-analyzer.dialect_registry.add_dialect_variant('mariadb-10.6')
-analyzer.dialect_registry.update_pattern('mariadb-10.6', 'sst_patterns', 
-    'enhanced_progress', r'SST progress: (\d+)% \((\d+)/(\d+) MB\)')
-```
-
-This enables version-specific parsing improvements:
-- **MariaDB 10.6 vs 11.0** - Different log message formats
-- **Percona XtraDB Cluster** - PXC-specific terminology  
-- **Enterprise vs Community** - Edition-specific patterns
-- **Future versions** - Easy pattern updates without code changes
-
-#### **Benefits**
-- **🎯 Improved Accuracy** - Version-specific patterns for better parsing
-- **🔧 Easy Maintenance** - Centralized pattern management
-- **🚀 Community-Friendly** - Simple contribution of dialect-specific patterns
-- **📈 Scalable** - Supports unlimited dialect variants
-
-### 🎯 **Enhanced Local Node Detection (Latest)**
-
-Grambo Python Edition now features **robust automatic local node detection** that eliminates the need for the `--node` parameter in most scenarios:
-
-#### **🔧 What's New**
-- **✅ UUID Format Handling** - Supports both long (`4bff9935-956b-11f0-9e34-beb439e24709`) and short (`4bff9935-9e34`) UUID formats
-- **✅ Node Restart Tracking** - Handles nodes that restart and get new UUIDs, maintaining UUID history
-- **✅ Reliable Server Connection Mapping** - Matches "My UUID" lines with "Server connected" events for deterministic name resolution
-- **✅ Fixed Processing Bug** - Corrected filter that was skipping server connection lines in `_parse_ip_evidence`
-- **✅ Smart Fallback** - Only requests `--node` parameter when automatic detection truly fails
-
-#### **🚀 Before vs After**
-
-**Before (Often Required):**
-```bash
-# Manual node specification often needed
-./gra --node vinfr-db-d-l05 /var/log/mysql/l05.log --format=json > l05.json
-./gras --node l05:l05.json --node d01:d01.json
-```
-
-**After (Automatic):**
-```bash
-# Auto-detection works reliably
-./gra /var/log/mysql/l05.log --format=json > l05.json
-./gras l05.json d01.json  # No --node needed!
-```
-
-#### **🧠 How It Works**
-
-1. **UUID Collection**: Tracks all UUIDs from "My UUID" declarations and server connection events
-2. **Format Conversion**: Automatically converts between long and short UUID formats for matching
-3. **Historical Tracking**: Maintains UUID history when nodes restart and get new identifiers  
-4. **Reliable Mapping**: Uses deterministic UUID→name mappings from server connection logs
-5. **Validation**: Only succeeds when reliable detection is possible, fails safely otherwise
-
-#### **🎯 When --node Is Still Needed**
-
-- **Severely truncated logs** lacking server connection information
-- **Custom naming requirements** (display names different from Galera node names)
-- **Very old logs** that predate reliable detection patterns
-- **Mixed log files** containing multiple node perspectives
-
-#### **💡 Benefits**
-
-- **🚀 Simplified Workflow** - No more guessing node names from log content
-- **📊 Better gras** - Automatic node detection cascades to cluster analysis
-- **🔧 Fewer Errors** - Eliminates manual node name typos and mismatches
-- **⚡ Faster Analysis** - Skip the trial-and-error of determining correct node names
-
-**📖 Detailed Technical Documentation**: See [CHANGELOG_NODE_DETECTION.md](CHANGELOG_NODE_DETECTION.md) for complete technical details, test cases, and migration guide.
-
-## Installation
-
-```bash
+    - Always create/parselogs inside a Python virtualenv that has Flask installed. `grax` auto-detects `.venv`.
+    - When exploring multiple logs, pass them all to `grax` (or `grap`/`graa`) in one command; the pipeline merges them chronologically.
+    - Regenerate the SST report after log changes so the viewer stays in sync.
 # Clone the repository
 git clone https://github.com/claudionanni/grambo.git
 cd grambo
