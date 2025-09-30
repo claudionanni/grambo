@@ -3,6 +3,18 @@
 """
 GRAP - Galera Raw Analysis Parser
 Next-generation entity-based parser for Galera cluster logs
+
+CHRONOLOGICAL ORDERING LIMITATIONS:
+When processing multiple log files, GRAP sorts entities chronologically with 
+1-second granularity. Events occurring within the same second across different 
+log files cannot be ordered relative to each other, as Galera log timestamps 
+typically have 1-second precision. Within individual log files, the original 
+line order is preserved for same-timestamp events.
+
+USAGE:
+  ./grap single.log                    # Single file (preserves original order)
+  ./grap file1.log file2.log file3.log # Multiple files (sorted chronologically)
+  ./grap --format=json logs/*.log      # JSON output across multiple files
 """
 
 import re
@@ -1684,23 +1696,76 @@ def main():
                        str(e.entity_type.value if hasattr(e.entity_type, 'value') 
                            else e.entity_type).lower() in filter_types]
 
+    # Sort all entities chronologically when processing multiple files
+    # NOTE: Chronological ordering is only guaranteed to 1-second granularity.
+    # Events within the same second from different log files cannot be ordered
+    # relative to each other, as log file timestamps typically have 1-second precision.
+    if len(args.files) > 1:
+        print(f"[GRAP] Sorting {len(all_entities)} entities chronologically across {len(args.files)} files", file=sys.stderr)
+        all_entities.sort(key=lambda e: (
+            getattr(e, 'timestamp', None) or datetime.min,
+            getattr(e, 'line_number', None) or 0,
+            getattr(e, 'log_source', None) or ''
+        ))
+
     # Deduplicate node entities across multiple source files
     all_entities = _deduplicate_node_entities(all_entities)
 
     # Remove all normalization and mutation of node_state for immutable entities
     
+    # Add per-timestamp indexing for deterministic sub-ordering when processing multiple files
+    if len(args.files) > 1:
+        print(f"[GRAP] Adding per-timestamp indices for deterministic frame ordering", file=sys.stderr)
+    
     # Output
     if args.format == 'ndjson':
         # NDJSON format
+        timestamp_groups = {}
         for entity in all_entities:
-            print(json.dumps(entity_to_dict(entity), default=str))
+            entity_dict = entity_to_dict(entity)
+            
+            # Add timestamp_index for multi-file processing
+            if len(args.files) > 1:
+                ts = entity_dict.get('timestamp')
+                if ts:
+                    # Use string timestamp for grouping (second-level precision)
+                    ts_key = ts[:19] if len(ts) >= 19 else ts  # Extract YYYY-MM-DDTHH:MM:SS
+                    if ts_key not in timestamp_groups:
+                        timestamp_groups[ts_key] = 0
+                    entity_dict['timestamp_index'] = timestamp_groups[ts_key]
+                    timestamp_groups[ts_key] += 1
+                else:
+                    entity_dict['timestamp_index'] = 0
+            
+            print(json.dumps(entity_dict, default=str))
     else:
         # Standard JSON
+        entity_dicts = []
+        timestamp_groups = {}
+        
+        for entity in all_entities:
+            entity_dict = entity_to_dict(entity)
+            
+            # Add timestamp_index for multi-file processing
+            if len(args.files) > 1:
+                ts = entity_dict.get('timestamp')
+                if ts:
+                    # Use string timestamp for grouping (second-level precision)
+                    ts_key = ts[:19] if len(ts) >= 19 else ts  # Extract YYYY-MM-DDTHH:MM:SS
+                    if ts_key not in timestamp_groups:
+                        timestamp_groups[ts_key] = 0
+                    entity_dict['timestamp_index'] = timestamp_groups[ts_key]
+                    timestamp_groups[ts_key] += 1
+                else:
+                    entity_dict['timestamp_index'] = 0
+            
+            entity_dicts.append(entity_dict)
+        
         output = {
             "grap_version": GRAP_VERSION,
             "extraction_time": datetime.now().isoformat(),
             "total_entities": len(all_entities),
-            "entities": [entity_to_dict(e) for e in all_entities]
+            "entities": entity_dicts
         }
         print(json.dumps(output, indent=2, default=str))
 

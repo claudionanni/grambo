@@ -225,7 +225,9 @@ def sort_entities(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     def key(e: Dict[str, Any]) -> Tuple:
         ts = parse_iso(e.get("timestamp"))
         ln = e.get("line_number", 0)
-        return ((ts or datetime.min), ln)
+        # Use timestamp_index for sub-ordering when available (multi-file processing)
+        ts_idx = e.get("timestamp_index", 0)
+        return ((ts or datetime.min), ts_idx, ln)
     return sorted(entities, key=key)
 
 
@@ -954,6 +956,11 @@ def main():
         sys.exit(2)
 
     frames = build_frames(grap_json)
+    
+    # Re-index frames to ensure sequential ordering by (timestamp, original_entity_index)
+    # This preserves chronological order while maintaining deterministic frame indices
+    for new_index, frame in enumerate(frames):
+        frame["index"] = new_index
 
     if args.ndjson:
         out = sys.stdout
