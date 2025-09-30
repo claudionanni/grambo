@@ -380,6 +380,7 @@ class GaleraLogParser:
         # Local node information for current log file
         self.local_node_name: Optional[str] = None
         self.local_node_uuid: Optional[str] = None
+        self.local_node_uuid_set: set = set()  # Set of all UUIDs for the local node
         
         # View parsing state
         self._view_block_active = False
@@ -401,61 +402,173 @@ class GaleraLogParser:
         self.current_node_name = None
         self.local_node_name = None
         self.local_node_uuid = None
+        self.local_node_uuid_set = set()
         
         lines = log_content.strip().split('\n')
         
-        # FIRST PASS: Build timeline of local node identity changes (for restarts)
+        # FIRST PASS: Comprehensive local node identification
+        print(f"[GRAP] Pre-processing {log_source} to identify local node...", file=sys.stderr)
+        print(f"[GRAP] Processing {len(lines)} lines...", file=sys.stderr)
         local_node_timeline = []  # List of (line_num, node_name, node_uuid)
         
+        # Enhanced patterns for local node detection
+        uuid_patterns = [
+            r"##*\s*my\s+uuid[:\s]+([0-9a-f-]{36})",  # "####### My UUID: ..."
+            r"my\s+uuid[:\s]+([0-9a-f-]{36})",         # "my uuid: ..."
+            r"local\s+uuid[:\s]+([0-9a-f-]{36})",      # "local uuid: ..."
+        ]
+        
+        node_name_patterns = [
+            r"Setting\s+wsrep_node_name\s+to\s+'([^']+)'",
+            r"Node\s+name[:\s]+'?([^']+)'?",
+            r"wsrep_node_name[:\s]+=\s*'?([^']+)'?",
+            r"Server\s+([^\s]+)\s+connected",
+            r"Node\s+([^\s,]+)[,\s]",
+        ]
+        
+        # Additional patterns for view-based local node detection
+        my_idx_pattern = r"my_idx\s*=\s*(\d+)"
+        state_exchange_pattern = r"got\s+state\s+msg.*from\s+(\d+)\s+\(([^)]+)\)"
+        
+        # Track view information for local node detection
+        my_idx = None
+        idx_to_node_name = {}  # Map of node index to node name
+        node_uuid_sets = {}    # Map of node_name -> set of UUIDs (long and short format)
+        local_node_timeline = []  # List of (line_num, node_name, node_uuid)
+        
+        def add_uuid_to_node(node_name, uuid_value):
+            """Add UUID to node's UUID set, tracking both long and short formats"""
+            if node_name not in node_uuid_sets:
+                node_uuid_sets[node_name] = set()
+            
+            # Add the UUID as-is
+            node_uuid_sets[node_name].add(uuid_value.lower())
+            
+            # Add short format if this is a long UUID
+            if len(uuid_value) == 36 and '-' in uuid_value:
+                # Extract short format: first 8 chars + last 4 chars
+                short_uuid = uuid_value[:8] + '-' + uuid_value[-4:]
+                node_uuid_sets[node_name].add(short_uuid.lower())
+            
+            print(f"[GRAP] Added UUID {uuid_value} to node {node_name} (total: {len(node_uuid_sets[node_name])} UUIDs)", file=sys.stderr)
+        
+        def is_local_node_uuid(uuid_value, local_node_name):
+            """Check if UUID belongs to the local node"""
+            if not local_node_name or local_node_name not in node_uuid_sets:
+                return False
+            
+            uuid_lower = uuid_value.lower()
+            local_uuids = node_uuid_sets[local_node_name]
+            
+            # Direct match
+            if uuid_lower in local_uuids:
+                return True
+            
+            # Check if this is a short format of a long UUID we have
+            if len(uuid_value) == 13 and '-' in uuid_value:  # short format
+                for stored_uuid in local_uuids:
+                    if len(stored_uuid) == 36:  # long format
+                        stored_short = stored_uuid[:8] + '-' + stored_uuid[-4:]
+                        if uuid_lower == stored_short:
+                            return True
+            
+            # Check if this is a long format of a short UUID we have
+            elif len(uuid_value) == 36 and '-' in uuid_value:  # long format
+                short_version = uuid_value[:8] + '-' + uuid_value[-4:]
+                if short_version.lower() in local_uuids:
+                    return True
+            
+            return False
+        
         for line_num, line in enumerate(lines, 1):
-            # Look for "my uuid" pattern to identify the local node
-            my_uuid_match = re.search(r"my\s+uuid:\s*([0-9a-f-]{36})", line, re.IGNORECASE)
-            if my_uuid_match:
-                uuid_value = my_uuid_match.group(1).strip().lower()
-                
-                # Try to find the node name in nearby context (same line or recent lines)
+            # Look for my_idx in view blocks
+            my_idx_match = re.search(my_idx_pattern, line, re.IGNORECASE)
+            if my_idx_match:
+                my_idx = int(my_idx_match.group(1))
+                print(f"[GRAP] Found my_idx: {my_idx} at line {line_num}", file=sys.stderr)
+            
+            # Look for state exchange messages to map index to node name
+            state_exchange_match = re.search(state_exchange_pattern, line, re.IGNORECASE)
+            if state_exchange_match:
+                node_idx = int(state_exchange_match.group(1))
+                node_name = state_exchange_match.group(2).strip()
+                idx_to_node_name[node_idx] = node_name
+                print(f"[GRAP] Mapped node index {node_idx} to {node_name} at line {line_num}", file=sys.stderr)
+            
+            # Look for UUID patterns to identify the local node
+            uuid_value = None
+            for uuid_pattern in uuid_patterns:
+                uuid_match = re.search(uuid_pattern, line, re.IGNORECASE)
+                if uuid_match:
+                    uuid_value = uuid_match.group(1).strip().lower()
+                    print(f"[GRAP] Found UUID: {uuid_value} at line {line_num}", file=sys.stderr)
+                    break
+            
+            if uuid_value:
+                # Try to find the node name in nearby context
                 node_name = None
                 
-                # Check current line first
-                for pattern, group_idx in [
-                    (r"Setting\s+wsrep_node_name\s+to\s+'([^']+)'", 1),
-                    (r"Node\s+name:\s*'?([^']+)'?", 1),
-                ]:
-                    node_match = re.search(pattern, line, re.IGNORECASE)
-                    if node_match:
-                        node_name = node_match.group(group_idx).strip()
-                        break
+                # First, try to use my_idx and index mapping
+                if my_idx is not None and my_idx in idx_to_node_name:
+                    node_name = idx_to_node_name[my_idx]
+                    print(f"[GRAP] Using my_idx mapping: local node is {node_name}", file=sys.stderr)
                 
-                # If not found, look in nearby lines (within 10 lines before/after)
+                # Check current line for node name
                 if not node_name:
-                    search_start = max(0, line_num - 10)
-                    search_end = min(len(lines), line_num + 10)
+                    for name_pattern in node_name_patterns:
+                        node_match = re.search(name_pattern, line, re.IGNORECASE)
+                        if node_match:
+                            node_name = node_match.group(1).strip()
+                            break
+                
+                # If not found, search in nearby lines (expanded search)
+                if not node_name:
+                    search_start = max(0, line_num - 20)
+                    search_end = min(len(lines), line_num + 20)
                     for search_line in lines[search_start:search_end]:
-                        for pattern, group_idx in [
-                            (r"Setting\s+wsrep_node_name\s+to\s+'([^']+)'", 1),
-                            (r"Node\s+name:\s*'?([^']+)'?", 1),
-                            (r"Server\s+([^\s]+)\s+connected", 1),
-                        ]:
-                            node_match = re.search(pattern, search_line, re.IGNORECASE)
+                        for name_pattern in node_name_patterns:
+                            node_match = re.search(name_pattern, search_line, re.IGNORECASE)
                             if node_match:
-                                node_name = node_match.group(group_idx).strip()
+                                node_name = node_match.group(1).strip()
                                 break
                         if node_name:
                             break
                 
-                if node_name and uuid_value:
+                # If still no node name, extract from view information or use fallback
+                if not node_name and line_num <= 50:
+                    node_name = "node_from_" + log_source.split('/')[-1].replace('.', '_').replace('-', '_')
+                
+                if node_name:
+                    # Add this UUID to the node's UUID set
+                    add_uuid_to_node(node_name, uuid_value)
                     local_node_timeline.append((line_num, node_name, uuid_value))
-                    self._register_node_uuid(node_name, uuid_value)
+                    print(f"[GRAP] Associated UUID {uuid_value} with node {node_name} at line {line_num}", file=sys.stderr)
         
-        # Set initial local node info if we found any
+        # Set local node info with validation using UUID sets
         if local_node_timeline:
             _, self.local_node_name, self.local_node_uuid = local_node_timeline[0]
             self.current_node_name = self.local_node_name
-            print(f"[DEBUG] {log_source}: Found {len(local_node_timeline)} UUID entries for local node {self.local_node_name}", file=sys.stderr)
-            for line_num, name, uuid in local_node_timeline:
-                print(f"[DEBUG]   Line {line_num}: {name} -> {uuid}", file=sys.stderr)
+            
+            # Store all UUIDs for this local node for later matching
+            if self.local_node_name in node_uuid_sets:
+                self.local_node_uuid_set = node_uuid_sets[self.local_node_name]
+                print(f"[GRAP] ✅ Local node identified: {self.local_node_name} with {len(self.local_node_uuid_set)} UUIDs", file=sys.stderr)
+                for uuid in sorted(self.local_node_uuid_set):
+                    print(f"[GRAP]   UUID: {uuid}", file=sys.stderr)
+            else:
+                self.local_node_uuid_set = {self.local_node_uuid.lower()} if self.local_node_uuid else set()
+                uuid_display = self.local_node_uuid[:8] + "..." if self.local_node_uuid else "unknown"
+                print(f"[GRAP] ✅ Local node identified: {self.local_node_name} (single UUID: {uuid_display})", file=sys.stderr)
+            
+            if len(local_node_timeline) > 1:
+                print(f"[GRAP] Found {len(local_node_timeline)} UUID entries for {self.local_node_name}", file=sys.stderr)
         else:
-            print(f"[DEBUG] {log_source}: No local node UUID timeline found", file=sys.stderr)
+            print(f"[GRAP] ⚠️  WARNING: No local node identification found in {log_source}", file=sys.stderr)
+            print(f"[GRAP] ⚠️  Local state patterns (shifting, etc.) will be skipped to avoid misattribution", file=sys.stderr)
+            # Don't proceed with local patterns if we can't identify the local node
+            self.local_node_name = None
+            self.local_node_uuid = None
+            self.local_node_uuid_set = set()
 
         # --- Quorum block extraction ---
         quorum_block = []
@@ -673,43 +786,47 @@ class GaleraLogParser:
             return False
         return nlow in {"unknown", "joiner", "donor", "cluster", "n/a", "unspecified"}
 
-    def _normalize_node_state(self, raw: Optional[str]) -> str:
+    def _normalize_node_state(self, raw: Optional[str]) -> Optional[str]:
         """Normalize a raw node state string to one of the canonical states.
 
-        Allowed canonical states: CLOSED, OPEN, JOINER, JOINED, SYNCED, DONOR
+        Canonical states: CLOSED, OPEN, PRIMARY, JOINER, JOINED, SYNCED, DONOR/DESYNCED
         The function extracts the RHS of arrow-style strings and maps common
-        synonyms to canonical values.
+        synonyms to canonical values. Returns None for non-canonical states.
         """
         if not raw:
-            return "UNKNOWN"
+            return None
         s = str(raw).strip()
         # If it's an arrow 'A -> B' take RHS
         if '->' in s:
             parts = s.split('->')
             s = parts[-1].strip()
         s_low = s.lower()
+        
+        # Check for DONOR/DESYNCED FIRST (before checking for 'sync' keyword)
+        if 'donor/desynced' in s_low:
+            return 'DONOR/DESYNCED'
+            
         # Direct mapping of common tokens/phrases to canonical states
         if any(k in s_low for k in ['closed']):
             return 'CLOSED'
         if any(k in s_low for k in ['open']):
             return 'OPEN'
+        if any(k in s_low for k in ['primary']):
+            return 'PRIMARY'
         # Join-related
         if any(k in s_low for k in ['joined']) and 'joined' in s_low:
             return 'JOINED'
         if any(k in s_low for k in ['join', 'joining', 'joiner', 'requested']):
             return 'JOINER'
-        # Synced/primary
-        if any(k in s_low for k in ['sync', 'synced', 'primary']):
+        # Synced (check this AFTER donor/desynced to avoid matching 'sync' in 'donor/desynced')
+        if any(k in s_low for k in ['synced']) or s_low == 'sync':
             return 'SYNCED'
-        # Donor
-        if any(k in s_low for k in ['donor']):
-            return 'DONOR'
-        # Fallback: if it's already one of the canonical words
+        # Fallback: if it's already one of the canonical words (removed DONOR from list)
         canon = s.upper()
-        if canon in {'CLOSED', 'OPEN', 'JOINER', 'JOINED', 'SYNCED', 'DONOR'}:
+        if canon in {'CLOSED', 'OPEN', 'PRIMARY', 'JOINER', 'JOINED', 'SYNCED', 'DONOR/DESYNCED'}:
             return canon
-        # Unknown fallback
-        return canon
+        # Non-canonical states - return None to ignore them
+        return None
 
     def _backfill_view_members(self, name: str, identifiers: Set[str], uuid: Optional[str]):
         """Update previously parsed view entities once canonical mappings become available."""
@@ -804,16 +921,18 @@ class GaleraLogParser:
     
     def _scan_for_cluster_uuid(self, lines: List[str]):
         """Scan for cluster/group UUID in robust, group-only formats (never node UUIDs)"""
+        # Cluster UUID patterns with context information  
+        # Context: 'cluster' = cluster-wide information
         patterns = [
-            (r'group\s+UUID\s*=\s*([0-9a-f-]+)', 'group UUID = ...'),
-            (r'Group UUID\s*:\s*([0-9a-f-]+)', 'Group UUID   : ...'),
-            (r'cluster id ([0-9a-f-]+)', 'Recovered cluster id ...'),
-            (r'cluster\s+UUID:\s*([0-9a-f-]+)', 'cluster UUID: ...'),
-            (r'View:\s*id:\s*([0-9a-f-]+):', 'View: id: <uuid>:'),
-            (r'Group state:\s*([0-9a-f-]+):', 'Group state: <uuid>:'),
+            (r'group\s+UUID\s*=\s*([0-9a-f-]+)', 'group UUID = ...', 'cluster'),
+            (r'Group UUID\s*:\s*([0-9a-f-]+)', 'Group UUID   : ...', 'cluster'),
+            (r'cluster id ([0-9a-f-]+)', 'Recovered cluster id ...', 'cluster'),
+            (r'cluster\s+UUID:\s*([0-9a-f-]+)', 'cluster UUID: ...', 'cluster'),
+            (r'View:\s*id:\s*([0-9a-f-]+):', 'View: id: <uuid>:', 'cluster'),
+            (r'Group state:\s*([0-9a-f-]+):', 'Group state: <uuid>:', 'cluster'),
         ]
         for line in lines:
-            for pattern, desc in patterns:
+            for pattern, desc, context in patterns:
                 if self.cluster_uuid:
                     return
                 match = re.search(pattern, line, re.IGNORECASE)
@@ -849,12 +968,28 @@ class GaleraLogParser:
         
         # Update local node context if it changed
         if active_node_name and active_node_uuid:
+            # Check if this UUID belongs to our known local node UUIDs
+            uuid_matches = False
+            if hasattr(self, 'local_node_uuid_set') and self.local_node_uuid_set:
+                uuid_matches = active_node_uuid.lower() in self.local_node_uuid_set
+                # Also check short format if this is a long UUID
+                if not uuid_matches and len(active_node_uuid) == 36 and '-' in active_node_uuid:
+                    short_uuid = active_node_uuid[:8] + '-' + active_node_uuid[-4:]
+                    uuid_matches = short_uuid.lower() in self.local_node_uuid_set
+            
             if (self.local_node_name != active_node_name or 
-                self.local_node_uuid != active_node_uuid):
+                (self.local_node_uuid and self.local_node_uuid != active_node_uuid and not uuid_matches)):
                 print(f"[DEBUG] Line {current_line_num}: UUID context change {self.local_node_name}:{self.local_node_uuid} -> {active_node_name}:{active_node_uuid}", file=sys.stderr)
                 self.local_node_name = active_node_name
                 self.local_node_uuid = active_node_uuid
                 self.current_node_name = active_node_name
+                
+                # Add new UUID to the set if it's for the same node
+                if hasattr(self, 'local_node_uuid_set') and active_node_name == self.local_node_name:
+                    self.local_node_uuid_set.add(active_node_uuid.lower())
+                    if len(active_node_uuid) == 36 and '-' in active_node_uuid:
+                        short_uuid = active_node_uuid[:8] + '-' + active_node_uuid[-4:]
+                        self.local_node_uuid_set.add(short_uuid.lower())
 
     def _extract_timestamp(self, line: str) -> Optional[datetime]:
         """Extract timestamp from log line"""
@@ -918,42 +1053,71 @@ class GaleraLogParser:
                     self._register_node_uuid(target_node_name, uuid_value)
                 break
 
-        # Node state changes - ONLY patterns that definitely refer to the local node
-        # These patterns are logged by the node itself about its own state
-        local_node_patterns = [
-            r'.*\[Note\]\s+WSREP:\s+Shifting\s+(OPEN|PRIMARY|JOINER|JOINED|DONOR/DESYNCED|SYNCED|CLOSED)\s*->\s*(OPEN|PRIMARY|JOINER|JOINED|DONOR/DESYNCED|SYNCED|CLOSED)',  # Local state transitions
-            r'.*\[Note\]\s+WSREP:\s+Synchronized\s+with\s+group,\s+ready\s+for\s+connections',  # Local sync completion
-            r'.*\[Note\].*ready\s+for\s+connections',  # General ready for connections
-        ]
-        
-        for pattern in local_node_patterns:
-            match = re.search(pattern, line, re.IGNORECASE)
-            if match and hasattr(self, 'local_node_name') and self.local_node_name and hasattr(self, 'local_node_uuid') and self.local_node_uuid:
-                node_state = None
-                
-                if pattern == local_node_patterns[0]:  # Shifting X -> Y
-                    node_state = match.group(2)  # Only capture the target state
-                elif pattern == local_node_patterns[1]:  # Synchronized with group
-                    node_state = "SYNCED"
-                elif pattern == local_node_patterns[2]:  # Ready for connections
-                    node_state = "SYNCED"
-                
-                if node_state:
-                    timestamp = self._extract_timestamp(line)
-                    if timestamp:
-                        entity = NodeStateEntity(
-                            timestamp=timestamp,
-                            line_number=line_num,
-                            raw_line=line,
-                            log_source=log_source,
-                            entity_id=f"node_state_{self.local_node_name}_{line_num}",
-                            node_name=self.local_node_name,
-                            node_state=node_state,
-                            node_uuid=self.local_node_uuid,
-                            cluster_ref=self.cluster_ref
-                        )
-                        self.entities.append(entity)
+        # Node state patterns with context information
+        # IMPORTANT: Only process if we have confirmed local node identity
+        if self.local_node_name:  # Only process local patterns if we have local node identity
+            # Context: 'local' = state changes logged by local node about itself
+            # ONLY CANONICAL STATES: CLOSED, OPEN, PRIMARY, JOINER, JOINED, SYNCED, DONOR, DONOR/DESYNCED
+            local_node_patterns = [
+                (r'.*\[Note\]\s+WSREP:\s+Shifting\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|DONOR\/DESYNCED|SYNCED)\s*->\s*(CLOSED|OPEN|PRIMARY|JOINER|JOINED|DONOR\/DESYNCED|SYNCED)', 'shifting', 'local'),  # Local state transitions ONLY
+            ]
+            
+            for pattern, event_type, context in local_node_patterns:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    node_state = None
+                    
+                    if event_type == 'shifting':  # Shifting X -> Y
+                        node_state = match.group(2)  # Only capture the target state
+                    
+                    if node_state:
+                        # Normalize the state
+                        normalized_state = self._normalize_node_state(node_state)
+                        if normalized_state:
+                            # Use confirmed local node name for local context patterns
+                            node_name = self.local_node_name
+                            timestamp = self._extract_timestamp(line)
+                            
+                            # Check for duplicate state (avoid creating multiple entities for the same state change)
+                            entity_id = f"node_state_{node_name}_{normalized_state}_{line_num}"
+                            
+                            # Skip if we already created this exact state change at this timestamp
+                            duplicate_found = False
+                            for existing_entity in self.entities:
+                                if (existing_entity.entity_type == 'node_state' and 
+                                    getattr(existing_entity, 'node_name', None) == node_name and 
+                                    getattr(existing_entity, 'node_state', None) == normalized_state and 
+                                    existing_entity.timestamp == timestamp):
+                                    duplicate_found = True
+                                    break
+                            
+                            if not duplicate_found:
+                                self.entities.append(NodeStateEntity(
+                                    entity_id=entity_id,
+                                    timestamp=timestamp,
+                                    line_number=line_num,
+                                    raw_line=line.strip(),
+                                    log_source=log_source,
+                                    confidence=1.0,
+                                    pattern_name="",
+                                    extraction_method="local_pattern",  # Mark as local pattern
+                                    cluster_ref=self.cluster_ref,
+                                    validated=False,
+                                    validation_notes="",
+                                    node_name=node_name,
+                                    node_state=normalized_state,
+                                ))
+                                print(f"[GRAP] Local state: {node_name} -> {normalized_state} (line {line_num})", file=sys.stderr)
+                            else:
+                                print(f"[GRAP] Skipped duplicate state: {node_name} -> {normalized_state} (line {line_num})", file=sys.stderr)
                     break
+        else:
+            # Log that we're skipping local patterns due to missing local node identity
+            if any(re.search(pattern, line, re.IGNORECASE) for pattern, _ in [
+                (r'.*\[Note\]\s+WSREP:\s+Shifting', 'local'),
+                (r'.*\[Note\]\s+WSREP:\s+Synchronized\s+with\s+group', 'local'),
+            ]):
+                print(f"[GRAP] Skipping potential local state pattern at line {line_num} (no local node identity)", file=sys.stderr)
     
     def _parse_view_events(self, line: str, line_num: int, log_source: str):
         """Parse WSREP view events - handles multi-line views correctly based on Galera source"""
@@ -996,25 +1160,33 @@ class GaleraLogParser:
             return
         
         # Main view start patterns based on Galera source
+        # View patterns with context information
+        # Context: 'local' = view seen by local node, 'cluster' = cluster-wide view information
         view_start_patterns = [
-            (r'WSREP:\s+view\(view_id\((\w+),([0-9a-f-]+),(\d+)\)', 'standard'),
-            (r'WSREP:\s+New\s+COMPONENT.*?view_id\((\w+),([0-9a-f-]+),(\d+)\)', 'new_component'),
-            (r'Current view of cluster.*?view:\s*([0-9a-f-]+):(\d+)', 'alternative')
+            (r'WSREP:\s+view\(view_id\((\w+),([0-9a-f-]+),(\d+)\)', 'standard', 'local'),      # Local node's view
+            (r'WSREP:\s+New\s+COMPONENT.*?view_id\((\w+),([0-9a-f-]+),(\d+)\)', 'new_component', 'cluster'),  # Cluster component view
+            (r'Current view of cluster.*?view:\s*([0-9a-f-]+):(\d+)', 'alternative', 'cluster')  # Cluster view summary
         ]
         
-        for pattern, format_type in view_start_patterns:
+        for pattern, format_type, context in view_start_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
-                self._start_view_block(line, line_num, log_source, match, format_type)
+                # Only process local view patterns if we have local node identity
+                if context == 'local' and not self.local_node_name:
+                    print(f"[GRAP] Skipping local view pattern at line {line_num} (no local node identity)", file=sys.stderr)
+                    continue
+                    
+                self._start_view_block(line, line_num, log_source, match, format_type, context)
                 return
     
-    def _start_view_block(self, line: str, line_num: int, log_source: str, match, format_type: str):
+    def _start_view_block(self, line: str, line_num: int, log_source: str, match, format_type: str, context: str = 'cluster'):
         """Start parsing a multi-line view block"""
         self._view_block_active = True
         self._view_block_lines = [line]
         self._view_block_start_line = line_num
         self._view_block_log_source = log_source
         self._view_block_timestamp = self._extract_timestamp(line)
+        self._view_block_context = context  # Store context for later use
         
         # Extract view components based on format
         if format_type in ['standard', 'new_component']:
@@ -1465,28 +1637,47 @@ class GaleraLogParser:
     def _parse_sst_events(self, line: str, line_num: int, log_source: str):
         """Parse SST-related events and emit SSTEventEntity (atomic) and SSTSessionEntity (session)"""
         # For simplicity, treat each atomic SST event as an SSTEventEntity; session logic can be extended
+        # SST patterns with context information
+        # Context: 'local' = logged by local node about itself, 'cluster' = about cluster/other nodes
         sst_patterns = [
-            (r'Selected\s+[0-9\.]+\s*\(([^)]+)\).*?as\s+donor', 'donor_selected'),
-            (r'donor\s*:\s*(\d+)', 'donor_selected_idx'),
-            (r'SST\s+request:\s*(.*)', 'request'),
-            (r'SST\s+complete', 'complete'),
-            (r'Donor\s+selected:\s*([^\s]+)', 'donor_selected'),
-            (r'SST\s+method:\s*(\w+)', 'method'),
+            (r'Selected\s+[0-9\.]+\s*\(([^)]+)\).*?as\s+donor', 'donor_selected', 'cluster'),  # Cluster coordination message
+            (r'donor\s*:\s*(\d+)', 'donor_selected_idx', 'cluster'),  # Cluster donor selection
+            (r'SST\s+request:\s*(.*)', 'request', 'local'),  # Local node requesting SST
+            (r'SST\s+complete', 'complete', 'local'),  # Local SST completion
+            (r'Donor\s+selected:\s*([^\s]+)', 'donor_selected', 'cluster'),  # Cluster donor selection
+            (r'SST\s+method:\s*(\w+)', 'method', 'local'),  # Local SST method selection
+            (r'Initiating\s+SST.*on\s+DONOR\s+side', 'donor_start', 'local'),  # Local donor starting SST
+            (r'Server\s+status\s+change.*->\s*donor', 'donor_status', 'local'),  # Local node becoming donor
         ]
-        for pattern, event_type in sst_patterns:
+        for pattern, event_type, context in sst_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
+                # Only process if we have proper node context for local patterns
+                if context == 'local' and not self.local_node_name:
+                    print(f"[GRAP] Skipping local SST pattern at line {line_num} (no local node identity)", file=sys.stderr)
+                    continue
+                    
                 timestamp = self._extract_timestamp(line)
                 donor_node = None
                 joiner_node = None
                 method = None
                 details = None
-                if event_type == 'donor_selected':
-                    donor_node = match.group(1)
-                elif event_type == 'donor_selected_idx':
-                    idx = int(match.group(1))
-                    donor_node = self._state_exchange_names.get(idx)
-                elif event_type == 'method':
+                
+                # Determine node assignment based on context
+                if context == 'local' and event_type in ['request', 'complete', 'method']:
+                    joiner_node = self.local_node_name  # Local node is the joiner
+                elif context == 'local' and event_type in ['donor_start', 'donor_status']:
+                    donor_node = self.local_node_name  # Local node is the donor
+                elif context == 'cluster':
+                    # For cluster patterns, extract node from the pattern match
+                    if event_type == 'donor_selected':
+                        donor_node = match.group(1)
+                    elif event_type == 'donor_selected_idx':
+                        idx = int(match.group(1))
+                        donor_node = self._state_exchange_names.get(idx)
+                
+                # Extract additional details
+                if event_type == 'method':
                     method = match.group(1)
                 elif event_type == 'request':
                     details = match.group(1)
@@ -1509,14 +1700,24 @@ class GaleraLogParser:
     
     def _parse_ist_events(self, line: str, line_num: int, log_source: str):
         """Parse IST-related events and emit ISTEventEntity (atomic) and ISTSessionEntity (session)"""
+        # IST patterns with context information
+        # Context: 'local' = IST logged by local node, 'cluster' = IST about cluster/other nodes  
         ist_patterns = [
-            (r'IST\s+receiver.*?from\s+(\d+)\s+to\s+(\d+)', 'receiver'),
-            (r'IST\s+sender.*?from\s+(\d+)\s+to\s+(\d+)', 'sender'),
-            (r'Receiving\s+IST.*?(\d+)\s+writesets', 'receiving'),
+            (r'IST\s+receiver.*?from\s+(\d+)\s+to\s+(\d+)', 'receiver', 'local'),  # Local node receiving IST
+            (r'IST\s+sender.*?from\s+(\d+)\s+to\s+(\d+)', 'sender', 'local'),     # Local node sending IST
+            (r'Receiving\s+IST.*?(\d+)\s+writesets', 'receiving', 'local'),       # Local node receiving writesets
+            (r'Sending\s+IST.*?(\d+)\s+writesets', 'sending', 'local'),           # Local node sending writesets
+            (r'IST\s+request.*?from\s+([^\s]+)', 'request_from', 'cluster'),      # Cluster IST request
+            (r'IST\s+completed.*?to\s+([^\s]+)', 'completed_to', 'cluster'),      # Cluster IST completion
         ]
-        for pattern, event_type in ist_patterns:
+        for pattern, event_type, context in ist_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
+                # Only process local patterns if we have local node identity
+                if context == 'local' and not self.local_node_name:
+                    print(f"[GRAP] Skipping local IST pattern at line {line_num} (no local node identity)", file=sys.stderr)
+                    continue
+                    
                 timestamp = self._extract_timestamp(line)
                 sender_node = None
                 receiver_node = None
@@ -1524,10 +1725,25 @@ class GaleraLogParser:
                 seqno_end = None
                 transfer_count = None
                 details = None
+                
+                # Determine node assignment based on context
+                if context == 'local':
+                    if event_type in ('receiver', 'receiving'):
+                        receiver_node = self.local_node_name
+                    elif event_type in ('sender', 'sending'):
+                        sender_node = self.local_node_name
+                elif context == 'cluster':
+                    # Extract node information from pattern
+                    if event_type == 'request_from' and match.groups():
+                        sender_node = match.group(1)
+                    elif event_type == 'completed_to' and match.groups():
+                        receiver_node = match.group(1)
+                
+                # Extract sequence numbers and counts
                 if event_type in ('receiver', 'sender') and len(match.groups()) >= 2:
                     seqno_start = int(match.group(1))
                     seqno_end = int(match.group(2))
-                if event_type == 'receiving':
+                elif event_type in ('receiving', 'sending') and match.groups():
                     transfer_count = int(match.group(1))
                 entity = ISTEventEntity(
                     timestamp=timestamp,
@@ -1550,19 +1766,52 @@ class GaleraLogParser:
     
     def _parse_error_events(self, line: str, line_num: int, log_source: str):
         """Parse error and warning events as NodeErrorEntity (immutable, timestamped)"""
+        # Error patterns with context information
+        # Context: 'local' = error logged by local node, 'cluster' = error about cluster/other nodes
         error_patterns = [
-            (r'\[ERROR\]\s*(.*)', 'ERROR'),
-            (r'\[Warning\]\s*(.*)', 'WARNING'),
-            (r'WSREP:\s+Failed', 'ERROR'),
+            (r'\[ERROR\]\s*WSREP:\s*Failed\s+to\s+read\s+from.*SST', 'ERROR', 'local'),  # Local SST error
+            (r'\[ERROR\]\s*WSREP:\s*Process\s+completed\s+with\s+error.*SST', 'ERROR', 'local'),  # Local SST error
+            (r'\[ERROR\]\s*WSREP:\s*Command\s+did\s+not\s+run.*SST', 'ERROR', 'local'),  # Local SST error
+            (r'\[ERROR\]\s*WSREP:\s*Failed\s+to\s+open\s+channel', 'ERROR', 'local'),  # Local connection error
+            (r'\[ERROR\]\s*WSREP:\s*gcs\s+connect\s+failed', 'ERROR', 'local'),  # Local connection error
+            (r'\[ERROR\]\s*WSREP:\s*Member\s+([^\s]+).*failed', 'ERROR', 'cluster'),  # Cluster member error
+            (r'\[ERROR\]\s*WSREP:\s*Node\s+([^\s]+).*error', 'ERROR', 'cluster'),  # Cluster node error
+            (r'\[ERROR\]\s*(.*)', 'ERROR', 'local'),  # Generic local error
+            (r'\[Warning\]\s*WSREP:\s*Member\s+([^\s]+)', 'WARNING', 'cluster'),  # Cluster member warning
+            (r'\[Warning\]\s*(.*)', 'WARNING', 'local'),  # Generic local warning
+            (r'WSREP:\s+Failed\s+to\s+open\s+channel', 'ERROR', 'local'),  # Local connection failure
+            (r'WSREP:\s+gcs\s+connect\s+failed', 'ERROR', 'local'),  # Local GCS connection failure
+            (r'WSREP:\s+Failed.*', 'ERROR', 'local'),  # Generic WSREP failure (local)
         ]
-        for pattern, level in error_patterns:
+        for pattern, level, context in error_patterns:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
+                # Only process local patterns if we have local node identity
+                if context == 'local' and not self.local_node_name:
+                    print(f"[GRAP] Skipping local error pattern at line {line_num} (no local node identity)", file=sys.stderr)
+                    continue
+                    
                 timestamp = self._extract_timestamp(line)
                 if timestamp:
-                    node_name = self.current_node_name or "unknown"
+                    # Determine node assignment based on context
+                    if context == 'local':
+                        node_name = self.local_node_name or "unknown_local"
+                    elif context == 'cluster':
+                        # Try to extract node name from the error message
+                        node_name = None
+                        if match.groups() and len(match.groups()) >= 2:
+                            node_name = match.group(2)  # Second group is the node name
+                        if not node_name:
+                            node_name = self.current_node_name or "unknown_cluster"
+                    else:
+                        node_name = self.current_node_name or "unknown"
+                    
                     history = self._node_uuid_history.get(node_name, [])
                     primary_uuid = self._select_primary_uuid(history) if history else None
+                    
+                    # Extract error message
+                    error_message = match.group(1) if match.groups() else line
+                    
                     entity = NodeErrorEntity(
                         timestamp=timestamp,
                         line_number=line_num,
@@ -1572,10 +1821,11 @@ class GaleraLogParser:
                         node_name=node_name,
                         node_uuid=primary_uuid,
                         error_level=level,
-                        error_message=match.group(1) if match.groups() else line,
+                        error_message=error_message,
                         cluster_ref=self.cluster_ref
                     )
                     self.entities.append(entity)
+                    print(f"[GRAP] {context.upper()} {level}: {node_name} - {error_message[:50]}...", file=sys.stderr)
                 break
 
 def entity_to_dict(entity) -> Any:
