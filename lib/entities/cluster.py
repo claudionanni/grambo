@@ -273,288 +273,76 @@ class ClusterEntity(Entity):
     cluster_name: str = ""
     cluster_uuid: str = ""
     
+    # Cluster lifecycle
+    cluster_start_time: Optional[datetime] = None
+    cluster_end_time: Optional[datetime] = None  # None means still active
+    
+    # Summary statistics
+    max_members_seen: int = 0  # High watermark of cluster membership
+    total_sst_operations: int = 0  # Count of SST operations during cluster life
+    total_view_changes: int = 0  # Count of view changes during cluster life
+    split_brain_events: int = 0  # Count of detected split-brain events
+    error_count: int = 0  # Count of errors during cluster life
+    warning_count: int = 0  # Count of warnings during cluster life
+    
     # Analysis metadata
     analysis_start_time: datetime = field(default_factory=datetime.now)
     analysis_end_time: Optional[datetime] = None
     log_sources: List[str] = field(default_factory=list)
     
-    # Entity collections (hierarchical properties)
-    views: ViewCollection = field(default_factory=ViewCollection)
-    members: MemberCollection = field(default_factory=MemberCollection)
-    
-    # Flat entity collections for other types
-    sst_operations: List[StateTransferEntity] = field(default_factory=list)
-    communications: List[CommunicationEntity] = field(default_factory=list)
-    warnings: List[WarningEntity] = field(default_factory=list)
-    errors: List[ErrorEntity] = field(default_factory=list)
-    performance_events: List[PerformanceEntity] = field(default_factory=list)
-    transactions: List[TransactionEntity] = field(default_factory=list)
-    
-    # Analysis results
-    cluster_health_score: Optional[float] = None
-    split_brain_detected: bool = False
-    split_brain_analysis: Dict[str, Any] = field(default_factory=dict)
-    
     def __post_init__(self):
         """Initialize cluster entity"""
         # Override entity_type for cluster
         object.__setattr__(self, 'entity_type', EntityType.CLUSTER)
-        # Skip validation during initialization - will be called manually after adding entities
-            # self.validated = False  # Cannot assign to frozen dataclass
     
-    def add_entity(self, entity: Entity) -> "ClusterEntity":
-        """
-        Return a new ClusterEntity with the added entity (immutable, type-safe)
-        """
-        from dataclasses import replace
-        log_sources = list(self.log_sources)
-        if entity.log_source and entity.log_source not in log_sources:
-            log_sources.append(entity.log_source)
-        entity_type_str = entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type)
-        views = self.views
-        members = self.members
-        sst_operations = list(self.sst_operations)
-        communications = list(self.communications)
-        warnings = list(self.warnings)
-        errors = list(self.errors)
-        performance_events = list(self.performance_events)
-        transactions = list(self.transactions)
-        if entity_type_str == 'VIEW' and isinstance(entity, ViewEntity):
-            views = self.views.add_view(entity)
-        elif entity_type_str == 'NODE' and isinstance(entity, NodeEntity):
-            members = self.members.add_member(entity)
-        elif entity_type_str == 'STATE_TRANSFER' and isinstance(entity, StateTransferEntity):
-            sst_operations.append(entity)
-        elif entity_type_str == 'COMMUNICATION' and isinstance(entity, CommunicationEntity):
-            communications.append(entity)
-        elif entity_type_str == 'WARNING' and isinstance(entity, WarningEntity):
-            warnings.append(entity)
-        elif entity_type_str == 'ERROR' and isinstance(entity, ErrorEntity):
-            errors.append(entity)
-        elif entity_type_str == 'PERFORMANCE' and isinstance(entity, PerformanceEntity):
-            performance_events.append(entity)
-        elif entity_type_str == 'TRANSACTION' and isinstance(entity, TransactionEntity):
-            transactions.append(entity)
-        else:
-            logger.warning(f"Unknown or mismatched entity type: {entity_type_str}")
-        return replace(self,
-            log_sources=log_sources,
-            views=views,
-            members=members,
-            sst_operations=sst_operations,
-            communications=communications,
-            warnings=warnings,
-            errors=errors,
-            performance_events=performance_events,
-            transactions=transactions
-        )
+    def get_cluster_duration(self) -> Optional[timedelta]:
+        """Get the duration of this cluster period"""
+        if self.cluster_start_time and self.cluster_end_time:
+            return self.cluster_end_time - self.cluster_start_time
+        elif self.cluster_start_time:
+            return datetime.now() - self.cluster_start_time
+        return None
     
-    
-    
-    def _analyze_error_frequency(self) -> float:
-        """Analyze error frequency and severity"""
-        if not self.errors:
-            return 1.0  # Perfect score if no errors
-        
-        time_span = self._get_analysis_time_span()
-        total_seconds = time_span.total_seconds() if hasattr(time_span, 'total_seconds') else 0
-        if total_seconds == 0:
-            return 0.5
-        # Errors per hour
-        errors_per_hour = len(self.errors) / (total_seconds / 3600)
-        
-        # Score: 0 errors/hour = perfect, > 50 errors/hour = critical
-        if errors_per_hour == 0:
-            return 1.0
-        elif errors_per_hour >= 50:
-            return 0.0
-        else:
-            return max(0.0, 1.0 - errors_per_hour / 50)
-    
-    def _analyze_sst_health(self) -> float:
-        """Analyze SST operation health"""
-        if not self.sst_operations:
-            return 1.0  # Perfect if no SSTs needed
-        
-        # Check SST success rate
-        successful_ssts = sum(1 for sst in self.sst_operations if sst.is_successful())
-        success_rate = successful_ssts / len(self.sst_operations)
-        
-        # Check SST frequency (fewer is better)
-        time_span = self._get_analysis_time_span()
-        total_seconds = time_span.total_seconds() if hasattr(time_span, 'total_seconds') else 0
-        if total_seconds > 0:
-            ssts_per_day = len(self.sst_operations) / (total_seconds / 86400)
-            frequency_score = max(0.0, 1.0 - ssts_per_day / 10)  # > 10/day is poor
-        else:
-            frequency_score = 0.5
-        
-        # Combine success rate and frequency
-        return (success_rate * 0.7 + frequency_score * 0.3)
-    
-    def _analyze_communication_health(self) -> float:
-        """Analyze cluster communication health"""
-        if not self.communications:
-            return 0.8  # Good score if no communication issues logged
-        
-        # Analyze communication patterns for issues
-        connection_failures = sum(
-            1 for comm in self.communications 
-            if 'fail' in comm.status.lower() or 'error' in comm.status.lower()
-        )
-        
-        if len(self.communications) == 0:
-            return 0.8
-        
-        failure_rate = connection_failures / len(self.communications)
-        return max(0.0, 1.0 - failure_rate)
-    
-    def _analyze_performance_health(self) -> float:
-        """Analyze performance indicators"""
-        if not self.performance_events:
-            return 0.8  # Neutral score if no performance data
-        
-        # Check for performance alerts
-        alerts = sum(
-            1 for perf in self.performance_events 
-            if perf.alert_level in ['warning', 'critical']
-        )
-        
-        alert_rate = alerts / len(self.performance_events)
-        return max(0.0, 1.0 - alert_rate)
-    
-    def _get_analysis_time_span(self) -> 'timedelta':
-        """Get the time span of the analysis as a timedelta"""
-        if self.analysis_end_time:
-            return self.analysis_end_time - self.analysis_start_time
-        else:
-            return datetime.now() - self.analysis_start_time
-    
-    def get_cluster_timeline(self) -> List[Entity]:
-        """
-        Get comprehensive cluster timeline with all entities
-        
-        Returns:
-            List of all entities sorted by timestamp
-        """
-        all_entities = []
-        
-        # Add all entity types
-        all_entities.extend(self.views.timeline)
-        all_entities.extend(self.members.member_timeline)
-        all_entities.extend(self.sst_operations)
-        all_entities.extend(self.communications)
-        all_entities.extend(self.warnings)
-        all_entities.extend(self.errors)
-        all_entities.extend(self.performance_events)
-        all_entities.extend(self.transactions)
-        
-        # Sort by timestamp
-        all_entities.sort(key=lambda e: e.timestamp or datetime.min)
-        
-        return all_entities
+    def is_active(self) -> bool:
+        """Check if this cluster is still active (no end time)"""
+        return self.cluster_end_time is None
     
     def get_cluster_summary(self) -> Dict[str, Any]:
         """
-        Get comprehensive cluster analysis summary
+        Get cluster summary information
         
         Returns:
-            Dict with complete cluster analysis
+            Dict with cluster summary
         """
-        timeline = self.get_cluster_timeline()
+        duration = self.get_cluster_duration()
         summary = {
             'cluster_info': {
                 'name': self.cluster_name,
                 'uuid': self.cluster_uuid,
-                'log_sources': self.log_sources,
-                'analysis_period': {
-                    'start': self.analysis_start_time.isoformat() if self.analysis_start_time else None,
-                    'end': self.analysis_end_time.isoformat() if self.analysis_end_time else None,
-                    'duration_hours': self._get_analysis_time_span().total_seconds() / 3600
-                }
+                'start_time': self.cluster_start_time.isoformat() if self.cluster_start_time else None,
+                'end_time': self.cluster_end_time.isoformat() if self.cluster_end_time else None,
+                'duration_hours': duration.total_seconds() / 3600 if duration else None,
+                'is_active': self.is_active(),
+                'log_sources': self.log_sources
             },
-            
-            'entity_counts': {
-                'total_entities': len(timeline),
-                'views': len(self.views.timeline),
-                'members': len(self.members.member_timeline),
-                'sst_operations': len(self.sst_operations),
-                'communications': len(self.communications),
-                'warnings': len(self.warnings),
-                'errors': len(self.errors),
-                'performance_events': len(self.performance_events),
-                'transactions': len(self.transactions)
-            },
-            'key_findings': self._generate_key_findings(),
-            'recommendations': self._generate_recommendations()
+            'statistics': {
+                'max_members_seen': self.max_members_seen,
+                'total_sst_operations': self.total_sst_operations,
+                'total_view_changes': self.total_view_changes,
+                'split_brain_events': self.split_brain_events,
+                'error_count': self.error_count,
+                'warning_count': self.warning_count
+            }
         }
         return summary
-    
-    def _interpret_health_score(self, score: float) -> str:
-        """Interpret health score as human-readable status"""
-        if score >= 0.9:
-            return "Excellent"
-        elif score >= 0.8:
-            return "Good"
-        elif score >= 0.6:
-            return "Fair"
-        elif score >= 0.4:
-            return "Poor"
-        else:
-            return "Critical"
-    
-    def _generate_key_findings(self) -> List[str]:
-        """Generate key findings from cluster analysis"""
-        findings = []
-        
-        if self.split_brain_detected:
-            findings.append(f"Split-brain detected: {len(self.split_brain_analysis.get('events', []))} events")
-        
-        if len(self.errors) > 0:
-            findings.append(f"Found {len(self.errors)} error events requiring attention")
-        
-        if len(self.sst_operations) > 0:
-            successful_ssts = sum(1 for sst in self.sst_operations if sst.is_successful())
-            findings.append(f"SST Operations: {successful_ssts}/{len(self.sst_operations)} successful")
-        
-        if len(self.views.timeline) > 10:
-            findings.append(f"High view change frequency: {len(self.views.timeline)} view changes detected")
-        
-        return findings
-    
-    def _generate_recommendations(self) -> List[str]:
-        """Generate actionable recommendations"""
-        recommendations = []
-        
-        if self.split_brain_detected:
-            recommendations.append("Investigate network connectivity between nodes")
-            recommendations.append("Review cluster configuration for proper quorum settings")
-        
-        if self.cluster_health_score and self.cluster_health_score < 0.6:
-            recommendations.append("Cluster health is below acceptable levels - immediate attention required")
-        
-        if len(self.errors) > len(self.views.timeline):
-            recommendations.append("Error frequency exceeds view changes - investigate underlying issues")
-        
-        failed_ssts = [sst for sst in self.sst_operations if not sst.is_successful()]
-        if len(failed_ssts) > 0:
-            recommendations.append(f"Review {len(failed_ssts)} failed SST operations for root cause")
-        
-        return recommendations
     
     def validate(self) -> bool:
         """Validate cluster entity"""
         if not self.log_sources:
             logger.warning("Cluster has no log sources - this may indicate incomplete analysis")
         
-        # Validate that we have at least some entities
-        total_entities = (len(self.views.timeline) + len(self.members.member_timeline) + 
-                         len(self.sst_operations) + len(self.communications) + 
-                         len(self.warnings) + len(self.errors) + 
-                         len(self.performance_events) + len(self.transactions))
-        
-        if total_entities == 0:
-            raise ValueError("Cluster entity must contain at least one child entity")
+        if not self.cluster_uuid:
+            raise ValueError("Cluster entity must have a cluster UUID")
         
         return True
     
@@ -563,9 +351,8 @@ class ClusterEntity(Entity):
         return {
             'name': self.cluster_name or 'unknown',
             'uuid': self.cluster_uuid or 'unknown',
-            'timestamp': self.analysis_start_time,
+            'timestamp': self.cluster_start_time or self.analysis_start_time,
         }
-    
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ClusterEntity':
@@ -577,7 +364,7 @@ class ClusterEntity(Entity):
                 analysis_start_time = datetime.fromisoformat(data['analysis_start_time'])
             except ValueError:
                 pass
-        
+
         analysis_end_time = None
         if data.get('analysis_end_time'):
             try:
@@ -585,9 +372,23 @@ class ClusterEntity(Entity):
             except ValueError:
                 pass
         
+        cluster_start_time = None
+        if data.get('cluster_start_time'):
+            try:
+                cluster_start_time = datetime.fromisoformat(data['cluster_start_time'])
+            except ValueError:
+                pass
+                
+        cluster_end_time = None
+        if data.get('cluster_end_time'):
+            try:
+                cluster_end_time = datetime.fromisoformat(data['cluster_end_time'])
+            except ValueError:
+                pass
+
         return cls(
             entity_id=data.get('entity_id', ''),
-            timestamp=analysis_start_time,
+            timestamp=cluster_start_time or analysis_start_time,
             line_number=data.get('line_number'),
             raw_line=data.get('raw_line', ''),
             log_source=data.get('log_source', ''),
@@ -598,10 +399,15 @@ class ClusterEntity(Entity):
             validation_notes=data.get('validation_notes', ''),
             cluster_name=data.get('cluster_name', ''),
             cluster_uuid=data.get('cluster_uuid', ''),
+            cluster_start_time=cluster_start_time,
+            cluster_end_time=cluster_end_time,
+            max_members_seen=data.get('max_members_seen', 0),
+            total_sst_operations=data.get('total_sst_operations', 0),
+            total_view_changes=data.get('total_view_changes', 0),
+            split_brain_events=data.get('split_brain_events', 0),
+            error_count=data.get('error_count', 0),
+            warning_count=data.get('warning_count', 0),
             analysis_start_time=analysis_start_time,
             analysis_end_time=analysis_end_time,
-            log_sources=data.get('log_sources', []),
-            cluster_health_score=data.get('cluster_health_score'),
-            split_brain_detected=data.get('split_brain_detected', False),
-            split_brain_analysis=data.get('split_brain_analysis', {})
+            log_sources=data.get('log_sources', [])
         )

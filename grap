@@ -695,6 +695,9 @@ class GaleraLogParser:
             for i, period in enumerate(self.cluster_periods):
                 cluster_uuid = period['cluster_uuid']
                 if cluster_uuid and cluster_uuid not in created_clusters:
+                    # Calculate statistics for this cluster period
+                    cluster_stats = self._calculate_cluster_statistics(cluster_uuid, period)
+                    
                     cluster_entity = ClusterEntity(
                         timestamp=period['start_time'],
                         line_number=period['start_line'],
@@ -703,7 +706,15 @@ class GaleraLogParser:
                         entity_id=f"cluster_{cluster_uuid[:8]}",
                         cluster_uuid=cluster_uuid,
                         cluster_ref=f"cluster_{cluster_uuid[:8]}",
-                        analysis_start_time=period['start_time']
+                        cluster_start_time=period['start_time'],
+                        cluster_end_time=period['end_time'],
+                        analysis_start_time=period['start_time'],
+                        max_members_seen=cluster_stats['max_members'],
+                        total_sst_operations=cluster_stats['sst_count'],
+                        total_view_changes=cluster_stats['view_count'],
+                        split_brain_events=cluster_stats['split_brain_count'],
+                        error_count=cluster_stats['error_count'],
+                        warning_count=cluster_stats['warning_count']
                     )
                     self.entities.insert(0, cluster_entity)
                     created_clusters.add(cluster_uuid)
@@ -712,6 +723,11 @@ class GaleraLogParser:
             # Single cluster UUID (backward compatibility)
             first_ts = self.entities[0].timestamp if self.entities and getattr(self.entities[0], 'timestamp', None) else None
             analysis_start_time = first_ts if isinstance(first_ts, datetime) else datetime.now()
+            
+            # Calculate statistics for single cluster
+            period = {'start_time': first_ts, 'end_time': None}
+            cluster_stats = self._calculate_cluster_statistics(self.cluster_uuid, period)
+            
             cluster_entity = ClusterEntity(
                 timestamp=first_ts,
                 line_number=0,
@@ -720,7 +736,15 @@ class GaleraLogParser:
                 entity_id=f"cluster_{self.cluster_uuid[:8]}",
                 cluster_uuid=self.cluster_uuid,
                 cluster_ref=self.cluster_ref,
-                analysis_start_time=analysis_start_time
+                cluster_start_time=first_ts,
+                cluster_end_time=None,  # Still active
+                analysis_start_time=analysis_start_time,
+                max_members_seen=cluster_stats['max_members'],
+                total_sst_operations=cluster_stats['sst_count'],
+                total_view_changes=cluster_stats['view_count'],
+                split_brain_events=cluster_stats['split_brain_count'],
+                error_count=cluster_stats['error_count'],
+                warning_count=cluster_stats['warning_count']
             )
             self.entities.insert(0, cluster_entity)
             created_clusters.add(self.cluster_uuid)
@@ -1016,6 +1040,111 @@ class GaleraLogParser:
         
         # Fallback to primary cluster
         return self.cluster_uuid
+    
+    def _calculate_cluster_statistics(self, cluster_uuid: str, period: Dict) -> Dict[str, int]:
+        """Calculate statistics for a specific cluster period"""
+        start_time = period.get('start_time')
+        end_time = period.get('end_time')
+        
+        # Filter entities that belong to this cluster period
+        cluster_entities = [
+            e for e in self.entities 
+            if getattr(e, 'cluster_ref', '') == f"cluster_{cluster_uuid[:8]}" and
+            self._entity_in_period(e, start_time, end_time)
+        ]
+        
+        # Count different entity types
+        # For SST count, count SST initiation events (request or donor_selected)
+        sst_count = len([
+            e for e in cluster_entities 
+            if (e.entity_type.value == 'sst' and 
+                hasattr(e, 'event_type') and 
+                getattr(e, 'event_type', None) in ('request', 'donor_selected'))
+        ])
+        
+        view_count = len([e for e in cluster_entities if e.entity_type.value == 'view'])
+        error_count = len([e for e in cluster_entities if e.entity_type.value == 'error'])
+        warning_count = len([e for e in cluster_entities if e.entity_type.value == 'warning'])
+        
+        # Calculate max members seen from ViewEntity instances
+        max_members = 0
+        for entity in cluster_entities:
+            # Check if it's a ViewEntity or has members attribute
+            if (entity.entity_type.value == 'view' and 
+                hasattr(entity, 'members') and 
+                getattr(entity, 'members', None)):
+                try:
+                    members_list = getattr(entity, 'members')
+                    if members_list:
+                        max_members = max(max_members, len(members_list))
+                except (AttributeError, TypeError):
+                    # Skip if members can't be accessed
+                    pass
+        
+        # Calculate split-brain events (simplified deterministic count)
+        # Group views by timestamp and check for conflicting memberships
+        split_brain_count = self._count_split_brain_events(cluster_entities)
+        
+        return {
+            'max_members': max_members,
+            'sst_count': sst_count,
+            'view_count': view_count,
+            'split_brain_count': split_brain_count,
+            'error_count': error_count,
+            'warning_count': warning_count
+        }
+    
+    def _entity_in_period(self, entity, start_time, end_time) -> bool:
+        """Check if entity falls within the time period"""
+        if not hasattr(entity, 'timestamp') or not entity.timestamp:
+            return True  # Include entities without timestamps
+        
+        if start_time and entity.timestamp < start_time:
+            return False
+        if end_time and entity.timestamp > end_time:
+            return False
+        return True
+    
+    def _count_split_brain_events(self, cluster_entities) -> int:
+        """Count split-brain events using deterministic formula"""
+        # Get view entities and group by timestamp (within 30-second tolerance)
+        view_entities = [e for e in cluster_entities if e.entity_type.value == 'view']
+        if len(view_entities) < 2:
+            return 0
+        
+        from collections import defaultdict
+        timestamp_groups = defaultdict(list)
+        tolerance_seconds = 30
+        
+        for view in view_entities:
+            if view.timestamp:
+                # Round to nearest 30-second interval for grouping
+                rounded_time = datetime.fromtimestamp(
+                    (view.timestamp.timestamp() // tolerance_seconds) * tolerance_seconds
+                )
+                timestamp_groups[rounded_time].append(view)
+        
+        # Count groups with conflicting memberships
+        split_brain_events = 0
+        for timestamp, views_at_time in timestamp_groups.items():
+            if len(views_at_time) > 1:
+                # Check for different memberships
+                memberships = set()
+                for view in views_at_time:
+                    try:
+                        if hasattr(view, 'members'):
+                            members_list = getattr(view, 'members', [])
+                            if members_list:
+                                memberships.add(tuple(sorted(members_list)))
+                    except (AttributeError, TypeError):
+                        # Skip if members can't be accessed
+                        pass
+                
+                # Multiple different memberships at same time = split brain
+                if len(memberships) > 1:
+                    split_brain_events += 1
+        
+        return split_brain_events
     
     def _parse_line(self, line: str, line_num: int, log_source: str):
         """Parse a single log line"""
@@ -1717,9 +1846,9 @@ class GaleraLogParser:
         # SST patterns with context information
         # Context: 'local' = logged by local node about itself, 'cluster' = about cluster/other nodes
         sst_patterns = [
+            (r'Member.*requested\s+state\s+transfer', 'request', 'cluster'),  # SST request - specific pattern  
             (r'Selected\s+[0-9\.]+\s*\(([^)]+)\).*?as\s+donor', 'donor_selected', 'cluster'),  # Cluster coordination message
             (r'donor\s*:\s*(\d+)', 'donor_selected_idx', 'cluster'),  # Cluster donor selection
-            (r'SST\s+request:\s*(.*)', 'request', 'local'),  # Local node requesting SST
             (r'SST\s+complete', 'complete', 'local'),  # Local SST completion
             (r'Donor\s+selected:\s*([^\s]+)', 'donor_selected', 'cluster'),  # Cluster donor selection
             (r'SST\s+method:\s*(\w+)', 'method', 'local'),  # Local SST method selection
@@ -1747,7 +1876,12 @@ class GaleraLogParser:
                     donor_node = self.local_node_name  # Local node is the donor
                 elif context == 'cluster':
                     # For cluster patterns, extract node from the pattern match
-                    if event_type == 'donor_selected':
+                    if event_type == 'request':
+                        # Extract joiner node from "Member X.Y (NODE_NAME) requested state transfer"
+                        member_match = re.search(r'Member\s+[\d\.]+\s*\(([^)]+)\)', line)
+                        if member_match:
+                            joiner_node = member_match.group(1)
+                    elif event_type == 'donor_selected':
                         donor_node = match.group(1)
                     elif event_type == 'donor_selected_idx':
                         idx = int(match.group(1))
@@ -1757,7 +1891,11 @@ class GaleraLogParser:
                 if event_type == 'method':
                     method = match.group(1)
                 elif event_type == 'request':
-                    details = match.group(1)
+                    # For request, extract details from the line instead of match groups
+                    if "from '*any*'" in line:
+                        details = "from *any*"
+                    else:
+                        details = "state transfer request"
                 entity = SSTEventEntity(
                     timestamp=timestamp,
                     line_number=line_num,
