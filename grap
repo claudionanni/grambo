@@ -370,7 +370,9 @@ class GaleraLogParser:
     def __init__(self):
         self.entities: List[Entity] = []
         self.current_node_name: Optional[str] = None
-        self.cluster_uuid: Optional[str] = None
+        # Cluster tracking for multiple periods
+        self.cluster_uuid: Optional[str] = None  # Primary/first cluster (backward compatibility)
+        self.cluster_periods: List[Dict] = []  # List of {uuid, start_time, end_time, entities}
         self.cluster_ref: Optional[str] = None
         self._state_exchange_names: Dict[int, str] = {}
         self._uuid_name_map: Dict[str, str] = {}
@@ -645,11 +647,9 @@ class GaleraLogParser:
             self._complete_view_block(line_num)
         
         # Debug: print cluster_uuid before scan
-        # Scan for cluster UUID if not found (only set once, never overwrite)
-        if not self.cluster_uuid:
-            self._scan_for_cluster_uuid(lines)
-        else:
-            pass
+        # Always scan for cluster UUIDs to detect multiple cluster periods
+        self._scan_for_cluster_uuid(lines)
+        
         # If still not found, try to get from first ViewEntity
         if not self.cluster_uuid:
             for entity in self.entities:
@@ -676,13 +676,40 @@ class GaleraLogParser:
         new_entities = []
         for entity in self.entities:
             if not getattr(entity, 'cluster_ref', None):
-                entity = replace(entity, cluster_ref=self.cluster_ref)
+                # Get the correct cluster UUID for this entity's timestamp
+                entity_timestamp = getattr(entity, 'timestamp', None)
+                correct_cluster_uuid = self.get_cluster_for_timestamp(entity_timestamp)
+                if correct_cluster_uuid:
+                    cluster_ref = f"cluster_{correct_cluster_uuid[:8]}"
+                else:
+                    cluster_ref = self.cluster_ref  # Fallback to default
+                entity = replace(entity, cluster_ref=cluster_ref)
             new_entities.append(entity)
         self.entities = new_entities
         
-        # Add cluster entity if we have UUID
-        if self.cluster_uuid:
-            # Ensure analysis_start_time is always a datetime (never None)
+        # Add cluster entities - one for each unique cluster UUID discovered
+        created_clusters = set()
+        
+        if self.cluster_periods:
+            # Multiple clusters detected - create entity for each unique cluster
+            for i, period in enumerate(self.cluster_periods):
+                cluster_uuid = period['cluster_uuid']
+                if cluster_uuid and cluster_uuid not in created_clusters:
+                    cluster_entity = ClusterEntity(
+                        timestamp=period['start_time'],
+                        line_number=period['start_line'],
+                        raw_line="",
+                        log_source=log_source,
+                        entity_id=f"cluster_{cluster_uuid[:8]}",
+                        cluster_uuid=cluster_uuid,
+                        cluster_ref=f"cluster_{cluster_uuid[:8]}",
+                        analysis_start_time=period['start_time']
+                    )
+                    self.entities.insert(0, cluster_entity)
+                    created_clusters.add(cluster_uuid)
+                    
+        elif self.cluster_uuid and self.cluster_uuid not in created_clusters:
+            # Single cluster UUID (backward compatibility)
             first_ts = self.entities[0].timestamp if self.entities and getattr(self.entities[0], 'timestamp', None) else None
             analysis_start_time = first_ts if isinstance(first_ts, datetime) else datetime.now()
             cluster_entity = ClusterEntity(
@@ -696,6 +723,7 @@ class GaleraLogParser:
                 analysis_start_time=analysis_start_time
             )
             self.entities.insert(0, cluster_entity)
+            created_clusters.add(self.cluster_uuid)
 
         # Ensure we emit canonical NodeEntity entries (one per node) using discovered names
         for node_name, history in self._node_uuid_history.items():
@@ -790,8 +818,8 @@ class GaleraLogParser:
         """Normalize a raw node state string to one of the canonical states.
 
         Canonical states: CLOSED, OPEN, PRIMARY, JOINER, JOINED, SYNCED, DONOR/DESYNCED
-        The function extracts the RHS of arrow-style strings and maps common
-        synonyms to canonical values. Returns None for non-canonical states.
+        The function extracts the RHS of arrow-style strings and maps to exact canonical values.
+        Returns None for non-canonical states.
         """
         if not raw:
             return None
@@ -800,31 +828,14 @@ class GaleraLogParser:
         if '->' in s:
             parts = s.split('->')
             s = parts[-1].strip()
-        s_low = s.lower()
         
-        # Check for DONOR/DESYNCED FIRST (before checking for 'sync' keyword)
-        if 'donor/desynced' in s_low:
-            return 'DONOR/DESYNCED'
-            
-        # Direct mapping of common tokens/phrases to canonical states
-        if any(k in s_low for k in ['closed']):
-            return 'CLOSED'
-        if any(k in s_low for k in ['open']):
-            return 'OPEN'
-        if any(k in s_low for k in ['primary']):
-            return 'PRIMARY'
-        # Join-related
-        if any(k in s_low for k in ['joined']) and 'joined' in s_low:
-            return 'JOINED'
-        if any(k in s_low for k in ['join', 'joining', 'joiner', 'requested']):
-            return 'JOINER'
-        # Synced (check this AFTER donor/desynced to avoid matching 'sync' in 'donor/desynced')
-        if any(k in s_low for k in ['synced']) or s_low == 'sync':
-            return 'SYNCED'
-        # Fallback: if it's already one of the canonical words (removed DONOR from list)
-        canon = s.upper()
-        if canon in {'CLOSED', 'OPEN', 'PRIMARY', 'JOINER', 'JOINED', 'SYNCED', 'DONOR/DESYNCED'}:
-            return canon
+        # Exact case-insensitive matching with canonical states
+        s_upper = s.upper()
+        canonical_states = {'CLOSED', 'OPEN', 'PRIMARY', 'JOINER', 'JOINED', 'SYNCED', 'DONOR/DESYNCED'}
+        
+        if s_upper in canonical_states:
+            return s_upper
+        
         # Non-canonical states - return None to ignore them
         return None
 
@@ -920,7 +931,7 @@ class GaleraLogParser:
         return False
     
     def _scan_for_cluster_uuid(self, lines: List[str]):
-        """Scan for cluster/group UUID in robust, group-only formats (never node UUIDs)"""
+        """Scan for cluster/group UUID and track multiple cluster periods"""
         # Cluster UUID patterns with context information  
         # Context: 'cluster' = cluster-wide information
         patterns = [
@@ -931,14 +942,80 @@ class GaleraLogParser:
             (r'View:\s*id:\s*([0-9a-f-]+):', 'View: id: <uuid>:', 'cluster'),
             (r'Group state:\s*([0-9a-f-]+):', 'Group state: <uuid>:', 'cluster'),
         ]
-        for line in lines:
+        
+        detected_uuids = []  # List of (timestamp, uuid, line_num)
+        
+        for line_num, line in enumerate(lines, 1):
+            timestamp = self._extract_timestamp(line)
             for pattern, desc, context in patterns:
-                if self.cluster_uuid:
-                    return
                 match = re.search(pattern, line, re.IGNORECASE)
                 if match:
-                    self.cluster_uuid = match.group(1)
-                    return
+                    uuid = match.group(1)
+                    detected_uuids.append((timestamp, uuid, line_num))
+                    break  # Only one pattern per line
+        
+        # Process detected UUIDs to create cluster periods
+        if detected_uuids:
+            self._create_cluster_periods(detected_uuids)
+            # For backward compatibility, keep the first detected UUID as primary
+            # if cluster_uuid wasn't already set by view parsing
+            if not self.cluster_uuid and self.cluster_periods:
+                self.cluster_uuid = self.cluster_periods[0]['cluster_uuid']
+            # If cluster_uuid was set by view parsing but we found multiple periods,
+            # verify it matches one of the detected UUIDs
+            elif self.cluster_uuid and self.cluster_periods:
+                detected_uuid_set = {period['cluster_uuid'] for period in self.cluster_periods}
+                if self.cluster_uuid not in detected_uuid_set:
+                    # The view-detected UUID doesn't match scan results, use first from scan
+                    self.cluster_uuid = self.cluster_periods[0]['cluster_uuid']
+
+    def _create_cluster_periods(self, detected_uuids: List[Tuple]):
+        """Create cluster periods from detected UUIDs with timeline analysis"""
+        if not detected_uuids:
+            return
+            
+        # Sort by timestamp
+        detected_uuids.sort(key=lambda x: x[0] if x[0] else datetime.min)
+        
+        current_period = None
+        
+        for timestamp, uuid, line_num in detected_uuids:
+            # Check if this is a new cluster period (different UUID)
+            if not current_period or current_period['cluster_uuid'] != uuid:
+                # End previous period
+                if current_period:
+                    current_period['end_time'] = timestamp
+                
+                # Start new period
+                current_period = {
+                    'cluster_uuid': uuid,
+                    'start_time': timestamp,
+                    'end_time': None,  # Will be set when period ends or at process end
+                    'start_line': line_num,
+                    'entity_count': 0
+                }
+                self.cluster_periods.append(current_period)
+        
+        # Close the last period (it goes to end of log)
+        if current_period:
+            current_period['end_time'] = detected_uuids[-1][0]  # Use last timestamp
+    
+    def get_cluster_for_timestamp(self, timestamp: Optional[datetime]) -> Optional[str]:
+        """Get the correct cluster UUID for a given timestamp"""
+        if not timestamp or not self.cluster_periods:
+            return self.cluster_uuid  # Fallback to primary for backward compatibility
+            
+        for period in self.cluster_periods:
+            start = period['start_time']
+            end = period['end_time']
+            
+            # Check if timestamp falls within this period
+            if start and timestamp >= start:
+                if not end or timestamp <= end:
+                    return period['cluster_uuid']
+        
+        # Fallback to primary cluster
+        return self.cluster_uuid
     
     def _parse_line(self, line: str, line_num: int, log_source: str):
         """Parse a single log line"""
