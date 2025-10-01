@@ -1709,10 +1709,22 @@
                                 block += `<div style="margin-bottom: 1em; margin-left: 1em; border-left: 2px solid #444; padding-left: 1em;">`;
                                 block += `<div class="entity-block"><span class="entity-label accent-node">Node:</span> <span class="entity-value">${escapeHtml(nodeName)}</span></div>`;
                                 
-                                // Display key view fields
-                                const customViewFields = ['group_uuid', 'view_id', 'view_seq', 'status', 'cluster_state', 'member_count', 'own_index', 'members', 'capabilities'];
+                                // Display key view fields (excluding view_id since we have group_uuid and view_seq)
+                                const customViewFields = ['group_uuid', 'view_seq', 'status', 'cluster_state', 'member_count', 'own_index', 'members'];
                                 const metrics = renderPropertyList(props, customViewFields, 'accent-view');
                                 block += metrics || '';
+                                
+                                // Add capabilities with tooltip (truncated display)
+                                if (props.capabilities) {
+                                    const capsArray = Array.isArray(props.capabilities) ? props.capabilities : [];
+                                    const capsShort = capsArray.slice(0, 3).join(', ');
+                                    const capsFull = capsArray.join(', ');
+                                    const capsDisplay = capsArray.length > 3 ? capsShort + '...' : capsShort;
+                                    block += `<div class="entity-block">`;
+                                    block += `<span class="entity-label accent-view">capabilities:</span> `;
+                                    block += `<span class="entity-value" title="${escapeHtml(capsFull)}" style="cursor: help;">${escapeHtml(capsDisplay)}</span>`;
+                                    block += `</div>`;
+                                }
                                 
                                 block += `</div>`;
                             });
