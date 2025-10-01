@@ -166,7 +166,9 @@ class EntityExtractor:
                 "members": [],
                 "joined": [],
                 "left": [],
-                "partitioned": []
+                "partitioned": [],
+                "view_uuid": "empty",  # Add placeholder to avoid null cluster_ref
+                "view_id": "empty"
             },
             confidence=0.98
         ))
@@ -624,10 +626,15 @@ class EntityExtractor:
         if timestamp:
             self.timestamp_indices[timestamp] += 1
         
-        # Add cluster info
+        # Add cluster info - use view_uuid as fallback if cluster_uuid not known
         if self.cluster_uuid:
             entity['cluster_uuid'] = self.cluster_uuid
             entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
+        elif self.view_buffer.get('view_uuid'):
+            # Use view_uuid as cluster identifier for gcomm views
+            view_uuid = self.view_buffer['view_uuid']
+            entity['cluster_uuid'] = view_uuid
+            entity['cluster_ref'] = f"cluster_{view_uuid[:8]}"
         
         self.temporal_entities.append(entity)
     
@@ -670,7 +677,7 @@ class EntityExtractor:
         # id: group_uuid:seqno (group_uuid is the cluster uuid)
         match = re.search(r'id:\s*([a-f0-9-]+):(\d+)', full_text)
         if match:
-            view_data['group_uuid'] = match.group(1)
+            view_data['group_uuid'] = match.group(1)  # Renamed from view_uuid to group_uuid
             view_data['cluster_uuid'] = match.group(1)  # Same as group_uuid
             view_data['view_seq'] = int(match.group(2))
             view_data['view_id'] = f"{match.group(1)}:{match.group(2)}"
@@ -679,7 +686,8 @@ class EntityExtractor:
         match = re.search(r'status:\s*(primary|non-primary)', full_text, re.IGNORECASE)
         if match:
             view_data['status'] = match.group(1).upper()
-            view_data['cluster_state'] = 'PRIM' if match.group(1).lower() == 'primary' else 'NON_PRIM'
+            view_data['view_status'] = 'PRIM' if match.group(1).lower() == 'primary' else 'NON_PRIM'
+            view_data['cluster_state'] = view_data['view_status']  # Keep both for compatibility
         
         # protocol_version
         match = re.search(r'protocol_version:\s*(\d+)', full_text)
@@ -757,9 +765,11 @@ class EntityExtractor:
         if timestamp:
             self.timestamp_indices[timestamp] += 1
         
-        # Add cluster reference
+        # Add cluster reference - use group_uuid as cluster identifier
         if view_data.get('group_uuid'):
             entity['cluster_ref'] = f"cluster_{view_data['group_uuid'][:8]}"
+        elif self.cluster_uuid:
+            entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
         
         self.temporal_entities.append(entity)
     
@@ -887,6 +897,9 @@ class EntityExtractor:
         if self.cluster_uuid:
             entity['cluster_uuid'] = self.cluster_uuid
             entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
+        # For empty views with placeholder view_uuid, create a cluster_ref
+        elif entity.get('view_uuid') == 'empty':
+            entity['cluster_ref'] = 'cluster_empty'
         
         # Add timestamp index for frame ordering
         timestamp = entity.get('timestamp')
@@ -907,8 +920,8 @@ class EntityExtractor:
             # We don't store individual node sightings, just track their UUIDs
             pass
         elif entity_type == 'cluster':
-            # Cluster info is embedded in nodes
-            pass
+            # Store cluster entity as temporal (for compatibility with v2)
+            self.temporal_entities.append(entity)
         else:
             # TEMPORAL entities - resolve node references
             # If entity has node_uuid, try to resolve to node_name

@@ -727,8 +727,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     view_ts = parse_iso(view_entry.get("timestamp"))
                     if view_ts and view_ts <= ts:
                         applicable_wsrep = view_entry
-                    else:
-                        break  # Views are ordered by timestamp
+                    # Don't break - continue checking all views to find the most recent one
                 
                 if applicable_wsrep:
                     wsrep_filtered = filter_props(dict(applicable_wsrep))
@@ -769,8 +768,7 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     view_ts = parse_iso(view_entry.get("timestamp"))
                     if view_ts and view_ts <= ts:
                         applicable_gcomm = view_entry
-                    else:
-                        break  # Views are ordered by timestamp
+                    # Don't break - continue checking all views to find the most recent one
                 
                 if applicable_gcomm:
                     gcomm_filtered = filter_props(dict(applicable_gcomm))

@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Debug GRAP SST Pattern",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/grap",
+            "args": ["--format=json", "${workspaceFolder}/pippo"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "justMyCode": false
+        }
+    ]
+}

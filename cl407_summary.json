@@ -1,0 +1,32 @@
+{
+  "statistics": {
+    "total_lines": 11454,
+    "total_matched": 79,
+    "by_file": {
+      "error.11407.log": {
+        "lines": 6572,
+        "entities": 21,
+        "duration": 0.087361
+      },
+      "error.21407.log": {
+        "lines": 543,
+        "entities": 23,
+        "duration": 0.0076
+      },
+      "error.31407.log": {
+        "lines": 4339,
+        "entities": 35,
+        "duration": 0.058026
+      }
+    }
+  },
+  "entity_counts": {
+    "core": {
+      "Node": 14
+    },
+    "temporal": {
+      "ErrorEvent": 39,
+      "StateTransfer": 11
+    }
+  }
+}

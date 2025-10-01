@@ -1,0 +1,74 @@
+{
+  "core_entities": {
+    "Cluster": {
+      "Cluster_b2c3d4e5-f6a7-8901-bcde-234567890123": {
+        "first_seen": "2024-09-15 10:25:28",
+        "cluster_uuid": "b2c3d4e5-f6a7-8901-bcde-234567890123",
+        "entity_id": "Cluster_b2c3d4e5-f6a7-8901-bcde-234567890123",
+        "entity_type": "Cluster"
+      }
+    },
+    "Node": {
+      "Node_a1b2c3d4-e5f6-7890-abcd-123456789012": {
+        "first_seen": "2024-09-15 10:25:30",
+        "node_uuid": "a1b2c3d4-e5f6-7890-abcd-123456789012",
+        "log_source": "test_extraction.log",
+        "entity_id": "Node_a1b2c3d4-e5f6-7890-abcd-123456789012",
+        "entity_type": "Node"
+      },
+      "Node_unknown": {
+        "first_seen": "2024-09-15 10:25:32",
+        "node_name": "db-node-01",
+        "log_source": "test_extraction.log",
+        "entity_id": "Node_unknown",
+        "entity_type": "Node"
+      }
+    }
+  },
+  "temporal_entities": {
+    "NodeStateChange": [
+      {
+        "timestamp": "2024-09-15 10:30:45",
+        "node_uuid": "a1b2c3d4-e5f6-7890-abcd-123456789012",
+        "from_state": "SYNCED",
+        "to_state": "DONOR",
+        "log_line": "2024-09-15 10:30:45 12345 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Synced -> Donor/Desynced",
+        "line_number": 6,
+        "entity_id": "NodeStateChange_4b0641244533",
+        "entity_type": "NodeStateChange"
+      },
+      {
+        "timestamp": "2024-09-15 10:31:02",
+        "node_uuid": "a1b2c3d4-e5f6-7890-abcd-123456789012",
+        "from_state": "DONOR",
+        "to_state": "SYNCED",
+        "log_line": "2024-09-15 10:31:02 12346 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Donor/Desynced -> Synced",
+        "line_number": 7,
+        "entity_id": "NodeStateChange_7e85b4599dc4",
+        "entity_type": "NodeStateChange"
+      }
+    ],
+    "StateTransfer": [
+      {
+        "timestamp": "2024-09-15 10:35:00",
+        "transfer_method": "mariabackup",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "log_line": "2024-09-15 10:35:00 12355 [Note] WSREP: Requesting state transfer: mariabackup",
+        "entity_id": "StateTransfer_9a0add324687",
+        "entity_type": "StateTransfer"
+      }
+    ],
+    "ErrorEvent": [
+      {
+        "timestamp": "2024-09-15 10:40:30",
+        "error_message": "Failed to establish connection with donor node",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2024-09-15 10:40:30 12400 [ERROR] WSREP: Failed to establish connection with donor node",
+        "entity_id": "ErrorEvent_38ef7fe44fd2",
+        "entity_type": "ErrorEvent"
+      }
+    ]
+  }
+}

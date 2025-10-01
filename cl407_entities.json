@@ -1,0 +1,584 @@
+{
+  "core_entities": {
+    "Node": {
+      "Node_d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5": {
+        "first_seen": "2025-09-22 20:42:11",
+        "node_name": "NODE_11407",
+        "node_uuid": "d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_d9c6d6f5-97e3-11f0-abb6-a63756ae0ed5",
+        "entity_type": "Node"
+      },
+      "Node_unknown": {
+        "first_seen": "2025-09-22 20:42:14",
+        "node_name": "NODE_11407",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_unknown",
+        "entity_type": "Node"
+      },
+      "Node_7a30da88-97e4-11f0-aef8-7e66bbcd8637": {
+        "first_seen": "2025-09-22 20:46:40",
+        "node_name": "NODE_11407",
+        "node_uuid": "7a30da88-97e4-11f0-aef8-7e66bbcd8637",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_7a30da88-97e4-11f0-aef8-7e66bbcd8637",
+        "entity_type": "Node"
+      },
+      "Node_7a30da88-97e4-11f0-aef9-7e66bbcd8637": {
+        "first_seen": "2025-09-22 22:27:03",
+        "node_name": "NODE_11407",
+        "node_uuid": "7a30da88-97e4-11f0-aef9-7e66bbcd8637",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_7a30da88-97e4-11f0-aef9-7e66bbcd8637",
+        "entity_type": "Node"
+      },
+      "Node_89c65b64-97f2-11f0-87c2-22481ca21bac": {
+        "first_seen": "2025-09-22 22:27:19",
+        "node_name": "NODE_11407",
+        "node_uuid": "89c65b64-97f2-11f0-87c2-22481ca21bac",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_89c65b64-97f2-11f0-87c2-22481ca21bac",
+        "entity_type": "Node"
+      },
+      "Node_89c65b64-97f2-11f0-87c3-22481ca21bac": {
+        "first_seen": "2025-09-22 22:28:06",
+        "node_name": "NODE_11407",
+        "node_uuid": "89c65b64-97f2-11f0-87c3-22481ca21bac",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_89c65b64-97f2-11f0-87c3-22481ca21bac",
+        "entity_type": "Node"
+      },
+      "Node_3a42f33d-97f3-11f0-ae74-8ea804e8387d": {
+        "first_seen": "2025-09-22 22:32:15",
+        "node_name": "NODE_11407",
+        "node_uuid": "3a42f33d-97f3-11f0-ae74-8ea804e8387d",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.11407.log",
+        "entity_id": "Node_3a42f33d-97f3-11f0-ae74-8ea804e8387d",
+        "entity_type": "Node"
+      },
+      "Node_3e3cbf8a-9d43-11f0-a47a-c712da0bb254": {
+        "first_seen": "2025-09-29 16:47:39",
+        "node_name": "NODE_21407",
+        "node_uuid": "3e3cbf8a-9d43-11f0-a47a-c712da0bb254",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.21407.log",
+        "entity_id": "Node_3e3cbf8a-9d43-11f0-a47a-c712da0bb254",
+        "entity_type": "Node"
+      },
+      "Node_6d6256fd-9a23-11f0-b15e-83e09e5959f9": {
+        "first_seen": "2025-09-25 17:22:20",
+        "node_name": "NODE_31407",
+        "node_uuid": "6d6256fd-9a23-11f0-b15e-83e09e5959f9",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.31407.log",
+        "entity_id": "Node_6d6256fd-9a23-11f0-b15e-83e09e5959f9",
+        "entity_type": "Node"
+      },
+      "Node_383ebaa7-9a29-11f0-b484-c67777546e1a": {
+        "first_seen": "2025-09-25 18:03:48",
+        "node_name": "NODE_31407",
+        "node_uuid": "383ebaa7-9a29-11f0-b484-c67777546e1a",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.31407.log",
+        "entity_id": "Node_383ebaa7-9a29-11f0-b484-c67777546e1a",
+        "entity_type": "Node"
+      },
+      "Node_7b611235-9a29-11f0-9bc9-8efb3da5f47d": {
+        "first_seen": "2025-09-25 18:05:41",
+        "node_name": "NODE_31407",
+        "node_uuid": "7b611235-9a29-11f0-9bc9-8efb3da5f47d",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.31407.log",
+        "entity_id": "Node_7b611235-9a29-11f0-9bc9-8efb3da5f47d",
+        "entity_type": "Node"
+      },
+      "Node_b9008526-9a29-11f0-a61b-fefdf3d11811": {
+        "first_seen": "2025-09-25 18:07:25",
+        "node_name": "NODE_31407",
+        "node_uuid": "b9008526-9a29-11f0-a61b-fefdf3d11811",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.31407.log",
+        "entity_id": "Node_b9008526-9a29-11f0-a61b-fefdf3d11811",
+        "entity_type": "Node"
+      },
+      "Node_2c7ff87c-9d43-11f0-ae9b-c645351e7c4e": {
+        "first_seen": "2025-09-29 16:47:09",
+        "node_name": "NODE_31407",
+        "node_uuid": "2c7ff87c-9d43-11f0-ae9b-c645351e7c4e",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.31407.log",
+        "entity_id": "Node_2c7ff87c-9d43-11f0-ae9b-c645351e7c4e",
+        "entity_type": "Node"
+      },
+      "Node_ea6c7a52-9d7d-11f0-8535-73f42ebaefc9": {
+        "first_seen": "2025-09-29 23:47:38",
+        "node_name": "NODE_31407",
+        "node_uuid": "ea6c7a52-9d7d-11f0-8535-73f42ebaefc9",
+        "log_source": "/home/claudio/Projects/GITHUB/grambo/cl407/error.31407.log",
+        "entity_id": "Node_ea6c7a52-9d7d-11f0-8535-73f42ebaefc9",
+        "entity_type": "Node"
+      }
+    }
+  },
+  "temporal_entities": {
+    "ErrorEvent": [
+      {
+        "timestamp": "2025-09-22 22:27:03",
+        "error_message": "Exception: State wait was interrupted",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:03 2 [ERROR] WSREP: Exception: State wait was interrupted",
+        "entity_id": "ErrorEvent_e13b369914cc",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:03",
+        "error_message": "View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:03 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "entity_id": "ErrorEvent_6a849182bb38",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:19",
+        "error_message": "Exception: State wait was interrupted",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:19 2 [ERROR] WSREP: Exception: State wait was interrupted",
+        "entity_id": "ErrorEvent_65585a140f47",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:19",
+        "error_message": "View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:19 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "entity_id": "ErrorEvent_ed2e4d8b5f5f",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "entity_id": "ErrorEvent_b98c00d67961",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc",
+        "entity_id": "ErrorEvent_97a6a9840589",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "entity_id": "ErrorEvent_3597d518538a",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "entity_id": "ErrorEvent_5fabd849d4b5",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in",
+        "entity_id": "ErrorEvent_d736e5e31c6d",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "entity_id": "ErrorEvent_6985fd59242a",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "entity_id": "ErrorEvent_1bfe6f1634a4",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myhar",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myhar",
+        "entity_id": "ErrorEvent_0c13c141675c",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "entity_id": "ErrorEvent_d3436d62a317",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:03",
+        "error_message": "Exception: State wait was interrupted",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:03 2 [ERROR] WSREP: Exception: State wait was interrupted",
+        "entity_id": "ErrorEvent_e13b369914cc",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:03",
+        "error_message": "View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:03 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "entity_id": "ErrorEvent_6a849182bb38",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:19",
+        "error_message": "Exception: State wait was interrupted",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:19 2 [ERROR] WSREP: Exception: State wait was interrupted",
+        "entity_id": "ErrorEvent_65585a140f47",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:19",
+        "error_message": "View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:19 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "entity_id": "ErrorEvent_ed2e4d8b5f5f",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "entity_id": "ErrorEvent_b98c00d67961",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc",
+        "entity_id": "ErrorEvent_97a6a9840589",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "entity_id": "ErrorEvent_3597d518538a",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "entity_id": "ErrorEvent_5fabd849d4b5",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in",
+        "entity_id": "ErrorEvent_d736e5e31c6d",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "entity_id": "ErrorEvent_6985fd59242a",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "entity_id": "ErrorEvent_1bfe6f1634a4",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myhar",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myhar",
+        "entity_id": "ErrorEvent_0c13c141675c",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "entity_id": "ErrorEvent_d3436d62a317",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:03",
+        "error_message": "Exception: State wait was interrupted",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:03 2 [ERROR] WSREP: Exception: State wait was interrupted",
+        "entity_id": "ErrorEvent_e13b369914cc",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:03",
+        "error_message": "View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:03 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "entity_id": "ErrorEvent_6a849182bb38",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:19",
+        "error_message": "Exception: State wait was interrupted",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:19 2 [ERROR] WSREP: Exception: State wait was interrupted",
+        "entity_id": "ErrorEvent_65585a140f47",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:27:19",
+        "error_message": "View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:27:19 2 [ERROR] WSREP: View callback failed. This is unrecoverable, restart required. (FATAL)",
+        "entity_id": "ErrorEvent_ed2e4d8b5f5f",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "entity_id": "ErrorEvent_b98c00d67961",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instanc",
+        "entity_id": "ErrorEvent_97a6a9840589",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:30:51",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:30:51 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:2' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/mariad",
+        "entity_id": "ErrorEvent_3597d518538a",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "entity_id": "ErrorEvent_5fabd849d4b5",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/in",
+        "entity_id": "ErrorEvent_d736e5e31c6d",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-22 22:33:39",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-22 22:33:39 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:5' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instances/m",
+        "entity_id": "ErrorEvent_6985fd59242a",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "entity_id": "ErrorEvent_1bfe6f1634a4",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myhar",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myhar",
+        "entity_id": "ErrorEvent_0c13c141675c",
+        "entity_type": "ErrorEvent"
+      },
+      {
+        "timestamp": "2025-09-25 17:19:53",
+        "error_message": "Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "severity": "ERROR",
+        "error_type": "UNKNOWN",
+        "log_line": "2025-09-25 17:19:53 0 [ERROR] WSREP: Command did not run: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/xtrabackup_sst//1' --local-port 11407 --socket '11407.sock' --progress 0 --datadir '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/' --defaults-file '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf' --gtid 'a572a681-97f2-11f0-9f63-c7c3a72b2527:794394' --gtid-domain-id 0 --binlog 'fedora-bin' --mysqld-args --defaults-file=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/my.cnf --basedir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407 --datadir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data --plugin-dir=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/plugin --user=mysql --wsrep_on=ON --wsrep_provider=/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/lib/galera/libgalera_smm.so --log-error=/var/opt/data/myharem/instan",
+        "entity_id": "ErrorEvent_d3436d62a317",
+        "entity_type": "ErrorEvent"
+      }
+    ],
+    "StateTransfer": [
+      {
+        "timestamp": "2025-09-29 17:12:04",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "3a42f33d-97f3-11f0-ae74-8ea804e8387d",
+        "log_line": "2025-09-29 17:12:04 2 [Note] WSREP: Requesting state transfer: success, donor: 2",
+        "entity_id": "StateTransfer_a0a06d48f61a",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-29 17:12:04",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "3a42f33d-97f3-11f0-ae74-8ea804e8387d",
+        "log_line": "2025-09-29 17:12:04 2 [Note] WSREP: Requesting state transfer: success, donor: 2",
+        "entity_id": "StateTransfer_a0a06d48f61a",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-29 16:47:39",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "3e3cbf8a-9d43-11f0-a47a-c712da0bb254",
+        "log_line": "2025-09-29 16:47:39 2 [Note] WSREP: Requesting state transfer: success, donor: 0",
+        "entity_id": "StateTransfer_c9208be818f5",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-29 17:12:04",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "3a42f33d-97f3-11f0-ae74-8ea804e8387d",
+        "log_line": "2025-09-29 17:12:04 2 [Note] WSREP: Requesting state transfer: success, donor: 2",
+        "entity_id": "StateTransfer_a0a06d48f61a",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-29 16:47:39",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "3e3cbf8a-9d43-11f0-a47a-c712da0bb254",
+        "log_line": "2025-09-29 16:47:39 2 [Note] WSREP: Requesting state transfer: success, donor: 0",
+        "entity_id": "StateTransfer_c9208be818f5",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-25 17:22:20",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "6d6256fd-9a23-11f0-b15e-83e09e5959f9",
+        "log_line": "2025-09-25 17:22:20 2 [Note] WSREP: Requesting state transfer: success, donor: 0",
+        "entity_id": "StateTransfer_c86f14a11947",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-25 18:03:49",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "383ebaa7-9a29-11f0-b484-c67777546e1a",
+        "log_line": "2025-09-25 18:03:49 2 [Note] WSREP: Requesting state transfer: success, donor: 2",
+        "entity_id": "StateTransfer_77b0a139e5ee",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-25 18:05:41",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "7b611235-9a29-11f0-9bc9-8efb3da5f47d",
+        "log_line": "2025-09-25 18:05:41 2 [Note] WSREP: Requesting state transfer: success, donor: 1",
+        "entity_id": "StateTransfer_8fb68e1d93df",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-25 18:07:25",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "b9008526-9a29-11f0-a61b-fefdf3d11811",
+        "log_line": "2025-09-25 18:07:25 2 [Note] WSREP: Requesting state transfer: success, donor: 1",
+        "entity_id": "StateTransfer_57a4b5524efd",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-29 16:47:09",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "2c7ff87c-9d43-11f0-ae9b-c645351e7c4e",
+        "log_line": "2025-09-29 16:47:09 2 [Note] WSREP: Requesting state transfer: success, donor: 1",
+        "entity_id": "StateTransfer_74a4e7bf8b7c",
+        "entity_type": "StateTransfer"
+      },
+      {
+        "timestamp": "2025-09-29 23:47:39",
+        "transfer_method": "success",
+        "transfer_type": "SST",
+        "status": "STARTED",
+        "joiner_uuid": "ea6c7a52-9d7d-11f0-8535-73f42ebaefc9",
+        "log_line": "2025-09-29 23:47:39 2 [Note] WSREP: Requesting state transfer: success, donor: 1",
+        "entity_id": "StateTransfer_7e77c61df84a",
+        "entity_type": "StateTransfer"
+      }
+    ]
+  }
+}

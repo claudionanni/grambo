@@ -45,11 +45,16 @@ def summarize_hotspots(frames):
         joiners = []
         for node_name, node_data in nodes.items():
             # Use to_state if available (v3), fallback to node_state (v2)
-            node_state = (node_data.get('to_state') or node_data.get('node_state', '')).upper()
-            if 'DONOR' in node_state or 'DESYNCED' in node_state:
-                donors.append(node_name)
-            elif node_state == 'JOINER':
-                joiners.append(node_name)
+            to_state = node_data.get('to_state') or node_data.get('node_state', '')
+            from_state = node_data.get('from_state', '')
+            
+            # Check to_state for SST detection
+            if to_state:
+                to_state_upper = to_state.upper()
+                if 'DONOR' in to_state_upper or 'DESYNCED' in to_state_upper:
+                    donors.append(node_name)
+                elif to_state_upper == 'JOINER':
+                    joiners.append(node_name)
         
         if donors and joiners:
             # Create SST hotspot entry
@@ -79,15 +84,11 @@ def propagate_node_states(frames):
                 latest_node_states[node_name] = node_props['to_state']
             elif 'node_state' in node_props:
                 latest_node_states[node_name] = node_props['node_state']
-        # Propagate to_state/node_state to all nodes in this frame
+        # Propagate to_state to all nodes in this frame
         for node_name, node_props in nodes.items():
-            if 'to_state' not in node_props and 'node_state' not in node_props and node_name in latest_node_states:
-                node_props = dict(node_props)  # copy to avoid mutating original
-                # Set to_state (v3 format)
+            if 'to_state' not in node_props and node_name in latest_node_states:
+                # Update in place - frames are mutable dictionaries
                 node_props['to_state'] = latest_node_states[node_name]
-                # Also set node_state for backward compatibility
-                node_props['node_state'] = latest_node_states[node_name]
-                nodes[node_name] = node_props
     return frames
 
 def _load_sst_report() -> str | None:

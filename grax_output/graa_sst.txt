@@ -1,0 +1,543 @@
+
+================================================================================
+SST → IST RELATIONSHIP TREE
+================================================================================
+
+Total SST Sessions: 17
+--------------------------------------------------------------------------------
+
+[1] SST SESSION — FAILED
+    Time Range: 2025-09-22 22:30:41 → 2025-09-22 22:30:51
+    Joiner: NODE_21407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 10.0s
+    Error: WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtraba...
+    SST Events:
+        • 2025-09-22 22:30:41 — [REQUEST] WSREP: Member 0.0 (NODE_21407) requested state transfer from '*any*'. Selected 1.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-22 22:30:51 — [SCRIPT] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '127.0.0.1:23407/xtraba...
+    Related IST:
+        • 2025-09-22 22:30:51 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:30:52 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-22 22:33:39 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:33:39 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-22 22:40:17 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:40:17 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-22 22:41:51 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:41:51 — [PROCESSING] | progress 100.0% | events 1/1
+
+[2] SST SESSION — FAILED
+    Time Range: 2025-09-22 22:33:28 → 2025-09-22 22:33:39
+    Joiner: NODE_21407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 11.0s
+    Error: WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/x...
+    SST Events:
+        • 2025-09-22 22:33:28 — [REQUEST] WSREP: Member 1.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-22 22:33:39 — [SCRIPT] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:23407/x...
+    Related IST:
+        • 2025-09-22 22:33:39 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:33:39 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-22 22:40:17 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:40:17 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-22 22:41:51 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:41:51 — [PROCESSING] | progress 100.0% | events 1/1
+
+[3] SST SESSION — COMPLETED
+    Time Range: 2025-09-22 22:40:01 → 2025-09-22 22:40:17
+    Joiner: NODE_21407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-22 22:40:01 — [REQUEST] WSREP: Member 1.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-22 22:40:17 — [COMPLETE] WSREP: 0.0 (NODE_11407): State transfer to 1.0 (NODE_21407) complete.
+    Related IST:
+        • 2025-09-22 22:40:17 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:40:17 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-22 22:41:51 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:41:51 — [PROCESSING] | progress 100.0% | events 1/1
+
+[4] SST SESSION — COMPLETED
+    Time Range: 2025-09-22 22:41:35 → 2025-09-22 22:41:51
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-22 22:41:35 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-22 22:41:51 — [COMPLETE] WSREP: 0.0 (NODE_11407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-22 22:41:51 — [PROCESSING] | events 0/0
+        • 2025-09-22 22:41:51 — [PROCESSING] | progress 100.0% | events 1/1
+
+[5] SST SESSION — COMPLETED
+    Time Range: 2025-09-23 10:33:41 → 2025-09-23 10:33:57
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-23 10:33:41 — [REQUEST] WSREP: Member 0.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-23 10:33:57 — [COMPLETE] WSREP: 1.0 (NODE_11407): State transfer to 0.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-23 10:33:57 — [PROCESSING] | events 0/0
+        • 2025-09-23 10:33:57 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-23 10:35:27 — [PROCESSING] | events 0/0
+        • 2025-09-23 10:35:27 — [PROCESSING] | progress 100.0% | events 1/1
+
+[6] SST SESSION — COMPLETED
+    Time Range: 2025-09-23 10:35:11 → 2025-09-23 10:35:27
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-23 10:35:11 — [REQUEST] WSREP: Member 0.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-23 10:35:27 — [COMPLETE] WSREP: 1.0 (NODE_11407): State transfer to 0.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-23 10:35:27 — [PROCESSING] | events 0/0
+        • 2025-09-23 10:35:27 — [PROCESSING] | progress 100.0% | events 1/1
+
+[7] SST SESSION — COMPLETED
+    Time Range: 2025-09-23 17:56:51 → 2025-09-23 17:57:07
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-23 17:56:51 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-23 17:57:07 — [COMPLETE] WSREP: 0.0 (NODE_11407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-23 17:57:07 — [PROCESSING] | events 0/0
+        • 2025-09-23 17:57:07 — [PROCESSING] | progress 100.0% | events 1/1
+
+[8] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 13:54:32 → 2025-09-25 13:54:33
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    Duration: 1.0s
+    SST Events:
+        • 2025-09-25 13:54:32 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 13:54:33 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST: (none detected)
+
+[9] SST SESSION — FAILED
+    Time Range: 2025-09-25 17:17:36 → 2025-09-25 17:19:53
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 2m 17.0s
+    Error: WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/x...
+    SST Events:
+        • 2025-09-25 17:17:36 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-25 17:19:53 — [SCRIPT] WSREP: Process completed with error: wsrep_sst_mariabackup --role 'donor' --address '192.168.178.77:33407/x...
+    Related IST:
+        • 2025-09-25 17:19:53 — [PROCESSING] | events 0/0
+        • 2025-09-25 17:19:53 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-25 17:22:54 — [PROCESSING] | events 0/0
+        • 2025-09-25 17:22:54 — [PROCESSING] | progress 100.0% | events 1/1
+
+[10] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 17:22:20 → 2025-09-25 17:22:54
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 34.0s
+    SST Events:
+        • 2025-09-25 17:22:20 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-25 17:22:54 — [COMPLETE] WSREP: 0.0 (NODE_11407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-25 17:22:54 — [PROCESSING] | events 0/0
+        • 2025-09-25 17:22:54 — [PROCESSING] | progress 100.0% | events 1/1
+
+[11] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 18:03:49 → 2025-09-25 18:03:49
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-25 18:03:49 — [REQUEST] WSREP: Member 0.0 (NODE_31407) requested state transfer from '*any*'. Selected 2.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 18:03:49 — [COMPLETE] WSREP: 2.0 (NODE_21407): State transfer to 0.0 (NODE_31407) complete.
+    Related IST: (none detected)
+
+[12] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 18:05:41 → 2025-09-25 18:05:41
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-25 18:05:41 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 18:05:41 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST: (none detected)
+
+[13] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 18:07:25 → 2025-09-25 18:07:26
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    Duration: 1.0s
+    SST Events:
+        • 2025-09-25 18:07:25 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 18:07:26 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST: (none detected)
+
+[14] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 16:47:09 → 2025-09-29 16:47:09
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 16:47:09 — [REQUEST] WSREP: Member 0.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-29 16:47:09 — [COMPLETE] WSREP: 1.0 (NODE_11407): State transfer to 0.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-29 16:47:09 — [PROCESSING] | events 0/0
+        • 2025-09-29 16:47:09 — [PROCESSING] | progress 100.0% | events 1/1
+
+[15] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 16:47:39 → 2025-09-29 16:47:55
+    Joiner: NODE_21407
+    Donor: NODE_31407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-29 16:47:39 — [REQUEST] WSREP: Member 2.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_31407)(SYNCED) as ...
+        • 2025-09-29 16:47:55 — [COMPLETE] WSREP: 0.0 (NODE_31407): State transfer to 2.0 (NODE_21407) complete.
+    Related IST: (none detected)
+
+[16] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 17:12:04 → 2025-09-29 17:12:04
+    Joiner: NODE_11407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 17:12:04 — [REQUEST] WSREP: Member 1.0 (NODE_11407) requested state transfer from '*any*'. Selected 2.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-29 17:12:04 — [COMPLETE] WSREP: 2.0 (NODE_21407): State transfer to 1.0 (NODE_11407) complete.
+    Related IST:
+        • 2025-09-29 17:12:04 — [UNKNOWN] | 2 writesets
+        • 2025-09-29 17:12:04 — [PREPARING] | seqno 1245655→1245656 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-29 17:12:04 — [RECEIVER_READY] | addr tcp://192.168.178.77:12408
+        • 2025-09-29 17:12:04 — [PREPARED] | seqno 1245655→1245656
+        • 2025-09-29 17:12:04 — [APPLYING] | seqno 1245655→?
+        • 2025-09-29 17:12:04 — [SEQNO_INITIALIZED] | seqno 1245593→?
+        • 2025-09-29 17:12:04 — [RECEIVING] | progress 0.0% | events 0/64
+        • 2025-09-29 17:12:04 — [PRELOADING] | seqno 1245593→? | start 1245593
+        • 2025-09-29 17:12:04 — [RECEIVING] | progress 100.0% | events 64/64
+        • 2025-09-29 17:12:04 — [PROCESSING] | seqno ?→1245656
+        • 2025-09-29 17:12:04 — [RECEIVED] | seqno ?→1245656
+        • 2025-09-29 17:12:04 — [PROCESSING] | events 0/0
+        • 2025-09-29 17:12:04 — [PROCESSING] | progress 100.0% | events 1/1
+
+[17] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 23:47:39 → 2025-09-29 23:47:39
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 23:47:39 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-29 23:47:39 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST: (none detected)
+GRAA --sst report for cl407/error.11407.log
+--------------------------------------------------------------------------------
+
+================================================================================
+SST → IST RELATIONSHIP TREE
+================================================================================
+
+Total SST Sessions: 3
+--------------------------------------------------------------------------------
+
+[1] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 16:47:39 → 2025-09-29 16:47:55
+    Joiner: NODE_21407
+    Donor: NODE_31407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-29 16:47:39 — [REQUEST] WSREP: Member 2.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_31407)(SYNCED) as ...
+        • 2025-09-29 16:47:55 — [COMPLETE] WSREP: 0.0 (NODE_31407): State transfer to 2.0 (NODE_21407) complete.
+    Related IST:
+        • 2025-09-29 16:47:39 — [PREPARING] | seqno 0→1245654 | uuid 00000000-0000-0000-0000-000000000000
+        • 2025-09-29 16:47:39 — [RECEIVER_READY] | addr tcp://192.168.178.77:22408
+        • 2025-09-29 16:47:39 — [PREPARED] | seqno 0→1245654
+        • 2025-09-29 16:47:59 — [APPLYING] | seqno 1245655→?
+        • 2025-09-29 16:47:59 — [SEQNO_INITIALIZED] | seqno 1245593→?
+        • 2025-09-29 16:47:59 — [RECEIVING] | progress 0.0% | events 0/62
+        • 2025-09-29 16:47:59 — [PRELOADING] | seqno 1245593→? | start 1245593
+        • 2025-09-29 16:47:59 — [RECEIVING] | progress 100.0% | events 62/62
+        • 2025-09-29 16:47:59 — [RECEIVED] | seqno ?→1245654
+        • 2025-09-29 16:47:59 — [PROCESSING] | events 0/0
+        • 2025-09-29 16:47:59 — [PROCESSING] | progress 100.0% | events 1/1
+
+[2] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 17:12:04 → 2025-09-29 17:12:04
+    Joiner: NODE_11407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 17:12:04 — [REQUEST] WSREP: Member 1.0 (NODE_11407) requested state transfer from '*any*'. Selected 2.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-29 17:12:04 — [COMPLETE] WSREP: 2.0 (NODE_21407): State transfer to 1.0 (NODE_11407) complete.
+    Related IST:
+        • 2025-09-29 17:12:04 — [PROCESSING] | events 0/0
+        • 2025-09-29 17:12:04 — [PROCESSING] | progress 100.0% | events 1/1
+
+[3] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 23:47:39 → 2025-09-29 23:47:39
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 23:47:39 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-29 23:47:39 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-29 23:47:39 — [PROCESSING] | events 0/0
+        • 2025-09-29 23:47:39 — [PROCESSING] | progress 100.0% | events 1/1
+
+================================================================================
+
+GRAA --sst report for cl407/error.21407.log
+--------------------------------------------------------------------------------
+
+================================================================================
+SST → IST RELATIONSHIP TREE
+================================================================================
+
+Total SST Sessions: 8
+--------------------------------------------------------------------------------
+
+[1] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 17:22:20 → 2025-09-25 17:22:54
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    Duration: 34.0s
+    SST Events:
+        • 2025-09-25 17:22:20 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 0.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-25 17:22:54 — [COMPLETE] WSREP: 0.0 (NODE_11407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-25 17:22:20 — [PREPARING] | seqno 0→998316 | uuid 00000000-0000-0000-0000-000000000000
+        • 2025-09-25 17:22:20 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 17:22:20 — [PREPARED] | seqno 0→998316
+        • 2025-09-25 17:23:02 — [APPLYING] | seqno 1015492→?
+        • 2025-09-25 17:23:02 — [SEQNO_INITIALIZED] | seqno 998289→?
+        • 2025-09-25 17:23:02 — [RECEIVING] | progress 0.0% | events 0/28
+        • 2025-09-25 17:23:02 — [PRELOADING] | seqno 998289→? | start 998289
+        • 2025-09-25 17:23:02 — [RECEIVING] | progress 100.0% | events 28/28
+        • 2025-09-25 17:23:02 — [PROCESSING] | progress 0.0% | events 0/21388
+        • 2025-09-25 17:23:06 — [PROCESSING] | progress 100.0% | events 23495/23495
+
+[2] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 18:03:49 → 2025-09-25 18:03:49
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-25 18:03:49 — [REQUEST] WSREP: Member 0.0 (NODE_31407) requested state transfer from '*any*'. Selected 2.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 18:03:49 — [COMPLETE] WSREP: 2.0 (NODE_21407): State transfer to 0.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-25 18:03:49 — [PREPARING] | seqno 1030551→1041405 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-25 18:03:49 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 18:03:49 — [PREPARED] | seqno 1030551→1041405
+        • 2025-09-25 18:03:53 — [UNKNOWN] | 10855 writesets
+        • 2025-09-25 18:03:53 — [APPLYING] | seqno 1030551→?
+        • 2025-09-25 18:03:53 — [SEQNO_INITIALIZED] | seqno 1030551→?
+        • 2025-09-25 18:03:53 — [RECEIVING] | progress 0.0% | events 0/10855
+        • 2025-09-25 18:03:53 — [PRELOADING] | seqno 1041299→? | start 1041299
+        • 2025-09-25 18:04:00 — [RECEIVING] | progress 100.0% | events 10855/10855
+        • 2025-09-25 18:04:00 — [PROCESSING] | seqno ?→1041405
+        • 2025-09-25 18:04:00 — [RECEIVED] | seqno ?→1041405
+        • 2025-09-25 18:04:00 — [PROCESSING] | progress 0.0% | events 0/6305
+        • 2025-09-25 18:04:06 — [PROCESSING] | progress 100.0% | events 9584/9584
+        • 2025-09-25 18:05:41 — [PREPARING] | seqno 1055183→1055184 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-25 18:05:41 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 18:05:41 — [PREPARED] | seqno 1055183→1055184
+        • 2025-09-25 18:05:43 — [UNKNOWN] | 2 writesets
+        • 2025-09-25 18:05:43 — [APPLYING] | seqno 1055183→?
+        • 2025-09-25 18:05:43 — [SEQNO_INITIALIZED] | seqno 1055123→?
+        • 2025-09-25 18:05:43 — [RECEIVING] | progress 0.0% | events 0/62
+        • 2025-09-25 18:05:43 — [PRELOADING] | seqno 1055123→? | start 1055123
+        • 2025-09-25 18:05:43 — [RECEIVING] | progress 100.0% | events 62/62
+        • 2025-09-25 18:05:43 — [PROCESSING] | seqno ?→1055184
+        • 2025-09-25 18:05:43 — [RECEIVED] | seqno ?→1055184
+        • 2025-09-25 18:05:43 — [PROCESSING] | events 0/0
+        • 2025-09-25 18:05:43 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-25 18:07:25 — [PREPARING] | seqno 1078279→1127403 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-25 18:07:25 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 18:07:25 — [PREPARED] | seqno 1078279→1127403
+        • 2025-09-25 18:07:29 — [UNKNOWN] | 49125 writesets
+        • 2025-09-25 18:07:29 — [APPLYING] | seqno 1078279→?
+        • 2025-09-25 18:07:29 — [SEQNO_INITIALIZED] | seqno 1078279→?
+        • 2025-09-25 18:07:29 — [RECEIVING] | progress 0.0% | events 0/49125
+        • 2025-09-25 18:07:29 — [PRELOADING] | seqno 1127305→? | start 1127305
+        • 2025-09-25 18:08:14 — [RECEIVING] | progress 100.0% | events 49125/49125
+        • 2025-09-25 18:08:14 — [PROCESSING] | seqno ?→1127403
+        • 2025-09-25 18:08:14 — [RECEIVED] | seqno ?→1127403
+        • 2025-09-25 18:08:14 — [PROCESSING] | progress 0.0% | events 0/50459
+        • 2025-09-25 18:08:24 — [PROCESSING] | progress 18.6% | events 11184/60120
+        • 2025-09-25 18:08:34 — [PROCESSING] | progress 32.1% | events 22496/70031
+        • 2025-09-25 18:08:44 — [PROCESSING] | progress 42.1% | events 33632/79979
+        • 2025-09-25 18:08:54 — [PROCESSING] | progress 49.3% | events 44048/89338
+        • 2025-09-25 18:09:04 — [PROCESSING] | progress 55.2% | events 54704/99140
+        • 2025-09-25 18:09:14 — [PROCESSING] | progress 60.1% | events 65504/109065
+        • 2025-09-25 18:09:24 — [PROCESSING] | progress 63.9% | events 76000/118966
+        • 2025-09-25 18:09:34 — [PROCESSING] | progress 75.8% | events 90976/120076
+        • 2025-09-25 18:09:44 — [PROCESSING] | progress 90.5% | events 108704/120076
+        • 2025-09-25 18:09:51 — [PROCESSING] | progress 100.0% | events 120076/120076
+
+[3] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 18:05:41 → 2025-09-25 18:05:41
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-25 18:05:41 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 18:05:41 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-25 18:05:41 — [PREPARING] | seqno 1055183→1055184 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-25 18:05:41 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 18:05:41 — [PREPARED] | seqno 1055183→1055184
+        • 2025-09-25 18:05:43 — [UNKNOWN] | 2 writesets
+        • 2025-09-25 18:05:43 — [APPLYING] | seqno 1055183→?
+        • 2025-09-25 18:05:43 — [SEQNO_INITIALIZED] | seqno 1055123→?
+        • 2025-09-25 18:05:43 — [RECEIVING] | progress 0.0% | events 0/62
+        • 2025-09-25 18:05:43 — [PRELOADING] | seqno 1055123→? | start 1055123
+        • 2025-09-25 18:05:43 — [RECEIVING] | progress 100.0% | events 62/62
+        • 2025-09-25 18:05:43 — [PROCESSING] | seqno ?→1055184
+        • 2025-09-25 18:05:43 — [RECEIVED] | seqno ?→1055184
+        • 2025-09-25 18:05:43 — [PROCESSING] | events 0/0
+        • 2025-09-25 18:05:43 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-25 18:07:25 — [PREPARING] | seqno 1078279→1127403 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-25 18:07:25 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 18:07:25 — [PREPARED] | seqno 1078279→1127403
+        • 2025-09-25 18:07:29 — [UNKNOWN] | 49125 writesets
+        • 2025-09-25 18:07:29 — [APPLYING] | seqno 1078279→?
+        • 2025-09-25 18:07:29 — [SEQNO_INITIALIZED] | seqno 1078279→?
+        • 2025-09-25 18:07:29 — [RECEIVING] | progress 0.0% | events 0/49125
+        • 2025-09-25 18:07:29 — [PRELOADING] | seqno 1127305→? | start 1127305
+        • 2025-09-25 18:08:14 — [RECEIVING] | progress 100.0% | events 49125/49125
+        • 2025-09-25 18:08:14 — [PROCESSING] | seqno ?→1127403
+        • 2025-09-25 18:08:14 — [RECEIVED] | seqno ?→1127403
+        • 2025-09-25 18:08:14 — [PROCESSING] | progress 0.0% | events 0/50459
+        • 2025-09-25 18:08:24 — [PROCESSING] | progress 18.6% | events 11184/60120
+        • 2025-09-25 18:08:34 — [PROCESSING] | progress 32.1% | events 22496/70031
+        • 2025-09-25 18:08:44 — [PROCESSING] | progress 42.1% | events 33632/79979
+        • 2025-09-25 18:08:54 — [PROCESSING] | progress 49.3% | events 44048/89338
+        • 2025-09-25 18:09:04 — [PROCESSING] | progress 55.2% | events 54704/99140
+        • 2025-09-25 18:09:14 — [PROCESSING] | progress 60.1% | events 65504/109065
+        • 2025-09-25 18:09:24 — [PROCESSING] | progress 63.9% | events 76000/118966
+        • 2025-09-25 18:09:34 — [PROCESSING] | progress 75.8% | events 90976/120076
+        • 2025-09-25 18:09:44 — [PROCESSING] | progress 90.5% | events 108704/120076
+        • 2025-09-25 18:09:51 — [PROCESSING] | progress 100.0% | events 120076/120076
+
+[4] SST SESSION — COMPLETED
+    Time Range: 2025-09-25 18:07:25 → 2025-09-25 18:07:26
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    Duration: 1.0s
+    SST Events:
+        • 2025-09-25 18:07:25 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-25 18:07:26 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-25 18:07:25 — [PREPARING] | seqno 1078279→1127403 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-25 18:07:25 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-25 18:07:25 — [PREPARED] | seqno 1078279→1127403
+        • 2025-09-25 18:07:29 — [UNKNOWN] | 49125 writesets
+        • 2025-09-25 18:07:29 — [APPLYING] | seqno 1078279→?
+        • 2025-09-25 18:07:29 — [SEQNO_INITIALIZED] | seqno 1078279→?
+        • 2025-09-25 18:07:29 — [RECEIVING] | progress 0.0% | events 0/49125
+        • 2025-09-25 18:07:29 — [PRELOADING] | seqno 1127305→? | start 1127305
+        • 2025-09-25 18:08:14 — [RECEIVING] | progress 100.0% | events 49125/49125
+        • 2025-09-25 18:08:14 — [PROCESSING] | seqno ?→1127403
+        • 2025-09-25 18:08:14 — [RECEIVED] | seqno ?→1127403
+        • 2025-09-25 18:08:14 — [PROCESSING] | progress 0.0% | events 0/50459
+        • 2025-09-25 18:08:24 — [PROCESSING] | progress 18.6% | events 11184/60120
+        • 2025-09-25 18:08:34 — [PROCESSING] | progress 32.1% | events 22496/70031
+        • 2025-09-25 18:08:44 — [PROCESSING] | progress 42.1% | events 33632/79979
+        • 2025-09-25 18:08:54 — [PROCESSING] | progress 49.3% | events 44048/89338
+        • 2025-09-25 18:09:04 — [PROCESSING] | progress 55.2% | events 54704/99140
+        • 2025-09-25 18:09:14 — [PROCESSING] | progress 60.1% | events 65504/109065
+        • 2025-09-25 18:09:24 — [PROCESSING] | progress 63.9% | events 76000/118966
+        • 2025-09-25 18:09:34 — [PROCESSING] | progress 75.8% | events 90976/120076
+        • 2025-09-25 18:09:44 — [PROCESSING] | progress 90.5% | events 108704/120076
+        • 2025-09-25 18:09:51 — [PROCESSING] | progress 100.0% | events 120076/120076
+
+[5] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 16:47:09 → 2025-09-29 16:47:09
+    Joiner: NODE_31407
+    Donor: NODE_11407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 16:47:09 — [REQUEST] WSREP: Member 0.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_11407)(SYNCED) as ...
+        • 2025-09-29 16:47:09 — [COMPLETE] WSREP: 1.0 (NODE_11407): State transfer to 0.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-29 16:47:09 — [PREPARING] | seqno 1245651→1245652 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-29 16:47:09 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-29 16:47:09 — [PREPARED] | seqno 1245651→1245652
+        • 2025-09-29 16:47:18 — [UNKNOWN] | 2 writesets
+        • 2025-09-29 16:47:18 — [APPLYING] | seqno 1245651→?
+        • 2025-09-29 16:47:18 — [SEQNO_INITIALIZED] | seqno 1245593→?
+        • 2025-09-29 16:47:18 — [RECEIVING] | progress 0.0% | events 0/60
+        • 2025-09-29 16:47:18 — [PRELOADING] | seqno 1245593→? | start 1245593
+        • 2025-09-29 16:47:18 — [RECEIVING] | progress 100.0% | events 60/60
+        • 2025-09-29 16:47:18 — [PROCESSING] | seqno ?→1245652
+        • 2025-09-29 16:47:18 — [RECEIVED] | seqno ?→1245652
+        • 2025-09-29 16:47:18 — [PROCESSING] | events 0/0
+        • 2025-09-29 16:47:18 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-29 16:47:55 — [PROCESSING] | events 0/0
+        • 2025-09-29 16:47:55 — [PROCESSING] | progress 100.0% | events 1/1
+
+[6] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 16:47:39 → 2025-09-29 16:47:55
+    Joiner: NODE_21407
+    Donor: NODE_31407
+    Method: mariabackup
+    Duration: 16.0s
+    SST Events:
+        • 2025-09-29 16:47:39 — [REQUEST] WSREP: Member 2.0 (NODE_21407) requested state transfer from '*any*'. Selected 0.0 (NODE_31407)(SYNCED) as ...
+        • 2025-09-29 16:47:55 — [COMPLETE] WSREP: 0.0 (NODE_31407): State transfer to 2.0 (NODE_21407) complete.
+    Related IST:
+        • 2025-09-29 16:47:55 — [PROCESSING] | events 0/0
+        • 2025-09-29 16:47:55 — [PROCESSING] | progress 100.0% | events 1/1
+
+[7] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 17:12:04 → 2025-09-29 17:12:04
+    Joiner: NODE_11407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 17:12:04 — [REQUEST] WSREP: Member 1.0 (NODE_11407) requested state transfer from '*any*'. Selected 2.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-29 17:12:04 — [COMPLETE] WSREP: 2.0 (NODE_21407): State transfer to 1.0 (NODE_11407) complete.
+    Related IST: (none detected)
+
+[8] SST SESSION — COMPLETED
+    Time Range: 2025-09-29 23:47:39 → 2025-09-29 23:47:39
+    Joiner: NODE_31407
+    Donor: NODE_21407
+    Method: mariabackup
+    SST Events:
+        • 2025-09-29 23:47:39 — [REQUEST] WSREP: Member 2.0 (NODE_31407) requested state transfer from '*any*'. Selected 1.0 (NODE_21407)(SYNCED) as ...
+        • 2025-09-29 23:47:39 — [COMPLETE] WSREP: 1.0 (NODE_21407): State transfer to 2.0 (NODE_31407) complete.
+    Related IST:
+        • 2025-09-29 23:47:39 — [PREPARING] | seqno 1245657→1245658 | uuid a572a681-97f2-11f0-9f63-c7c3a72b2527
+        • 2025-09-29 23:47:39 — [RECEIVER_READY] | addr tcp://192.168.178.77:32408
+        • 2025-09-29 23:47:39 — [PREPARED] | seqno 1245657→1245658
+        • 2025-09-29 23:47:45 — [UNKNOWN] | 2 writesets
+        • 2025-09-29 23:47:45 — [APPLYING] | seqno 1245657→?
+        • 2025-09-29 23:47:45 — [SEQNO_INITIALIZED] | seqno 1245593→?
+        • 2025-09-29 23:47:45 — [RECEIVING] | progress 0.0% | events 0/66
+        • 2025-09-29 23:47:45 — [PRELOADING] | seqno 1245593→? | start 1245593
+        • 2025-09-29 23:47:45 — [RECEIVING] | progress 100.0% | events 66/66
+        • 2025-09-29 23:47:45 — [PROCESSING] | seqno ?→1245658
+        • 2025-09-29 23:47:45 — [RECEIVED] | seqno ?→1245658
+        • 2025-09-29 23:47:45 — [PROCESSING] | events 0/0
+        • 2025-09-29 23:47:45 — [PROCESSING] | progress 100.0% | events 1/1
+        • 2025-09-29 23:48:52 — [PROCESSING] | events 0/0
+        • 2025-09-29 23:48:52 — [PROCESSING] | progress 100.0% | events 1/1
+
+================================================================================
+
+GRAA --sst report for cl407/error.31407.log
+--------------------------------------------------------------------------------

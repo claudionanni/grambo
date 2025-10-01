@@ -1,0 +1,1 @@
+local gcomm view, members shown with uuid or node name
