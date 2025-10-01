@@ -466,9 +466,18 @@ class EntityExtractor:
         if re.search(r'WSREP:\s+={40,}', line):
             # This might be the start of a wsrep view block
             # Wait for the next line to confirm
-            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
+            # Handle both single and double digit hours, and variable spacing
+            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
+            extracted_timestamp = None
+            if timestamp_match:
+                # Combine date and time with single space and zero-padded hour
+                date = timestamp_match.group(1)
+                hour = timestamp_match.group(2).zfill(2)  # Zero-pad hour
+                minute = timestamp_match.group(3)
+                second = timestamp_match.group(4)
+                extracted_timestamp = f"{date} {hour}:{minute}:{second}"
             self.wsrep_view_buffer = {
-                'timestamp': timestamp_match.group(1).strip() if timestamp_match else None,
+                'timestamp': extracted_timestamp,
                 'lines': [line],
                 'line_num': line_num,
                 'log_source': log_source,
@@ -489,9 +498,16 @@ class EntityExtractor:
         # Check if this line starts a gcomm view block
         view_match = re.search(r'view\(view_id\((PRIM|NON_PRIM|PRIMARY|NON_PRIMARY),([a-f0-9-]+),(\d+)\)\s+memb\s+\{', line)
         if view_match:
-            # Start collecting view block - handle variable whitespace in timestamp
-            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
-            timestamp = timestamp_match.group(1).strip() if timestamp_match else None
+            # Start collecting view block - handle variable whitespace and single-digit hours in timestamp
+            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
+            timestamp = None
+            if timestamp_match:
+                # Combine date and time with single space and zero-padded hour
+                date = timestamp_match.group(1)
+                hour = timestamp_match.group(2).zfill(2)  # Zero-pad hour
+                minute = timestamp_match.group(3)
+                second = timestamp_match.group(4)
+                timestamp = f"{date} {hour}:{minute}:{second}"
             self.view_buffer = {
                 'timestamp': timestamp,
                 'view_status': view_match.group(1),
