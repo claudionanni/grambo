@@ -654,6 +654,12 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 for k, v in ns.items():
                     if k not in node_state:
                         node_state[k] = v
+                
+                # For v3 compatibility: if from_state and to_state exist, also set node_state to to_state
+                # This ensures backward compatibility with v2 visualization code
+                if 'to_state' in ns and 'node_state' not in node_state:
+                    node_state['node_state'] = ns['to_state']
+                
                 # Override UUID with time-aware UUID - ONLY for this specific node
                 time_aware_uuid = get_node_uuid_at_timestamp(node_key, ts)
                 if time_aware_uuid:

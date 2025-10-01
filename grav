@@ -44,7 +44,8 @@ def summarize_hotspots(frames):
         donors = []
         joiners = []
         for node_name, node_data in nodes.items():
-            node_state = node_data.get('node_state', '').upper()
+            # Use to_state if available (v3), fallback to node_state (v2)
+            node_state = (node_data.get('to_state') or node_data.get('node_state', '')).upper()
             if 'DONOR' in node_state or 'DESYNCED' in node_state:
                 donors.append(node_name)
             elif node_state == 'JOINER':
@@ -67,18 +68,24 @@ def refresh_hotspot_cache():
     TIMELINE_HOTSPOTS = summarize_hotspots(FRAMES)
 
 def propagate_node_states(frames):
-    """Propagate latest node_state for each node across all frames."""
+    """Propagate latest to_state/node_state for each node across all frames."""
     latest_node_states = {}
     for frame in frames:
         nodes = frame.get('nodes', {})
         # Update node states if present in this frame
         for node_name, node_props in nodes.items():
-            if 'node_state' in node_props:
+            # Prefer to_state (v3), fallback to node_state (v2)
+            if 'to_state' in node_props:
+                latest_node_states[node_name] = node_props['to_state']
+            elif 'node_state' in node_props:
                 latest_node_states[node_name] = node_props['node_state']
-        # Propagate node_state to all nodes in this frame
+        # Propagate to_state/node_state to all nodes in this frame
         for node_name, node_props in nodes.items():
-            if 'node_state' not in node_props and node_name in latest_node_states:
+            if 'to_state' not in node_props and 'node_state' not in node_props and node_name in latest_node_states:
                 node_props = dict(node_props)  # copy to avoid mutating original
+                # Set to_state (v3 format)
+                node_props['to_state'] = latest_node_states[node_name]
+                # Also set node_state for backward compatibility
                 node_props['node_state'] = latest_node_states[node_name]
                 nodes[node_name] = node_props
     return frames

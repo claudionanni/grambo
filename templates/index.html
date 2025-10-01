@@ -1735,7 +1735,7 @@
                     nodesDiv.innerHTML = '';
                     const nodeEntities = Object.entries(entities).filter(([key]) => key.startsWith('node:'));
                     const nodeFields = [
-                        'node_name', 'node_state', 'node_uuid', 'mariadb_version',
+                        'node_name', 'from_state', 'to_state', 'node_state', 'node_uuid', 'mariadb_version',
                         'galera_version', 'wsrep_version', 'node_address', 'timestamp'
                     ];
                     const gcommFields = [
@@ -1888,10 +1888,15 @@
             svg.appendChild(defs);
 
             const donors = nodePositions.filter(node => {
-                const state = (node.props.node_state || '').toUpperCase();
+                // Use to_state if available (v3), fallback to node_state (v2)
+                const state = ((node.props.to_state || node.props.node_state) || '').toUpperCase();
                 return state.includes('DONOR') || state.includes('DESYNCED');
             });
-            const joiners = nodePositions.filter(node => (node.props.node_state || '').toUpperCase() === 'JOINER');
+            const joiners = nodePositions.filter(node => {
+                // Use to_state if available (v3), fallback to node_state (v2)
+                const state = ((node.props.to_state || node.props.node_state) || '').toUpperCase();
+                return state === 'JOINER';
+            });
 
             const arrowPairs = [];
             if (donors.length && joiners.length) {
@@ -1927,7 +1932,8 @@
             });
 
             nodePositions.forEach(({ ent, props, x, y, name }) => {
-                const color = nodeStateColor(props.node_state);
+                // Use to_state if available (v3), fallback to node_state (v2)
+                const color = nodeStateColor(props.to_state || props.node_state);
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', x);
                 circle.setAttribute('cy', y);
