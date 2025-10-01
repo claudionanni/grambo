@@ -713,6 +713,8 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         view_sm = state_machine.get("view", {})
         for cluster_key, view_state in view_sm.items():
             layer_payloads: Dict[str, Dict[str, Any]] = {}
+            
+            # Handle wsrep_view layer
             wsrep_payload = view_state.get("wsrep_view")
             if wsrep_payload:
                 wsrep_filtered = filter_props(dict(wsrep_payload))
@@ -743,6 +745,15 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                         wsrep_filtered["member_summary"] = summary
                 wsrep_filtered["view_layer"] = "wsrep"
                 layer_payloads["wsrep"] = wsrep_filtered
+            
+            # Handle gcomm view layer (stored directly in view_state, not nested)
+            # Filter out the wsrep_view key itself and any non-gcomm metadata
+            gcomm_payload = {k: v for k, v in view_state.items() if k != "wsrep_view"}
+            if gcomm_payload and any(k in gcomm_payload for k in ["view_id", "cluster_state", "members", "view_seq"]):
+                gcomm_filtered = filter_props(dict(gcomm_payload))
+                gcomm_filtered["view_layer"] = "gcomm"
+                layer_payloads["gcomm"] = gcomm_filtered
+            
             if layer_payloads:
                 frame_views[cluster_key] = layer_payloads
 

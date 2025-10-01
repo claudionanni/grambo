@@ -267,9 +267,12 @@ def load_frames_from_file(path):
     with open(path, 'r') as f:
         content = f.read()
         if content.strip().startswith('{'):
-            frames = [json.loads(line) for line in content.splitlines() if line.strip()]
+            # Single JSON object with frames array
+            data = json.loads(content)
+            frames = data.get('frames', [])
         else:
-            frames = json.loads(content)
+            # JSONL format - each line is a frame
+            frames = [json.loads(line) for line in content.splitlines() if line.strip()]
         return propagate_node_states(frames)
 
 if __name__ == '__main__':

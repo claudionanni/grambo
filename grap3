@@ -160,7 +160,7 @@ class EntityExtractor:
                 1: "timestamp"
             },
             computed_fields={
-                "view_status": "EMPTY",
+                "cluster_state": "EMPTY",
                 "view_layer": "gcomm",
                 "member_count": 0,
                 "members": [],
@@ -510,7 +510,7 @@ class EntityExtractor:
                 timestamp = f"{date} {hour}:{minute}:{second}"
             self.view_buffer = {
                 'timestamp': timestamp,
-                'view_status': view_match.group(1),
+                'cluster_state': view_match.group(1),
                 'view_uuid': view_match.group(2),
                 'view_seq': view_match.group(3),
                 'lines': [line],
@@ -561,7 +561,7 @@ class EntityExtractor:
             'entity_id': f"view_{self.view_buffer['line_num']}",
             'timestamp': timestamp,
             'timestamp_index': self.timestamp_indices[timestamp] if timestamp else 0,
-            'view_status': self.view_buffer['view_status'],
+            'cluster_state': self.view_buffer['cluster_state'],
             'view_uuid': self.view_buffer['view_uuid'],
             'view_seq': int(self.view_buffer['view_seq']),
             'view_id': f"{self.view_buffer['view_uuid']},{self.view_buffer['view_seq']}",
@@ -641,7 +641,7 @@ class EntityExtractor:
         match = re.search(r'status:\s*(primary|non-primary)', full_text, re.IGNORECASE)
         if match:
             view_data['status'] = match.group(1).upper()
-            view_data['view_status'] = 'PRIM' if match.group(1).lower() == 'primary' else 'NON_PRIM'
+            view_data['cluster_state'] = 'PRIM' if match.group(1).lower() == 'primary' else 'NON_PRIM'
         
         # protocol_version
         match = re.search(r'protocol_version:\s*(\d+)', full_text)
