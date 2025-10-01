@@ -1655,59 +1655,68 @@
                     // View layers card
                     const viewsDiv = document.getElementById('views-section');
                     viewsDiv.innerHTML = '';
-                    const viewEntities = Object.entries(entities).filter(([key]) => key.startsWith('view:'));
                     
-                    if (viewEntities.length === 0) {
+                    // Get node-level wsrep views (v3 format)
+                    const nodeViewEntities = Object.entries(entities).filter(([key]) => key.startsWith('node_view:'));
+                    
+                    if (nodeViewEntities.length === 0) {
                         viewsDiv.innerHTML = '<div class="empty-state">No view data for this frame</div>';
                     } else {
-                        // Group views by cluster and layer
-                        const viewsByCluster = {};
-                        viewEntities.forEach(([entKey, props]) => {
-                            // entKey format: "view:cluster_key:layer"
-                            const parts = entKey.split(':');
-                            const clusterKey = parts[1] || 'unknown';
-                            const layer = parts[2] || props.view_layer || 'unknown';
-                            
-                            if (!viewsByCluster[clusterKey]) {
-                                viewsByCluster[clusterKey] = {};
-                            }
-                            viewsByCluster[clusterKey][layer] = props;
-                        });
-                        
-                        // Sort clusters by most recent view timestamp (descending)
-                        const sortedClusters = Object.entries(viewsByCluster).sort((a, b) => {
-                            const timestampA = a[1].wsrep?.timestamp || '';
-                            const timestampB = b[1].wsrep?.timestamp || '';
-                            // Sort descending (most recent first)
+                        // Sort node views by timestamp descending (most recent first)
+                        const sortedNodeViews = nodeViewEntities.sort((a, b) => {
+                            const timestampA = a[1].timestamp || '';
+                            const timestampB = b[1].timestamp || '';
                             return timestampB.localeCompare(timestampA);
                         });
                         
-                        // Render each cluster's views
-                        for (const [clusterKey, layers] of sortedClusters) {
-                            let block = '<div class="entity-block-group">';
-                            block += `<div class="entity-subtitle">${escapeHtml(clusterKey)}</div>`;
+                        // Group views by cluster (group_uuid) for display
+                        const viewsByCluster = {};
+                        sortedNodeViews.forEach(([entKey, props]) => {
+                            const groupUuid = props.group_uuid || props.cluster_uuid || 'unknown';
+                            const clusterKey = groupUuid.substring(0, 8);  // Use short form for display
                             
-                            // Render wsrep view layer
-                            if (layers.wsrep) {
-                                const wsrepView = layers.wsrep;
-                                block += `<div style="margin-bottom: 1em;">`;
-                                block += `<div class="entity-block"><span class="entity-label accent-view">layer:</span> <span class="entity-value">WSREP</span></div>`;
+                            if (!viewsByCluster[clusterKey]) {
+                                viewsByCluster[clusterKey] = {
+                                    group_uuid: groupUuid,
+                                    node_views: []
+                                };
+                            }
+                            viewsByCluster[clusterKey].node_views.push({
+                                key: entKey,
+                                props: props
+                            });
+                        });
+                        
+                        // Render each cluster's node views
+                        for (const [clusterKey, clusterData] of Object.entries(viewsByCluster)) {
+                            let block = '<div class="entity-block-group">';
+                            
+                            // Get most recent timestamp from node views
+                            const latestTimestamp = clusterData.node_views[0]?.props?.timestamp || '';
+                            
+                            // Add cluster name with view changed timestamp on same line
+                            let clusterHeader = `cluster_${escapeHtml(clusterKey)}`;
+                            if (latestTimestamp) {
+                                const timestampValue = escapeHtml(formatEntityValue(latestTimestamp));
+                                clusterHeader += ` <span style="color: #888; font-size: 0.9em;">(view changed: ${timestampValue})</span>`;
+                            }
+                            block += `<div class="entity-subtitle">${clusterHeader}</div>`;
+                            
+                            // Render each node's view
+                            clusterData.node_views.forEach(({key, props}) => {
+                                const nodeName = props.node_name || key.replace('node_view:', '');
                                 
-                                // Display key view fields including group_uuid and view_id
+                                block += `<div style="margin-bottom: 1em; margin-left: 1em; border-left: 2px solid #444; padding-left: 1em;">`;
+                                block += `<div class="entity-block"><span class="entity-label accent-node">Node:</span> <span class="entity-value">${escapeHtml(nodeName)}</span></div>`;
+                                
+                                // Display key view fields
                                 const customViewFields = ['group_uuid', 'view_id', 'view_seq', 'status', 'cluster_state', 'member_count', 'own_index', 'members', 'capabilities'];
-                                const metrics = renderPropertyList(wsrepView, customViewFields, 'accent-view');
+                                const metrics = renderPropertyList(props, customViewFields, 'accent-view');
                                 block += metrics || '';
                                 
-                                if (wsrepView.timestamp) {
-                                    const timestampValue = escapeHtml(formatEntityValue(wsrepView.timestamp));
-                                    block += `<div class="entity-block"><span class="entity-label accent-view">view changed:</span> <span class="entity-value">${timestampValue}</span></div>`;
-                                }
                                 block += `</div>`;
-                            }
+                            });
                             
-                            if (!layers.wsrep) {
-                                block += `<div class="empty-state">No view data</div>`;
-                            }
                             block += '</div>';
                             viewsDiv.innerHTML += block;
                         }

@@ -745,7 +745,15 @@ class EntityExtractor:
         view_data['member_names'] = member_names
         view_data['member_uuids'] = member_uuids
         
-        # Create wsrep view entity
+        # Determine the observing node from own_index
+        own_index = view_data.get('own_index')
+        observing_node_name = None
+        observing_node_uuid = None
+        if own_index is not None and own_index >= 0 and own_index < len(member_details):
+            observing_node_name = member_details[own_index].get('node_name')
+            observing_node_uuid = member_details[own_index].get('uuid')
+        
+        # Create wsrep view entity with LOCAL context (node-level view)
         timestamp = self.wsrep_view_buffer['timestamp']
         entity = {
             'entity_type': 'wsrep_view',
@@ -753,6 +761,7 @@ class EntityExtractor:
             'timestamp': timestamp,
             'timestamp_index': self.timestamp_indices[timestamp] if timestamp else 0,
             'view_layer': 'wsrep',
+            'context': 'LOCAL',  # This is a node-level view
             **view_data,
             'raw_line': full_text.strip(),
             'line_number': self.wsrep_view_buffer['line_num'],
@@ -761,6 +770,12 @@ class EntityExtractor:
             'pattern_name': 'wsrep_view_multiline',
             'extraction_method': 'multiline_parse',
         }
+        
+        # Add observing node information
+        if observing_node_name:
+            entity['node_name'] = observing_node_name
+        if observing_node_uuid:
+            entity['node_uuid'] = observing_node_uuid
         
         if timestamp:
             self.timestamp_indices[timestamp] += 1

@@ -557,21 +557,28 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             layer = (e.get("view_layer") or ("wsrep" if et == "wsrep_view" else "gcomm")).lower()
             node_name = e.get("node_name")
             node_uuid = e.get("node_uuid")
-            is_node_view = bool(node_name or node_uuid)
-
+            context = e.get("context", "").upper()
+            
             # SKIP gcomm views - they don't add value and have node UUIDs as view_id
             if layer == "gcomm":
                 continue
 
-            if not is_node_view:
-                # Track cluster-level view (wsrep layer only)
-                # Store views in timestamped lists for accurate frame snapshots
-                view_et = "view"
-                if view_et not in state_machine:
-                    state_machine[view_et] = {}
-                if cluster_key not in state_machine[view_et]:
-                    state_machine[view_et][cluster_key] = {}
+            # Wsrep views are node-level (LOCAL context) - each node has its own view
+            # Track per-node wsrep view history
+            if layer == "wsrep" and (node_name or node_uuid or context == "LOCAL"):
+                # Determine node key
+                nv_key = node_name or node_uuid or "unknown"
                 
+                # Create node_wsrep_view state machine
+                node_wsrep_sm = state_machine.setdefault("node_wsrep_view", {})
+                if nv_key not in node_wsrep_sm:
+                    node_wsrep_sm[nv_key] = {
+                        "node_name": node_name,
+                        "node_uuid": node_uuid,
+                        "view_history": []
+                    }
+                
+                # Create payload
                 payload = {
                     k: v
                     for k, v in e.items()
@@ -579,33 +586,14 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 }
                 payload["timestamp"] = to_iso_string(ts)
                 payload["view_layer"] = layer
+                payload["node_name"] = node_name
+                payload["node_uuid"] = node_uuid
                 
-                # Store wsrep views as timestamped list
-                if "wsrep_view_history" not in state_machine[view_et][cluster_key]:
-                    state_machine[view_et][cluster_key]["wsrep_view_history"] = []
-                state_machine[view_et][cluster_key]["wsrep_view_history"].append(payload)
-
-            # Track per-node local view snapshots when node information present
-            if node_name or node_uuid:
-                nv_key = node_name or node_uuid
-                node_view_sm = state_machine.setdefault("node_view", {})
-                node_entry = node_view_sm.setdefault(nv_key, {})
-                node_entry.update({
-                    "node_name": node_name,
-                    "node_uuid": node_uuid,
-                    "component_uuid": e.get("component_uuid"),
-                    "view_id": e.get("view_id"),
-                    "cluster_uuid": e.get("cluster_uuid"),
-                    "view_seq": e.get("view_seq"),
-                    "member_role": e.get("member_role"),
-                    "component_state": e.get("component_state"),
-                    "members": e.get("members"),
-                    "joined": e.get("joined"),
-                    "left": e.get("left"),
-                    "partitioned": e.get("partitioned"),
-                    "cluster_ref": e.get("cluster_ref"),
-                    "timestamp": to_iso_string(ts),
-                })
+                # Add to view history
+                node_wsrep_sm[nv_key]["view_history"].append(payload)
+                
+                # Also keep latest view per node for easy access
+                node_wsrep_sm[nv_key]["latest_view"] = payload
         # Add other time-varying entity types as needed
 
         # --- Build frame: join latest state for all entities up to this timestamp ---
@@ -711,24 +699,22 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             }
             frame_clusters[cluster_key] = cluster_state
 
-        frame_views = {}
-        view_sm = state_machine.get("view", {})
-        for cluster_key, view_state in view_sm.items():
-            layer_payloads: Dict[str, Dict[str, Any]] = {}
-            
-            # Handle wsrep_view layer - find the view active at current timestamp
-            wsrep_history = view_state.get("wsrep_view_history", [])
-            if wsrep_history and ts is not None:
+        # Build per-node wsrep views section
+        frame_node_views = {}
+        node_wsrep_sm = state_machine.get("node_wsrep_view", {})
+        for node_key, node_view_data in node_wsrep_sm.items():
+            view_history = node_view_data.get("view_history", [])
+            if view_history and ts is not None:
                 # Find the most recent wsrep view at or before this timestamp
-                applicable_wsrep = None
-                for view_entry in wsrep_history:
+                applicable_view = None
+                for view_entry in view_history:
                     view_ts = parse_iso(view_entry.get("timestamp"))
                     if view_ts and view_ts <= ts:
-                        applicable_wsrep = view_entry
-                    # Don't break - continue checking all views to find the most recent one
+                        if applicable_view is None or view_ts > parse_iso(applicable_view.get("timestamp")):
+                            applicable_view = view_entry
                 
-                if applicable_wsrep:
-                    wsrep_filtered = filter_props(dict(applicable_wsrep))
+                if applicable_view:
+                    wsrep_filtered = filter_props(dict(applicable_view))
                     details = wsrep_filtered.pop("member_details", None)
                     if isinstance(details, list):
                         summary: List[str] = []
@@ -755,10 +741,10 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                         if summary:
                             wsrep_filtered["member_summary"] = summary
                     wsrep_filtered["view_layer"] = "wsrep"
-                    layer_payloads["wsrep"] = wsrep_filtered
-            
-            if layer_payloads:
-                frame_views[cluster_key] = layer_payloads
+                    frame_node_views[node_key] = wsrep_filtered
+        
+        # Legacy support: keep empty frame_views for backward compatibility
+        frame_views = {}
 
         # --- Add quorum section: use the latest quorum entity (by timestamp) for this cluster, if any ---
         cluster_keys = list(frame_clusters.keys())
@@ -880,7 +866,8 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             },
             "nodes": frame_nodes,
             "clusters": frame_clusters,
-            "views": frame_views,
+            "views": frame_views,  # Legacy - kept for backward compatibility (empty)
+            "node_views": frame_node_views,  # Per-node wsrep views
             "quorum": quorum_section,
         }
         if hotspots:

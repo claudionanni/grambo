@@ -137,6 +137,8 @@ def get_frame(idx):
             if ents:
                 for ent_name, ent_props in ents.items():
                     all_entities[f"{key[:-1]}:{ent_name}"] = ent_props
+        
+        # Legacy views (kept for backward compatibility, usually empty now)
         views = frame.get('views', {})
         for cluster_key, layer_map in (views or {}).items():
             if not isinstance(layer_map, dict):
@@ -147,6 +149,15 @@ def get_frame(idx):
                 entry.setdefault('view_layer', layer_name)
                 composite_key = f"view:{cluster_key}:{layer_name}"
                 all_entities[composite_key] = entry
+        
+        # Node-level wsrep views (v3)
+        node_views = frame.get('node_views', {})
+        for node_key, view_props in (node_views or {}).items():
+            entry = dict(view_props)
+            entry.setdefault('view_layer', 'wsrep')
+            composite_key = f"node_view:{node_key}"
+            all_entities[composite_key] = entry
+        
         # Inject quorum entity if present (as 'quorum:<id>' or 'quorum:main')
         quorum = frame.get('quorum')
         if quorum:
