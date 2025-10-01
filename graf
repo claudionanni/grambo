@@ -559,8 +559,12 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             node_uuid = e.get("node_uuid")
             is_node_view = bool(node_name or node_uuid)
 
+            # SKIP gcomm views - they don't add value and have node UUIDs as view_id
+            if layer == "gcomm":
+                continue
+
             if not is_node_view:
-                # Track cluster-level view (gcomm + wsrep layers)
+                # Track cluster-level view (wsrep layer only)
                 # Store views in timestamped lists for accurate frame snapshots
                 view_et = "view"
                 if view_et not in state_machine:
@@ -576,16 +580,10 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 payload["timestamp"] = to_iso_string(ts)
                 payload["view_layer"] = layer
                 
-                if layer == "wsrep":
-                    # Store wsrep views as timestamped list
-                    if "wsrep_view_history" not in state_machine[view_et][cluster_key]:
-                        state_machine[view_et][cluster_key]["wsrep_view_history"] = []
-                    state_machine[view_et][cluster_key]["wsrep_view_history"].append(payload)
-                else:
-                    # Store gcomm views as timestamped list
-                    if "gcomm_view_history" not in state_machine[view_et][cluster_key]:
-                        state_machine[view_et][cluster_key]["gcomm_view_history"] = []
-                    state_machine[view_et][cluster_key]["gcomm_view_history"].append(payload)
+                # Store wsrep views as timestamped list
+                if "wsrep_view_history" not in state_machine[view_et][cluster_key]:
+                    state_machine[view_et][cluster_key]["wsrep_view_history"] = []
+                state_machine[view_et][cluster_key]["wsrep_view_history"].append(payload)
 
             # Track per-node local view snapshots when node information present
             if node_name or node_uuid:
@@ -758,22 +756,6 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                             wsrep_filtered["member_summary"] = summary
                     wsrep_filtered["view_layer"] = "wsrep"
                     layer_payloads["wsrep"] = wsrep_filtered
-            
-            # Handle gcomm view layer - find the view active at current timestamp
-            gcomm_history = view_state.get("gcomm_view_history", [])
-            if gcomm_history and ts is not None:
-                # Find the most recent gcomm view at or before this timestamp
-                applicable_gcomm = None
-                for view_entry in gcomm_history:
-                    view_ts = parse_iso(view_entry.get("timestamp"))
-                    if view_ts and view_ts <= ts:
-                        applicable_gcomm = view_entry
-                    # Don't break - continue checking all views to find the most recent one
-                
-                if applicable_gcomm:
-                    gcomm_filtered = filter_props(dict(applicable_gcomm))
-                    gcomm_filtered["view_layer"] = "gcomm"
-                    layer_payloads["gcomm"] = gcomm_filtered
             
             if layer_payloads:
                 frame_views[cluster_key] = layer_payloads

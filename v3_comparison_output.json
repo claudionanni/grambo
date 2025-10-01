@@ -1,6 +1,9 @@
+[GRAP] Processing 3 file(s)...
+[GRAP] Sorting 859 entities chronologically across 3 files
+[GRAP] Adding per-timestamp indices for deterministic frame ordering
 {
   "grap_version": "v3.0.0-alpha",
-  "extraction_time": "2025-10-01T13:55:30.110334",
+  "extraction_time": "2025-10-01T13:52:03.703364",
   "total_entities": 859,
   "entities": [
     {
