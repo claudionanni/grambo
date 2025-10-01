@@ -1,0 +1,148 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  NON-PRIMARY MARKERS & QUORUM PANEL                          ║
+║                         Visual Enhancement Summary                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 1. TIMELINE MARKERS (Bottom Panel)                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Timeline (with 4 tracks):
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Track 1: [🟧]     [🟧]              [🟧]         SST Operations (orange)   │
+│ Track 2:      [🟥]                            Cluster NON-PRIMARY (red)    │
+│ Track 3:                  [🟧]                Node Issues (orange)         │
+│ Track 4:          [🟪]        [🟪]            Component NON-PRIM (purple) │ ← NEW!
+└────────────────────────────────────────────────────────────────────────────┘
+
+Purple markers (Track 4) now indicate when nodes see NON-PRIMARY views from wsrep
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 2. VIEW CARD VISUAL INDICATORS                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════╗
+║ Wsrep Layer View                      ║
+╟───────────────────────────────────────╢
+║ cluster_d9c70dcb (view changed: ...)  ║
+║                                       ║
+║ ┃  Node: NODE_11407 ⚠ NON-PRIMARY   ║  ← NEW! Red badge
+║ ┃  group_uuid: d9c70dcb-97e3-...    ║  ← Red border (3px)
+║ ┃  view_seq: 2                      ║
+║ ┃  status: NON-PRIMARY              ║
+║ ┃  cluster_state: NON_PRIM          ║
+║ ┃  member_count: 0                  ║
+║                                       ║
+║   Node: NODE_21407                   ║  ← Normal node (gray border)
+║   group_uuid: d9c70dcb-97e3-...     ║
+║   view_seq: 45                      ║
+║   status: primary                   ║
+║   member_count: 3                   ║
+╚═══════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 3. QUORUM PANEL IMPROVEMENTS                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+BEFORE (empty or wrong fields):
+╔═══════════════════════════════════════╗
+║ Quorum State                          ║
+╟───────────────────────────────────────╢
+║ No quorum data for this frame         ║
+╚═══════════════════════════════════════╝
+
+AFTER (showing actual quorum events):
+╔═══════════════════════════════════════╗
+║ Quorum State                          ║
+╟───────────────────────────────────────╢
+║ timestamp: 2025-09-22 20:46:30       ║
+║ event_type: QUORUM_LOST              ║
+║ event_text: Non-primary view         ║
+║ quorum_status: false                 ║
+║ severity: CRITICAL                   ║
+╚═══════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 4. COLOR SCHEME                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Timeline Markers:
+  🟧 Orange (#ff5722, #fb8c00) - SST operations, node issues
+  🟥 Red (#e53935)              - Cluster NON-PRIMARY
+  🟪 Purple (#8e24aa)           - Component NON-PRIMARY ← Enhanced!
+
+View Cards:
+  ⬜ Gray (#444, 2px)           - Normal/healthy views
+  🟥 Red (#e53935, 3px)         - NON-PRIMARY views
+  Badge: #e53935 with ⚠ symbol
+
+Quorum Panel:
+  Standard accent-quorum color scheme
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 5. INTERACTIVE FEATURES                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+✓ Hover over timeline markers to see details
+✓ Click SST markers to jump to that frame
+✓ Capabilities field in views shows truncated with hover tooltip
+✓ NON-PRIMARY indicators are immediately visible
+✓ Quorum events show with timestamps for correlation
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 6. DETECTION LOGIC                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+NON-PRIMARY Detection:
+  • Checks: status, cluster_state, view_status fields
+  • Matches: "NON-PRIMARY", "NON_PRIM", or any containing "NON"
+  • Case-insensitive matching
+  • Works with both v2 and v3 data formats
+
+Quorum Event Detection:
+  • Primary: Matches by group_uuid → cluster_uuid → cluster_ref
+  • Fallback: Uses _default key if no match
+  • Timestamp filtering: Only shows events at or before current frame
+  • Fields: event_type, quorum_status, severity, event_text
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 7. TESTING CHECKLIST                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Run Pipeline:
+  ./grap3 cl407/error.*.log --format=json | ./graf --ndjson > frames.ndjson
+
+Verify Outputs:
+  ✓ 900+ frames have quorum data
+  ✓ 910+ frames have node_views
+  ✓ Multiple frames have NON-PRIMARY hotspots
+  ✓ Purple markers appear on timeline Track 4
+  ✓ Red borders/badges appear in view cards
+  ✓ Quorum panel shows event details
+
+Visual Checks:
+  ✓ Load grav UI and navigate timeline
+  ✓ Look for purple markers during split-brain scenarios
+  ✓ Check view cards show red indicators for NON-PRIMARY
+  ✓ Verify quorum panel updates with frame changes
+  ✓ Hover tooltips work on markers and capabilities
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 8. KNOWN IMPROVEMENTS MADE                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+✓ Graf now detects NON-PRIMARY from wsrep_view entities
+✓ Timeline markers for node-level NON-PRIMARY states
+✓ Visual distinction between healthy and unhealthy views
+✓ Quorum panel shows actual event data
+✓ Improved frame-level hotspot detection
+✓ Better timestamp-based quorum lookup
+✓ Backward compatible with v2 data format
+✓ Truncated capabilities with hover tooltips
