@@ -57,7 +57,7 @@ class EntityExtractor:
         self.cluster_uuid = None
         
         # Node tracking with UUID history (physical nodes)
-        self.nodes = {}  # node_name -> {name, long_uuid, uuid_history, cluster_uuid}
+        self.nodes = {}  # node_name -> {name, long_uuid, uuid_history, cluster_uuid, node_address, versions}
         self.uuid_to_node = {}  # uuid (all forms) -> node_name
         
         # Timestamp indexing for frame generation
@@ -152,6 +152,23 @@ class EntityExtractor:
                 "transition_type": "GROUP_SYNC"
             },
             confidence=0.99
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="ready_for_connections",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+.*mariadbd:\s+ready\s+for\s+connections',
+            entity_type="node_state",
+            priority=94,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp"
+            },
+            computed_fields={
+                "from_state": "INITIALIZING",
+                "to_state": "SYNCED",
+                "transition_type": "READY"
+            },
+            confidence=0.97
         ))
         
         patterns.append(Pattern(
@@ -280,7 +297,8 @@ class EntityExtractor:
             },
             computed_fields={
                 "transfer_type": "SST",
-                "status": "STARTED"
+                "status": "STARTED",
+                "event_type": "started"
             },
             confidence=0.95
         ))
@@ -298,7 +316,8 @@ class EntityExtractor:
             },
             computed_fields={
                 "transfer_type": "SST",
-                "status": "DONOR_SELECTED"
+                "status": "DONOR_SELECTED",
+                "event_type": "donor_selected"
             },
             confidence=0.90
         ))
@@ -315,9 +334,79 @@ class EntityExtractor:
             },
             computed_fields={
                 "transfer_type": "SST",
-                "status": "COMPLETED"
+                "status": "COMPLETED",
+                "event_type": "complete"
             },
             confidence=0.98
+        ))
+        
+        # SST script messages (WSREP_SST)
+        patterns.append(Pattern(
+            pattern_id="sst_script_completed_joiner",
+            regex=r'WSREP_SST:.*mariabackup\s+SST\s+completed\s+on\s+joiner',
+            entity_type="sst",
+            priority=98,
+            context="LOCAL",
+            extract_fields={},
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "COMPLETED",
+                "event_type": "complete",
+                "role": "joiner"
+            },
+            confidence=0.95
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="sst_script_completed_donor",
+            regex=r'WSREP_SST:.*mariabackup\s+SST\s+completed\s+on\s+donor',
+            entity_type="sst",
+            priority=98,
+            context="LOCAL",
+            extract_fields={},
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "COMPLETED",
+                "event_type": "complete",
+                "role": "donor"
+            },
+            confidence=0.95
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="sst_donor_time",
+            regex=r'WSREP_SST:.*Total\s+time\s+on\s+donor:\s*(\d+)\s+seconds',
+            entity_type="sst",
+            priority=96,
+            context="LOCAL",
+            extract_fields={
+                1: "duration_seconds"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "DONOR_STATS",
+                "event_type": "donor_selected_idx",
+                "role": "donor"
+            },
+            confidence=0.92
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="sst_donor_status_change",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Server\s+status\s+change\s+synced\s+->\s+donor',
+            entity_type="sst",
+            priority=97,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "DONOR_STATUS",
+                "event_type": "donor_status",
+                "role": "donor"
+            },
+            confidence=0.93
         ))
         
         patterns.append(Pattern(
@@ -397,8 +486,25 @@ class EntityExtractor:
         # ==================================================================
         
         patterns.append(Pattern(
-            pattern_id="error_generic",
+            pattern_id="error_wsrep",
             regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[ERROR\]\s+WSREP:\s+(.*)',
+            entity_type="error",
+            priority=75,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "message"
+            },
+            computed_fields={
+                "severity": "ERROR",
+                "level": "ERROR"
+            },
+            confidence=0.85
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="warning_wsrep",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[Warning\]\s+WSREP:\s+(.*)',
             entity_type="error",
             priority=70,
             context="LOCAL",
@@ -407,25 +513,64 @@ class EntityExtractor:
                 2: "message"
             },
             computed_fields={
-                "severity": "ERROR"
+                "severity": "WARNING",
+                "level": "WARNING"
             },
-            confidence=0.75
+            confidence=0.80
         ))
         
+        # General MySQL/MariaDB errors (not just WSREP)
         patterns.append(Pattern(
-            pattern_id="warning_generic",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[Warning\]\s+WSREP:\s+(.*)',
+            pattern_id="error_generic",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[ERROR\]\s+(.*)',
             entity_type="error",
-            priority=65,
+            priority=68,
             context="LOCAL",
             extract_fields={
                 1: "timestamp",
                 2: "message"
             },
             computed_fields={
-                "severity": "WARNING"
+                "severity": "ERROR",
+                "level": "ERROR"
+            },
+            confidence=0.75
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="warning_generic",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[Warning\]\s+(.*)',
+            entity_type="error",
+            priority=63,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "message"
+            },
+            computed_fields={
+                "severity": "WARNING",
+                "level": "WARNING"
             },
             confidence=0.70
+        ))
+        
+        # mysqld_safe errors
+        patterns.append(Pattern(
+            pattern_id="error_safe_log",
+            regex=r'(\d{6}\s+\d{2}:\d{2}:\d{2})\s+mysqld_safe\s+(.*(?:ERROR|error|FAILED|failed).*)',
+            entity_type="error",
+            priority=72,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "message"
+            },
+            computed_fields={
+                "severity": "ERROR",
+                "level": "ERROR",
+                "source": "mysqld_safe"
+            },
+            confidence=0.78
         ))
         
         # ==================================================================
@@ -823,6 +968,14 @@ class EntityExtractor:
         # Add cluster reference - use group_uuid as cluster identifier
         if view_data.get('group_uuid'):
             entity['cluster_ref'] = f"cluster_{view_data['group_uuid'][:8]}"
+            # Update global cluster UUID if we found a long-form UUID
+            if '-' in view_data['group_uuid'] and len(view_data['group_uuid']) > 20:
+                if not self.cluster_uuid:
+                    self.cluster_uuid = view_data['group_uuid']
+                    # Update all nodes with this cluster UUID
+                    for node in self.nodes.values():
+                        if not node['cluster_uuid']:
+                            node['cluster_uuid'] = self.cluster_uuid
         elif self.cluster_uuid:
             entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
         
@@ -846,7 +999,12 @@ class EntityExtractor:
                             'node_name': name,
                             'long_uuid': None,
                             'uuid_history': [],
-                            'cluster_uuid': None
+                            'cluster_uuid': None,
+                            'node_address': None,
+                            'galera_version': None,
+                            'mariadb_version': None,
+                            'wsrep_version': None,
+                            'cluster_name': None
                         }
                     break
         
@@ -1009,16 +1167,115 @@ class EntityExtractor:
         """Build final output compatible with graf"""
         entities = []
         
+        # Collect cluster UUIDs seen (only long-form UUIDs are real cluster UUIDs)
+        cluster_uuids = set()
+        if self.cluster_uuid and '-' in self.cluster_uuid and len(self.cluster_uuid) > 20:
+            cluster_uuids.add(self.cluster_uuid)
+        for node_data in self.nodes.values():
+            cu = node_data['cluster_uuid']
+            if cu and '-' in cu and len(cu) > 20:  # Only long-form cluster UUIDs
+                cluster_uuids.add(cu)
+        # Also check wsrep_view entities for group_uuid
+        for e in self.temporal_entities:
+            if e.get('entity_type') == 'wsrep_view':
+                gu = e.get('group_uuid')
+                if gu and '-' in gu and len(gu) > 20:
+                    cluster_uuids.add(gu)
+        
+        # Add CLUSTER entities (one per unique cluster UUID)
+        for cluster_uuid in cluster_uuids:
+            cluster_ref = f"cluster_{cluster_uuid[:8]}"
+            
+            # Aggregate statistics from temporal entities
+            sst_count = sum(1 for e in self.temporal_entities 
+                          if e.get('entity_type') == 'sst' 
+                          and (e.get('cluster_uuid') == cluster_uuid or 
+                               e.get('cluster_ref') == cluster_ref))
+            
+            view_count = sum(1 for e in self.temporal_entities 
+                           if e.get('entity_type') in ('view', 'wsrep_view') 
+                           and (e.get('cluster_uuid') == cluster_uuid or 
+                                e.get('group_uuid') == cluster_uuid or
+                                e.get('cluster_ref') == cluster_ref))
+            
+            error_count = sum(1 for e in self.temporal_entities 
+                            if e.get('entity_type') == 'error' 
+                            and (e.get('cluster_uuid') == cluster_uuid or
+                                 e.get('cluster_ref') == cluster_ref)
+                            and e.get('severity') == 'ERROR')
+            
+            warning_count = sum(1 for e in self.temporal_entities 
+                              if e.get('entity_type') == 'error' 
+                              and (e.get('cluster_uuid') == cluster_uuid or
+                                   e.get('cluster_ref') == cluster_ref)
+                              and e.get('severity') == 'WARNING')
+            
+            # Find first timestamp for this cluster
+            first_timestamp = None
+            for e in self.temporal_entities:
+                if ((e.get('cluster_uuid') == cluster_uuid or 
+                     e.get('group_uuid') == cluster_uuid or
+                     e.get('cluster_ref') == cluster_ref) and 
+                    e.get('timestamp')):
+                    first_timestamp = e['timestamp']
+                    break
+            
+            cluster_entity = {
+                'entity_type': 'cluster',
+                'entity_id': cluster_ref,
+                'cluster_uuid': cluster_uuid,
+                'cluster_ref': cluster_ref,
+                'cluster_name': '',
+                'max_members_seen': 0,  # Will be computed by graf
+                'total_sst_operations': sst_count,
+                'total_view_changes': view_count,
+                'split_brain_events': 0,  # Will be computed by graf
+                'error_count': error_count,
+                'warning_count': warning_count,
+                'analysis_start_time': first_timestamp,
+                'log_sources': [],  # Will be populated by graf
+                'timestamp': first_timestamp,
+                'timestamp_index': 0,
+                'line_number': 0,
+                'raw_line': '',
+                'log_source': '',
+                'confidence': 1.0,
+                'pattern_name': '',
+                'extraction_method': 'manual',
+                'validated': False,
+                'validation_notes': ''
+            }
+            entities.append(cluster_entity)
+        
         # Add CORE node entities (one per physical node)
         for node_name, node_data in self.nodes.items():
+            # Compute node_id (short UUID: first and fourth fields)
+            node_id = None
+            if node_data['long_uuid']:
+                parts = node_data['long_uuid'].split('-')
+                if len(parts) >= 4:
+                    node_id = f"{parts[0]}-{parts[3]}"
+            
             node_entity = {
                 'entity_type': 'node',
                 'entity_id': f"node_{node_name}",
                 'node_name': node_name,
+                'node_id': node_id,
                 'long_uuid': node_data['long_uuid'],
+                'node_uuid': node_data['long_uuid'],  # Alias for compatibility
                 'uuid_history': node_data['uuid_history'],
-                'cluster_uuid': node_data['cluster_uuid'],
-                'cluster_ref': f"cluster_{node_data['cluster_uuid'][:8]}" if node_data['cluster_uuid'] else None,
+                'cluster_uuid': node_data['cluster_uuid'] or self.cluster_uuid,
+                'cluster_ref': f"cluster_{(node_data['cluster_uuid'] or self.cluster_uuid)[:8]}" if (node_data['cluster_uuid'] or self.cluster_uuid) else None,
+                'cluster_name': node_data.get('cluster_name'),
+                'node_address': node_data.get('node_address'),
+                'galera_version': node_data.get('galera_version'),
+                'mariadb_version': node_data.get('mariadb_version'),
+                'wsrep_version': node_data.get('wsrep_version'),
+                'current_state': 'UNKNOWN',  # Will be tracked by node_state entities
+                'level': 'Note',  # Standard log level
+                'state_uuid': '',  # Legacy field
+                'validated': False,
+                'validation_notes': '',
                 'timestamp': None,
                 'timestamp_index': 0,
                 'raw_line': '',
