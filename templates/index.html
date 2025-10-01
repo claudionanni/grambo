@@ -966,7 +966,7 @@
             (timelineHotspots.node_component_non_primary || []).forEach(item => {
                 const pct = (item.index / denom) * 100;
                 const nodeLabel = item.node || 'node';
-                addMarker(pct, 'component', `${nodeLabel} component NON-PRIM`);
+                addMarker(pct, 'component', `${nodeLabel} NON-PRIMARY`);
             });
             (timelineHotspots.sst_operations || []).forEach(item => {
                 const pct = (item.index / denom) * 100;
@@ -1562,6 +1562,13 @@
                     clusterDiv.innerHTML = '';
                     const clusterEntities = Object.entries(entities).filter(([key]) => key.startsWith('cluster:'));
                     
+                    // Sort clusters by analysis_start_time descending (most recent first)
+                    clusterEntities.sort((a, b) => {
+                        const timeA = a[1].analysis_start_time || '';
+                        const timeB = b[1].analysis_start_time || '';
+                        return timeB.localeCompare(timeA);
+                    });
+                    
                     if (clusterEntities.length === 0) {
                         clusterDiv.innerHTML = `<div class="empty-state">No cluster data for this frame</div>`;
                     } else {
@@ -1574,7 +1581,7 @@
                             // Format cluster information in a user-friendly way
                             if (props.analysis_start_time) {
                                 const startTime = props.analysis_start_time.replace('T', ' ').replace('Z', '');
-                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Analysis Started:</span> <span class="entity-value">${escapeHtml(startTime)}</span></div>`;
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Group Formed:</span> <span class="entity-value">${escapeHtml(startTime)}</span></div>`;
                             }
                             
                             if (props.cluster_name) {
@@ -1707,7 +1714,7 @@
                                 const nodeName = props.node_name || key.replace('node_view:', '');
                                 
                                 // Check if this view is NON-PRIMARY
-                                const status = props.status || props.cluster_state || props.view_status || '';
+                                const status = props.status || props.view_status || '';
                                 const isNonPrimary = status.toUpperCase().includes('NON') || status.toUpperCase().includes('NON_PRIM');
                                 
                                 // Use red border for NON-PRIMARY views
@@ -1724,7 +1731,7 @@
                                 block += `</div>`;
                                 
                                 // Display key view fields (excluding view_id since we have group_uuid and view_seq)
-                                const customViewFields = ['group_uuid', 'view_seq', 'status', 'cluster_state', 'member_count', 'own_index', 'members'];
+                                const customViewFields = ['group_uuid', 'view_seq', 'status', 'member_count', 'own_index', 'members'];
                                 const metrics = renderPropertyList(props, customViewFields, 'accent-view');
                                 block += metrics || '';
                                 
@@ -1766,6 +1773,11 @@
                             block += '</div>';
                             quorumDiv.innerHTML += block;
                         });
+                    }
+                    // Grey out quorum text values (quorum messages are not reliable)
+                    if (quorumDiv) {
+                        quorumDiv.style.opacity = '0.5';
+                        quorumDiv.style.fontStyle = 'italic';
                     }
 
                     // Nodes card

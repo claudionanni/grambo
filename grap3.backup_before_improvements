@@ -1,0 +1,1126 @@
+#!/usr/bin/env python3
+"""
+GRAP v3.0-alpha - Enhanced Galera Raw Analysis Parser
+Schema-driven entity extraction with complete pattern coverage
+
+Compatible with graf frame-based state machine generation
+Supports NodeStateChange, ClusterView, QuorumEvent and all v2 features
+
+Usage:
+  ./grap3 error.log --format=json
+  ./grap3 file1.log file2.log file3.log --format=json
+  ./grap3 logs/*.log --format=json > output.json
+"""
+
+import re
+import sys
+import json
+import argparse
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
+from collections import defaultdict
+from dataclasses import dataclass, field
+
+# Version
+GRAP_VERSION = "v3.0.0-alpha"
+
+# ==============================================================================
+# SIMPLIFIED PATTERN-BASED EXTRACTION
+# ==============================================================================
+
+@dataclass
+class Pattern:
+    """Simple pattern definition"""
+    pattern_id: str
+    regex: str
+    entity_type: str
+    priority: int
+    context: str  # LOCAL, GLOBAL, PEER
+    extract_fields: Dict[str, str]
+    computed_fields: Dict[str, Any]
+    confidence: float = 0.9
+    
+    def __post_init__(self):
+        self.compiled_regex = re.compile(self.regex, re.IGNORECASE)
+
+
+class EntityExtractor:
+    """
+    Lightweight entity extractor with full pattern coverage
+    Compatible with graf frame generation
+    """
+    
+    def __init__(self):
+        self.local_node_name = None
+        self.local_node_uuid = None
+        self.cluster_uuid = None
+        
+        # Node tracking with UUID history (physical nodes)
+        self.nodes = {}  # node_name -> {name, long_uuid, uuid_history, cluster_uuid, node_address, versions}
+        self.uuid_to_node = {}  # uuid (all forms) -> node_name
+        
+        # Timestamp indexing for frame generation
+        self.timestamp_indices = defaultdict(int)
+        
+        # Entity storage
+        self.core_entities = {}  # For final node entities only
+        self.temporal_entities = []  # List of temporal entities in order
+        
+        # Multi-line view parsing state
+        self.view_buffer = None
+        self.view_start_line = 0
+        
+        # Multi-line wsrep view parsing state
+        self.wsrep_view_buffer = None
+        self.wsrep_view_start_line = 0
+        
+        # Load patterns
+        self.patterns = self._load_patterns()
+    
+    def _load_patterns(self) -> List[Pattern]:
+        """Load all extraction patterns"""
+        patterns = []
+        
+        # ==================================================================
+        # NODE STATE CHANGE PATTERNS
+        # ==================================================================
+        
+        patterns.append(Pattern(
+            pattern_id="node_state_shifting",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Shifting\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED|DONOR|DESYNCED)\s+->\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED|DONOR|DESYNCED)',
+            entity_type="node_state",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "from_state",
+                3: "to_state"
+            },
+            computed_fields={
+                "transition_type": "LOCAL_SHIFT"
+            },
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="node_state_restored",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Restored\s+state\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED|DONOR|DESYNCED)\s+->\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED|DONOR|DESYNCED)',
+            entity_type="node_state",
+            priority=95,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "from_state",
+                3: "to_state"
+            },
+            computed_fields={
+                "transition_type": "RESTORED"
+            },
+            confidence=0.96
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="server_status_change",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Server\s+status\s+change\s+(\w+)\s+->\s+(\w+)',
+            entity_type="node_state",
+            priority=97,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "from_state",
+                3: "to_state"
+            },
+            computed_fields={
+                "transition_type": "SERVER_STATUS"
+            },
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="synchronized_with_group",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Synchronized\s+with\s+group,\s+ready\s+for\s+connections',
+            entity_type="node_state",
+            priority=96,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp"
+            },
+            computed_fields={
+                "from_state": "JOINING",
+                "to_state": "SYNCED",
+                "transition_type": "GROUP_SYNC"
+            },
+            confidence=0.99
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="ready_for_connections",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+.*mariadbd:\s+ready\s+for\s+connections',
+            entity_type="node_state",
+            priority=94,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp"
+            },
+            computed_fields={
+                "from_state": "INITIALIZING",
+                "to_state": "SYNCED",
+                "transition_type": "READY"
+            },
+            confidence=0.97
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="member_state_in_view",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\((?:([a-f0-9-]+),)?\s*(SYNCED|JOINER|JOINED|DONOR)',
+            entity_type="node_state",
+            priority=85,
+            context="PEER",
+            extract_fields={
+                1: "timestamp",
+                2: "node_name",
+                3: "node_uuid",
+                4: "to_state"
+            },
+            computed_fields={
+                "transition_type": "PEER_STATE"
+            },
+            confidence=0.85
+        ))
+        
+        # ==================================================================
+        # CLUSTER VIEW PATTERNS
+        # ==================================================================
+        
+
+        
+        # Remove the old simple view pattern since we're doing multi-line parsing
+        # patterns.append(Pattern(
+        #     pattern_id="view_change_gcomm",
+        #     ...
+        # ))
+        
+        patterns.append(Pattern(
+            pattern_id="view_empty",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+view\(\(empty\)\)',
+            entity_type="view",
+            priority=95,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp"
+            },
+            computed_fields={
+                "cluster_state": "EMPTY",
+                "view_layer": "gcomm",
+                "member_count": 0,
+                "members": [],
+                "joined": [],
+                "left": [],
+                "partitioned": [],
+                "view_uuid": "empty",  # Add placeholder to avoid null cluster_ref
+                "view_id": "empty"
+            },
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="view_members_line",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Members:\s*(\d+)\s*\(\s*joined:\s*(\d+),\s*left:\s*(\d+),\s*partitioned:\s*(\d+)\s*\)',
+            entity_type="view",
+            priority=90,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "member_count",
+                3: "members_joined",
+                4: "members_left",
+                5: "members_partitioned"
+            },
+            computed_fields={},
+            confidence=0.90
+        ))
+        
+        # ==================================================================
+        # QUORUM EVENT PATTERNS
+        # ==================================================================
+        
+        patterns.append(Pattern(
+            pattern_id="quorum_lost",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*(quorum lost|non-primary\s+view)',
+            entity_type="quorum",
+            priority=100,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "event_text"
+            },
+            computed_fields={
+                "event_type": "QUORUM_LOST",
+                "quorum_status": False,
+                "severity": "CRITICAL"
+            },
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="quorum_regained",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*(declaring quorum|primary view)',
+            entity_type="quorum",
+            priority=100,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "event_text"
+            },
+            computed_fields={
+                "event_type": "QUORUM_REGAINED",
+                "quorum_status": True,
+                "severity": "INFO"
+            },
+            confidence=0.95
+        ))
+        
+        # ==================================================================
+        # STATE TRANSFER PATTERNS
+        # ==================================================================
+        
+        patterns.append(Pattern(
+            pattern_id="sst_started",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*Requesting\s+(?:state transfer|SST)(?::\s*(\w+))?',
+            entity_type="sst",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "method"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "STARTED"
+            },
+            confidence=0.95
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="sst_donor_selected",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+requested\s+state\s+transfer.*Selected\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)',
+            entity_type="sst",
+            priority=95,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "joiner_name",
+                3: "donor_name"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "DONOR_SELECTED"
+            },
+            confidence=0.90
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="sst_completed",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*SST\s+complete,\s+seqno:\s*(\d+)',
+            entity_type="sst",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "end_seqno"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "COMPLETED"
+            },
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="ist_started",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*IST.*first:\s*(\d+)',
+            entity_type="ist",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "first_seqno"
+            },
+            computed_fields={
+                "transfer_type": "IST",
+                "status": "STARTED"
+            },
+            confidence=0.92
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="ist_completed",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*IST.*(?:complete|received).*last:\s*(\d+)',
+            entity_type="ist",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "last_seqno"
+            },
+            computed_fields={
+                "transfer_type": "IST",
+                "status": "COMPLETED"
+            },
+            confidence=0.95
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="ist_receiving",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*Receiving IST:\s*(\d+)\s+writesets,\s+seqnos\s+(\d+)-(\d+)',
+            entity_type="ist",
+            priority=105,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "writeset_count",
+                3: "first_seqno",
+                4: "last_seqno"
+            },
+            computed_fields={
+                "transfer_type": "IST",
+                "status": "RECEIVING"
+            },
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="ist_progress",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*Receiving IST\.+\s*([\d.]+)%\s*\((\d+)/(\d+)\s+events\)',
+            entity_type="ist",
+            priority=95,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "progress_percent",
+                3: "events_processed",
+                4: "events_total"
+            },
+            computed_fields={
+                "transfer_type": "IST",
+                "status": "PROGRESS"
+            },
+            confidence=0.90
+        ))
+        
+        # ==================================================================
+        # ERROR PATTERNS
+        # ==================================================================
+        
+        patterns.append(Pattern(
+            pattern_id="error_generic",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[ERROR\]\s+WSREP:\s+(.*)',
+            entity_type="error",
+            priority=70,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "message"
+            },
+            computed_fields={
+                "severity": "ERROR"
+            },
+            confidence=0.75
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="warning_generic",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*\[Warning\]\s+WSREP:\s+(.*)',
+            entity_type="error",
+            priority=65,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "message"
+            },
+            computed_fields={
+                "severity": "WARNING"
+            },
+            confidence=0.70
+        ))
+        
+        # ==================================================================
+        # NODE IDENTITY PATTERNS
+        # ==================================================================
+        
+        patterns.append(Pattern(
+            pattern_id="node_name_synced",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Server\s+([A-Za-z0-9_.-]+)\s+synced\s+with\s+group',
+            entity_type="node",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "node_name"
+            },
+            computed_fields={},
+            confidence=0.98
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="node_uuid",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*My UUID:\s+([a-f0-9-]+)',
+            entity_type="node",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "node_uuid"
+            },
+            computed_fields={},
+            confidence=0.99
+        ))
+        
+        patterns.append(Pattern(
+            pattern_id="cluster_uuid",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*(?:Cluster\s+state\s+uuid|wsrep_cluster_state_uuid):\s*([a-f0-9-]+)',
+            entity_type="cluster",
+            priority=100,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "cluster_uuid"
+            },
+            computed_fields={},
+            confidence=0.95
+        ))
+        
+        # Sort by priority (descending)
+        patterns.sort(key=lambda p: p.priority, reverse=True)
+        
+        return patterns
+    
+    def process_files(self, file_paths: List[Path]) -> Dict[str, Any]:
+        """Process multiple log files"""
+        all_lines = []
+        
+        # Read all files with source tracking
+        for file_path in file_paths:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                for line_num, line in enumerate(f, 1):
+                    all_lines.append((line, line_num, str(file_path)))
+        
+        # Process all lines
+        for line, line_num, log_source in all_lines:
+            self._process_line(line, line_num, log_source)
+        
+        # Finalize any pending view buffer
+        if self.view_buffer:
+            self._parse_view_block()
+        
+        # Finalize any pending wsrep view buffer
+        if self.wsrep_view_buffer:
+            self._parse_wsrep_view_block()
+        
+        # Sort temporal entities chronologically (handle None timestamps)
+        self.temporal_entities.sort(key=lambda e: (
+            e.get('timestamp') or '',
+            e.get('timestamp_index', 0)
+        ))
+        
+        # Build output
+        return self._build_output()
+    
+    def _process_line(self, line: str, line_num: int, log_source: str):
+        """Process a single log line"""
+        # Check if we're in a gcomm view block
+        if self.view_buffer is not None:
+            # Continue collecting view lines
+            self.view_buffer['lines'].append(line)
+            
+            # Check if view block is complete (line ends with })
+            if line.strip().endswith('})'):
+                # Parse complete view block
+                self._parse_view_block()
+                self.view_buffer = None
+            return
+        
+        # Check if we're in a wsrep view block
+        if self.wsrep_view_buffer is not None:
+            # Continue collecting wsrep view lines
+            self.wsrep_view_buffer['lines'].append(line)
+            
+            # Check if wsrep view block is complete (line with ====)
+            if line.strip().startswith('==='):
+                # Parse complete wsrep view block
+                self._parse_wsrep_view_block()
+                self.wsrep_view_buffer = None
+            return
+        
+        # Check if this line starts a wsrep view block
+        if re.search(r'WSREP:\s+={40,}', line):
+            # This might be the start of a wsrep view block
+            # Wait for the next line to confirm
+            # Handle both single and double digit hours, and variable spacing
+            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
+            extracted_timestamp = None
+            if timestamp_match:
+                # Combine date and time with single space and zero-padded hour
+                date = timestamp_match.group(1)
+                hour = timestamp_match.group(2).zfill(2)  # Zero-pad hour
+                minute = timestamp_match.group(3)
+                second = timestamp_match.group(4)
+                extracted_timestamp = f"{date} {hour}:{minute}:{second}"
+            self.wsrep_view_buffer = {
+                'timestamp': extracted_timestamp,
+                'lines': [line],
+                'line_num': line_num,
+                'log_source': log_source,
+                'confirmed': False
+            }
+            return
+        
+        # If wsrep view buffer exists but not confirmed, check if this is "View:"
+        if self.wsrep_view_buffer and not self.wsrep_view_buffer['confirmed']:
+            self.wsrep_view_buffer['lines'].append(line)
+            if line.strip() == 'View:':
+                self.wsrep_view_buffer['confirmed'] = True
+            else:
+                # Not a view block, reset
+                self.wsrep_view_buffer = None
+            return
+        
+        # Check if this line starts a gcomm view block
+        view_match = re.search(r'view\(view_id\((PRIM|NON_PRIM|PRIMARY|NON_PRIMARY),([a-f0-9-]+),(\d+)\)\s+memb\s+\{', line)
+        if view_match:
+            # Start collecting view block - handle variable whitespace and single-digit hours in timestamp
+            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})', line)
+            timestamp = None
+            if timestamp_match:
+                # Combine date and time with single space and zero-padded hour
+                date = timestamp_match.group(1)
+                hour = timestamp_match.group(2).zfill(2)  # Zero-pad hour
+                minute = timestamp_match.group(3)
+                second = timestamp_match.group(4)
+                timestamp = f"{date} {hour}:{minute}:{second}"
+            self.view_buffer = {
+                'timestamp': timestamp,
+                'cluster_state': view_match.group(1),
+                'view_uuid': view_match.group(2),
+                'view_seq': view_match.group(3),
+                'lines': [line],
+                'line_num': line_num,
+                'log_source': log_source
+            }
+            return
+        
+        # Detect local node info
+        self._detect_local_node(line)
+        
+        # Try each pattern
+        for pattern in self.patterns:
+            match = pattern.compiled_regex.search(line)
+            if not match:
+                continue
+            
+            # Extract entity data
+            entity = self._extract_entity(match, pattern, line, line_num, log_source)
+            if entity:
+                self._store_entity(entity)
+                break  # First match wins (patterns are priority-sorted)
+    
+    def _parse_view_block(self):
+        """Parse a complete view block"""
+        if not self.view_buffer:
+            return
+        
+        # Extract member lists from the view block
+        full_text = '\n'.join(self.view_buffer['lines'])
+        
+        # Parse sections: memb, joined, left, partitioned
+        members = self._extract_view_section(full_text, 'memb')
+        joined = self._extract_view_section(full_text, 'joined')
+        left = self._extract_view_section(full_text, 'left')
+        partitioned = self._extract_view_section(full_text, 'partitioned')
+        
+        # Resolve UUIDs to node names
+        member_names = [self._resolve_node_by_uuid(m) or m for m in members]
+        joined_names = [self._resolve_node_by_uuid(j) or j for j in joined]
+        left_names = [self._resolve_node_by_uuid(l) or l for l in left]
+        partitioned_names = [self._resolve_node_by_uuid(p) or p for p in partitioned]
+        
+        # Create view entity
+        timestamp = self.view_buffer['timestamp']
+        entity = {
+            'entity_type': 'view',
+            'entity_id': f"view_{self.view_buffer['line_num']}",
+            'timestamp': timestamp,
+            'timestamp_index': self.timestamp_indices[timestamp] if timestamp else 0,
+            'cluster_state': self.view_buffer['cluster_state'],
+            'view_uuid': self.view_buffer['view_uuid'],
+            'view_seq': int(self.view_buffer['view_seq']),
+            'view_id': f"{self.view_buffer['view_uuid']},{self.view_buffer['view_seq']}",
+            'view_layer': 'gcomm',
+            'members': members,
+            'member_names': member_names,
+            'member_count': len(members),
+            'joined': joined,
+            'joined_names': joined_names,
+            'left': left,
+            'left_names': left_names,
+            'partitioned': partitioned,
+            'partitioned_names': partitioned_names,
+            'raw_line': full_text.strip(),
+            'line_number': self.view_buffer['line_num'],
+            'log_source': self.view_buffer['log_source'],
+            'confidence': 0.95,
+            'pattern_name': 'view_multiline',
+            'extraction_method': 'multiline_parse',
+        }
+        
+        if timestamp:
+            self.timestamp_indices[timestamp] += 1
+        
+        # Add cluster info - use view_uuid as fallback if cluster_uuid not known
+        if self.cluster_uuid:
+            entity['cluster_uuid'] = self.cluster_uuid
+            entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
+        elif self.view_buffer.get('view_uuid'):
+            # Use view_uuid as cluster identifier for gcomm views
+            view_uuid = self.view_buffer['view_uuid']
+            entity['cluster_uuid'] = view_uuid
+            entity['cluster_ref'] = f"cluster_{view_uuid[:8]}"
+        
+        self.temporal_entities.append(entity)
+    
+    def _extract_view_section(self, text: str, section_name: str) -> List[str]:
+        """Extract UUID list from a view section (memb, joined, left, partitioned)"""
+        # Find the section
+        pattern = rf'{section_name}\s+\{{([^}}]*)\}}'
+        match = re.search(pattern, text, re.DOTALL)
+        if not match:
+            return []
+        
+        section_content = match.group(1)
+        
+        # Extract UUIDs (format: uuid,index or just uuid)
+        uuids = []
+        for line in section_content.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            # Extract UUID (before comma if present)
+            if ',' in line:
+                uuid = line.split(',')[0].strip()
+            else:
+                uuid = line.strip()
+            if uuid:
+                uuids.append(uuid)
+        
+        return uuids
+    
+    def _parse_wsrep_view_block(self):
+        """Parse a complete wsrep view block"""
+        if not self.wsrep_view_buffer:
+            return
+        
+        full_text = '\n'.join(self.wsrep_view_buffer['lines'])
+        
+        # Extract fields from wsrep view
+        view_data = {}
+        
+        # id: group_uuid:seqno (group_uuid is the cluster uuid)
+        match = re.search(r'id:\s*([a-f0-9-]+):(\d+)', full_text)
+        if match:
+            view_data['group_uuid'] = match.group(1)  # Renamed from view_uuid to group_uuid
+            view_data['cluster_uuid'] = match.group(1)  # Same as group_uuid
+            view_data['view_seq'] = int(match.group(2))
+            view_data['view_id'] = f"{match.group(1)}:{match.group(2)}"
+        
+        # status: primary/non-primary
+        match = re.search(r'status:\s*(primary|non-primary)', full_text, re.IGNORECASE)
+        if match:
+            view_data['status'] = match.group(1).upper()
+            view_data['view_status'] = 'PRIM' if match.group(1).lower() == 'primary' else 'NON_PRIM'
+            view_data['cluster_state'] = view_data['view_status']  # Keep both for compatibility
+        
+        # protocol_version
+        match = re.search(r'protocol_version:\s*(\d+)', full_text)
+        if match:
+            view_data['protocol_version'] = int(match.group(1))
+        
+        # capabilities (comma-separated list)
+        match = re.search(r'capabilities:\s*(.+?)(?:\n|$)', full_text)
+        if match:
+            caps_str = match.group(1).strip()
+            view_data['capabilities'] = [c.strip() for c in caps_str.split(',')]
+        
+        # final: yes/no
+        match = re.search(r'final:\s*(yes|no)', full_text, re.IGNORECASE)
+        if match:
+            view_data['final'] = match.group(1).lower() == 'yes'
+        
+        # own_index
+        match = re.search(r'own_index:\s*(-?\d+)', full_text)
+        if match:
+            view_data['own_index'] = int(match.group(1))
+        
+        # members(N): followed by member lines
+        match = re.search(r'members\((\d+)\):', full_text)
+        if match:
+            view_data['member_count'] = int(match.group(1))
+        else:
+            view_data['member_count'] = 0
+        
+        # Parse member details: "0: uuid, NODE_NAME"
+        member_details = []
+        members = []
+        member_names = []
+        member_uuids = []
+        
+        for line in full_text.split('\n'):
+            # Match member line: \t0: uuid, name
+            member_match = re.match(r'\s*(\d+):\s*([a-f0-9-]+),\s*(.+)', line)
+            if member_match:
+                index = int(member_match.group(1))
+                uuid = member_match.group(2).strip()
+                name = member_match.group(3).strip()
+                
+                member_details.append({
+                    'index': index,
+                    'uuid': uuid,
+                    'node_name': name
+                })
+                members.append(name)
+                member_names.append(name)
+                member_uuids.append(uuid)
+        
+        view_data['member_details'] = member_details
+        view_data['members'] = members
+        view_data['member_names'] = member_names
+        view_data['member_uuids'] = member_uuids
+        
+        # Determine the observing node from own_index
+        own_index = view_data.get('own_index')
+        observing_node_name = None
+        observing_node_uuid = None
+        if own_index is not None and own_index >= 0 and own_index < len(member_details):
+            observing_node_name = member_details[own_index].get('node_name')
+            observing_node_uuid = member_details[own_index].get('uuid')
+        
+        # Create wsrep view entity with LOCAL context (node-level view)
+        timestamp = self.wsrep_view_buffer['timestamp']
+        entity = {
+            'entity_type': 'wsrep_view',
+            'entity_id': f"wsrep_view_{self.wsrep_view_buffer['line_num']}",
+            'timestamp': timestamp,
+            'timestamp_index': self.timestamp_indices[timestamp] if timestamp else 0,
+            'view_layer': 'wsrep',
+            'context': 'LOCAL',  # This is a node-level view
+            **view_data,
+            'raw_line': full_text.strip(),
+            'line_number': self.wsrep_view_buffer['line_num'],
+            'log_source': self.wsrep_view_buffer['log_source'],
+            'confidence': 0.98,
+            'pattern_name': 'wsrep_view_multiline',
+            'extraction_method': 'multiline_parse',
+        }
+        
+        # Add observing node information
+        if observing_node_name:
+            entity['node_name'] = observing_node_name
+        elif self.local_node_name:
+            # Fallback to local node name when own_index is -1 or member list is empty
+            entity['node_name'] = self.local_node_name
+        if observing_node_uuid:
+            entity['node_uuid'] = observing_node_uuid
+        elif self.local_node_uuid:
+            # Fallback to local node UUID
+            entity['node_uuid'] = self.local_node_uuid
+        
+        if timestamp:
+            self.timestamp_indices[timestamp] += 1
+        
+        # Add cluster reference - use group_uuid as cluster identifier
+        if view_data.get('group_uuid'):
+            entity['cluster_ref'] = f"cluster_{view_data['group_uuid'][:8]}"
+        elif self.cluster_uuid:
+            entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
+        
+        self.temporal_entities.append(entity)
+    
+    def _detect_local_node(self, line: str):
+        """Detect local node name and UUID, tracking UUID history"""
+        # Node name patterns
+        for pattern in [
+            r"wsrep_node_name\s*[:=]\s*'?([^']+)'?",
+            r"Server\s+([A-Za-z0-9_.-]+)\s+synced",
+        ]:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                name = match.group(1).strip()
+                if name.lower() not in {'unknown', 'joiner', 'donor'}:
+                    self.local_node_name = name
+                    # Initialize node if first time seen
+                    if name not in self.nodes:
+                        self.nodes[name] = {
+                            'node_name': name,
+                            'long_uuid': None,
+                            'uuid_history': [],
+                            'cluster_uuid': None,
+                            'node_address': None,
+                            'galera_version': None,
+                            'mariadb_version': None,
+                            'wsrep_version': None,
+                            'cluster_name': None
+                        }
+                    break
+        
+        # UUID pattern - track history
+        match = re.search(r'My UUID:\s+([a-f0-9-]+)', line)
+        if match:
+            uuid = match.group(1)
+            self.local_node_uuid = uuid
+            
+            if self.local_node_name:
+                node = self.nodes.get(self.local_node_name)
+                if node:
+                    # Add UUID to history if not already there
+                    if uuid not in node['uuid_history']:
+                        node['uuid_history'].append(uuid)
+                        # Also add short form
+                        short_uuid = self._shorten_uuid(uuid)
+                        if short_uuid and short_uuid not in node['uuid_history']:
+                            node['uuid_history'].append(short_uuid)
+                    
+                    # Update long_uuid to latest
+                    node['long_uuid'] = uuid
+                    
+                    # Map all UUID forms to this node
+                    short_uuid = self._shorten_uuid(uuid)
+                    self.uuid_to_node[uuid] = self.local_node_name
+                    self.uuid_to_node[uuid.replace('-', '')] = self.local_node_name
+                    if short_uuid:
+                        self.uuid_to_node[short_uuid] = self.local_node_name
+        
+        # Cluster UUID
+        match = re.search(r'(?:Cluster\s+state\s+uuid|wsrep_cluster_state_uuid):\s*([a-f0-9-]+)', line, re.IGNORECASE)
+        if match:
+            self.cluster_uuid = match.group(1)
+            # Update all nodes with cluster UUID
+            for node in self.nodes.values():
+                if not node['cluster_uuid']:
+                    node['cluster_uuid'] = self.cluster_uuid
+    
+    def _shorten_uuid(self, uuid: str) -> Optional[str]:
+        """Generate short UUID (first-fourth parts)"""
+        if not uuid or '-' not in uuid:
+            return None
+        parts = uuid.split('-')
+        if len(parts) >= 4:
+            return f"{parts[0]}-{parts[3]}"
+        return None
+    
+    def _resolve_node_by_uuid(self, uuid: str) -> Optional[str]:
+        """Resolve UUID to node name"""
+        if not uuid:
+            return None
+        
+        # Try direct match
+        if uuid in self.uuid_to_node:
+            return self.uuid_to_node[uuid]
+        
+        # Try without dashes
+        uuid_compact = uuid.replace('-', '')
+        if uuid_compact in self.uuid_to_node:
+            return self.uuid_to_node[uuid_compact]
+        
+        # Try short form
+        short = self._shorten_uuid(uuid)
+        if short and short in self.uuid_to_node:
+            return self.uuid_to_node[short]
+        
+        return None
+    
+    def _extract_entity(self, match, pattern: Pattern, line: str, line_num: int, log_source: str) -> Optional[Dict]:
+        """Extract entity data from regex match"""
+        entity = {
+            'entity_type': pattern.entity_type,
+            'entity_id': f"{pattern.entity_type}_{line_num}",
+            'raw_line': line.strip(),
+            'line_number': line_num,
+            'log_source': log_source,
+            'confidence': pattern.confidence,
+            'pattern_name': pattern.pattern_id,
+            'extraction_method': 'pattern_match',
+        }
+        
+        # Extract matched groups
+        for group_idx, field_name in pattern.extract_fields.items():
+            try:
+                value = match.group(group_idx)
+                if value:
+                    entity[field_name] = value.strip()
+            except IndexError:
+                pass
+        
+        # Add computed fields
+        for field_name, value in pattern.computed_fields.items():
+            entity[field_name] = value
+        
+        # Normalize state names to uppercase for consistency
+        if pattern.entity_type == 'node_state':
+            if 'from_state' in entity:
+                entity['from_state'] = entity['from_state'].upper()
+            if 'to_state' in entity:
+                entity['to_state'] = entity['to_state'].upper()
+        
+        # Add context-specific fields
+        if pattern.context == "LOCAL" and self.local_node_name:
+            entity['node_name'] = self.local_node_name
+            if self.local_node_uuid:
+                entity['node_uuid'] = self.local_node_uuid
+        
+        # Add cluster reference
+        if self.cluster_uuid:
+            entity['cluster_uuid'] = self.cluster_uuid
+            entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
+        # For empty views with placeholder view_uuid, create a cluster_ref
+        elif entity.get('view_uuid') == 'empty':
+            entity['cluster_ref'] = 'cluster_empty'
+        
+        # Add timestamp index for frame ordering
+        timestamp = entity.get('timestamp')
+        if timestamp:
+            entity['timestamp_index'] = self.timestamp_indices[timestamp]
+            self.timestamp_indices[timestamp] += 1
+        else:
+            entity['timestamp_index'] = 0
+        
+        return entity
+    
+    def _store_entity(self, entity: Dict):
+        """Store entity in appropriate collection"""
+        entity_type = entity.get('entity_type')
+        
+        if entity_type == 'node':
+            # Node entities are handled separately via UUID tracking
+            # We don't store individual node sightings, just track their UUIDs
+            pass
+        elif entity_type == 'cluster':
+            # Store cluster entity as temporal (for compatibility with v2)
+            self.temporal_entities.append(entity)
+        else:
+            # TEMPORAL entities - resolve node references
+            # If entity has node_uuid, try to resolve to node_name
+            if 'node_uuid' in entity and not entity.get('node_name'):
+                node_name = self._resolve_node_by_uuid(entity['node_uuid'])
+                if node_name:
+                    entity['node_name'] = node_name
+            
+            # Also check for joiner/donor references
+            if 'joiner_uuid' in entity:
+                node_name = self._resolve_node_by_uuid(entity['joiner_uuid'])
+                if node_name:
+                    entity['joiner_name'] = node_name
+            
+            if 'donor_uuid' in entity:
+                node_name = self._resolve_node_by_uuid(entity['donor_uuid'])
+                if node_name:
+                    entity['donor_name'] = node_name
+            
+            self.temporal_entities.append(entity)
+    
+    def _build_output(self) -> Dict[str, Any]:
+        """Build final output compatible with graf"""
+        entities = []
+        
+        # Add CORE node entities (one per physical node)
+        for node_name, node_data in self.nodes.items():
+            # Compute node_id (short UUID: first and fourth fields)
+            node_id = None
+            if node_data['long_uuid']:
+                parts = node_data['long_uuid'].split('-')
+                if len(parts) >= 4:
+                    node_id = f"{parts[0]}-{parts[3]}"
+            
+            node_entity = {
+                'entity_type': 'node',
+                'entity_id': f"node_{node_name}",
+                'node_name': node_name,
+                'node_id': node_id,
+                'long_uuid': node_data['long_uuid'],
+                'node_uuid': node_data['long_uuid'],  # Alias for compatibility
+                'uuid_history': node_data['uuid_history'],
+                'cluster_uuid': node_data['cluster_uuid'] or self.cluster_uuid,
+                'cluster_ref': f"cluster_{(node_data['cluster_uuid'] or self.cluster_uuid)[:8]}" if (node_data['cluster_uuid'] or self.cluster_uuid) else None,
+                'cluster_name': node_data.get('cluster_name'),
+                'node_address': node_data.get('node_address'),
+                'galera_version': node_data.get('galera_version'),
+                'mariadb_version': node_data.get('mariadb_version'),
+                'wsrep_version': node_data.get('wsrep_version'),
+                'current_state': 'UNKNOWN',  # Will be tracked by node_state entities
+                'level': 'Note',  # Standard log level
+                'state_uuid': '',  # Legacy field
+                'validated': False,
+                'validation_notes': '',
+                'timestamp': None,
+                'timestamp_index': 0,
+                'raw_line': '',
+                'line_number': 0,
+                'log_source': '',
+                'confidence': 1.0,
+                'pattern_name': 'node_tracking',
+                'extraction_method': 'uuid_history'
+            }
+            entities.append(node_entity)
+        
+        # Add temporal entities
+        entities.extend(self.temporal_entities)
+        
+        # Final sort by timestamp and index
+        entities.sort(key=lambda e: (
+            e.get('timestamp') or '',
+            e.get('timestamp_index', 0)
+        ))
+        
+        return {
+            'grap_version': GRAP_VERSION,
+            'extraction_time': datetime.now().isoformat(),
+            'total_entities': len(entities),
+            'entities': entities
+        }
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='GRAP v3.0-alpha - Enhanced Galera Raw Analysis Parser'
+    )
+    parser.add_argument('files', nargs='+', help='Log files to process')
+    parser.add_argument('--format', default='json', choices=['json'], help='Output format')
+    parser.add_argument('--version', action='version', version=f'grap {GRAP_VERSION}')
+    
+    args = parser.parse_args()
+    
+    # Convert file paths
+    file_paths = [Path(f) for f in args.files]
+    
+    # Validate files exist
+    for fp in file_paths:
+        if not fp.exists():
+            print(f"Error: File not found: {fp}", file=sys.stderr)
+            sys.exit(1)
+    
+    # Process files
+    print(f"[GRAP] Processing {len(file_paths)} file(s)...", file=sys.stderr)
+    
+    extractor = EntityExtractor()
+    result = extractor.process_files(file_paths)
+    
+    # Sort entities chronologically
+    total = result['total_entities']
+    print(f"[GRAP] Sorting {total} entities chronologically across {len(file_paths)} files", file=sys.stderr)
+    print(f"[GRAP] Adding per-timestamp indices for deterministic frame ordering", file=sys.stderr)
+    
+    # Output
+    print(json.dumps(result, indent=2, default=str))
+
+
+if __name__ == '__main__':
+    main()
