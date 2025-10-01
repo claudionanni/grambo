@@ -1581,10 +1581,6 @@
                                 block += `<div class="entity-block"><span class="entity-label accent-cluster">Cluster Name:</span> <span class="entity-value">${escapeHtml(props.cluster_name)}</span></div>`;
                             }
                             
-                            if (props.cluster_ref) {
-                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Cluster ID:</span> <span class="entity-value">${escapeHtml(props.cluster_ref)}</span></div>`;
-                            }
-                            
                             if (props.cluster_uuid) {
                                 const shortUuid = props.cluster_uuid.length > 36 ? props.cluster_uuid.substring(0, 8) + '...' : props.cluster_uuid;
                                 block += `<div class="entity-block"><span class="entity-label accent-cluster">UUID:</span> <span class="entity-value" title="${escapeHtml(props.cluster_uuid)}">${escapeHtml(shortUuid)}</span></div>`;
@@ -1614,15 +1610,29 @@
                                 block += `<div class="entity-block"><span class="entity-label accent-cluster">Split Brain:</span> <span class="entity-value ${statusClass}">${status}</span></div>`;
                             }
                             
-                            // SST operations
+                            // Total SST operations count
+                            if (props.total_sst_operations !== undefined) {
+                                const sstCount = props.total_sst_operations || 0;
+                                const sstInfo = sstCount === 0 ? 'None recorded' : `${sstCount} operation${sstCount !== 1 ? 's' : ''}`;
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Total SST Operations:</span> <span class="entity-value">${escapeHtml(sstInfo)}</span></div>`;
+                            }
+                            
+                            // SST operations (current active)
                             if (props.sst_operations !== undefined) {
                                 let sstInfo = '';
                                 if (Array.isArray(props.sst_operations)) {
-                                    sstInfo = props.sst_operations.length === 0 ? 'None active' : `${props.sst_operations.length} operation${props.sst_operations.length !== 1 ? 's' : ''}`;
+                                    sstInfo = props.sst_operations.length === 0 ? 'None active' : `${props.sst_operations.length} active`;
                                 } else {
                                     sstInfo = 'No operations';
                                 }
-                                block += `<div class="entity-block"><span class="entity-label accent-cluster">SST Operations:</span> <span class="entity-value">${escapeHtml(sstInfo)}</span></div>`;
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Active SST Operations:</span> <span class="entity-value">${escapeHtml(sstInfo)}</span></div>`;
+                            }
+                            
+                            // Total view changes count
+                            if (props.total_view_changes !== undefined) {
+                                const viewCount = props.total_view_changes || 0;
+                                const viewInfo = viewCount === 0 ? 'None recorded' : `${viewCount} change${viewCount !== 1 ? 's' : ''}`;
+                                block += `<div class="entity-block"><span class="entity-label accent-cluster">Total View Changes:</span> <span class="entity-value">${escapeHtml(viewInfo)}</span></div>`;
                             }
                             
                             // Views summary
@@ -1650,27 +1660,54 @@
                     if (viewEntities.length === 0) {
                         viewsDiv.innerHTML = '<div class="empty-state">No view data for this frame</div>';
                     } else {
-                        const groupedViews = {};
+                        // Find the most recent/relevant view for this frame
+                        // Typically there should be only one view per frame, but if multiple exist, pick the most complete one
+                        let activeView = null;
+                        let bestScore = -1;
+                        
                         viewEntities.forEach(([entKey, props]) => {
+                            // Score views based on completeness and recency
+                            let score = 0;
+                            if (props.cluster_state === 'PRIMARY' || props.status === 'primary') score += 10;
+                            if (props.member_count > 0) score += 5;
+                            if (props.members && props.members.length > 0) score += 3;
+                            if (props.view_seq) score += 1;
+                            
+                            if (score > bestScore) {
+                                bestScore = score;
+                                activeView = { entKey, props };
+                            }
+                        });
+                        
+                        if (activeView) {
+                            const { entKey, props } = activeView;
                             const parts = entKey.split(':');
                             const clusterKey = parts[1] || (props.cluster_ref || 'cluster');
-                            const layerName = (parts[2] || props.view_layer || 'gcomm').toUpperCase();
-                            if (!groupedViews[clusterKey]) {
-                                groupedViews[clusterKey] = [];
-                            }
-                            groupedViews[clusterKey].push({ layer: layerName, props });
-                        });
-                        Object.entries(groupedViews).forEach(([clusterKey, layers]) => {
+                            const layerName = (parts[2] || props.view_layer || 'wsrep').toUpperCase();
+                            
                             let block = '<div class="entity-block-group">';
                             block += `<div class="entity-subtitle">${escapeHtml(clusterKey)}</div>`;
-                            layers.sort((a, b) => a.layer.localeCompare(b.layer));
-                            layers.forEach(({ layer, props }) => {
-                                block += `<div class="entity-block"><span class="entity-label accent-view">layer:</span> <span class="entity-value">${escapeHtml(layer)}</span></div>`;
-                                block += renderPropertyList(props, viewFields, 'accent-view') || `<div class="empty-state">No data for ${escapeHtml(layer)}</div>`;
-                            });
+                            block += `<div class="entity-block"><span class="entity-label accent-view">layer:</span> <span class="entity-value">${escapeHtml(layerName)}</span></div>`;
+                            
+                            // Render view fields with custom label for timestamp
+                            const customViewFields = ['status', 'cluster_state', 'view_id', 'view_seq', 'member_count', 'own_index', 'members', 'capabilities'];
+                            const metrics = renderPropertyList(props, customViewFields, 'accent-view');
+                            block += metrics || '';
+                            
+                            // Add timestamp with custom label
+                            if (props.timestamp) {
+                                const timestampValue = escapeHtml(formatEntityValue(props.timestamp));
+                                block += `<div class="entity-block"><span class="entity-label accent-view">view changed:</span> <span class="entity-value">${timestampValue}</span></div>`;
+                            }
+                            
+                            if (!metrics && !props.timestamp) {
+                                block += `<div class="empty-state">No data for ${escapeHtml(layerName)}</div>`;
+                            }
                             block += '</div>';
-                            viewsDiv.innerHTML += block;
-                        });
+                            viewsDiv.innerHTML = block;
+                        } else {
+                            viewsDiv.innerHTML = '<div class="empty-state">No valid view data for this frame</div>';
+                        }
                     }
 
                     // Quorum card

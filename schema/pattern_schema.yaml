@@ -1,0 +1,292 @@
+# Pattern Definition Schema
+# This file defines how patterns are structured for entity extraction
+# Each pattern includes: regex, context, extraction mapping, and entity actions
+
+version: "1.0.0"
+schema_type: "pattern_definition"
+description: "Pattern matching schema for deterministic entity extraction"
+
+# ==============================================================================
+# PATTERN STRUCTURE DEFINITION
+# ==============================================================================
+
+pattern_structure:
+  description: "Standard structure for all patterns"
+  required_fields:
+    - pattern_id
+    - entity_target
+    - regex
+    - context
+    - extraction_mapping
+    - entity_action
+  optional_fields:
+    - description
+    - confidence
+    - examples
+    - validation_rules
+    - dialect_variations
+
+# ==============================================================================
+# CONTEXT TYPES
+# ==============================================================================
+
+context_types:
+  LOCAL:
+    description: "Pattern extracts data specific to the local node (log source)"
+    example: "Node state changes, local errors, local flow control"
+    entity_scope: "Always associated with the node that generated this log"
+    
+  GLOBAL:
+    description: "Pattern extracts cluster-wide information visible from any node"
+    example: "Cluster views, cluster UUID, quorum events"
+    entity_scope: "Associated with cluster, may reference multiple nodes"
+    
+  PEER:
+    description: "Pattern extracts information about another node seen from local perspective"
+    example: "Donor information during SST, remote node disconnection"
+    entity_scope: "References both local node and remote node"
+
+# ==============================================================================
+# EXTRACTION FUNCTIONS
+# ==============================================================================
+
+extraction_functions:
+  description: "Standard functions for extracting and transforming matched data"
+  
+  direct_mapping:
+    description: "Direct 1:1 mapping from regex group to entity attribute"
+    signature: "direct_mapping(match_group: str, target_field: str) -> Any"
+    
+  transform:
+    description: "Apply transformation function to matched value"
+    signature: "transform(match_group: str, transform_fn: str, target_field: str) -> Any"
+    available_transforms:
+      - to_uppercase
+      - to_lowercase
+      - parse_datetime
+      - parse_int
+      - parse_float
+      - parse_boolean
+      - extract_uuid
+      - normalize_state
+      - split_array
+      
+  conditional_extract:
+    description: "Extract value based on condition"
+    signature: "conditional_extract(condition: str, true_value: Any, false_value: Any, target_field: str) -> Any"
+    
+  lookup:
+    description: "Lookup value in reference table"
+    signature: "lookup(match_group: str, lookup_table: str, target_field: str) -> Any"
+    
+  composite:
+    description: "Combine multiple matched groups into single value"
+    signature: "composite(match_groups: List[str], separator: str, target_field: str) -> Any"
+
+# ==============================================================================
+# ENTITY ACTIONS
+# ==============================================================================
+
+entity_actions:
+  description: "Actions to perform with extracted data"
+  
+  CREATE_CORE:
+    description: "Create new CORE entity (idempotent based on unique keys)"
+    params:
+      entity_type: "Name of CORE entity to create"
+      attributes: "Mapping of extracted data to entity attributes"
+      unique_keys: "Keys for deduplication"
+    behavior: "Creates only if entity doesn't exist based on unique_keys"
+    
+  UPDATE_CORE:
+    description: "Update existing CORE entity (for enrichment)"
+    params:
+      entity_type: "Name of CORE entity to update"
+      lookup_keys: "Keys to find existing entity"
+      attributes: "Attributes to update"
+    behavior: "Updates non-null fields, fails if entity doesn't exist"
+    
+  CREATE_TEMPORAL:
+    description: "Create new TEMPORAL entity"
+    params:
+      entity_type: "Name of TEMPORAL entity to create"
+      attributes: "Mapping of extracted data to entity attributes"
+      parent_refs: "References to parent CORE entities"
+    behavior: "Always creates new temporal event, links to parent"
+    
+  UPDATE_TEMPORAL:
+    description: "Update existing TEMPORAL entity (for multi-line events)"
+    params:
+      entity_type: "Name of TEMPORAL entity"
+      lookup_keys: "Keys to find specific temporal entity"
+      attributes: "Attributes to update"
+    behavior: "Updates existing temporal entity (e.g., SST progress)"
+
+# ==============================================================================
+# VALIDATION RULES
+# ==============================================================================
+
+validation_rules:
+  description: "Rules for validating extracted data"
+  
+  types:
+    required_fields:
+      description: "Ensure required fields are present"
+      params: [field_list]
+      
+    pattern_match:
+      description: "Validate field matches regex pattern"
+      params: [field, pattern]
+      
+    range_check:
+      description: "Validate numeric field in range"
+      params: [field, min, max]
+      
+    enum_check:
+      description: "Validate field is one of allowed values"
+      params: [field, allowed_values]
+      
+    relationship_exists:
+      description: "Validate referenced entity exists"
+      params: [entity_type, foreign_key]
+      
+    timestamp_order:
+      description: "Validate timestamp is after previous event"
+      params: [field, reference_timestamp]
+
+# ==============================================================================
+# DIALECT VARIATIONS
+# ==============================================================================
+
+dialect_variations:
+  description: "How patterns vary across Galera/MariaDB versions"
+  
+  MARIADB_10_4:
+    regex_adjustments: "May need different log format patterns"
+    field_availability: "Some fields not available in older versions"
+    
+  MARIADB_10_6:
+    regex_adjustments: "Standard format"
+    field_availability: "All standard fields available"
+    
+  MARIADB_10_11:
+    regex_adjustments: "Enhanced logging format"
+    field_availability: "Additional diagnostic fields"
+    
+  PERCONA_XTRADB:
+    regex_adjustments: "Percona-specific log format variations"
+    field_availability: "Percona-specific fields"
+
+# ==============================================================================
+# EXAMPLE PATTERN TEMPLATE
+# ==============================================================================
+
+example_pattern:
+  pattern_id: "node_state_change_v1"
+  entity_target: "NodeStateChange"  # TEMPORAL entity
+  description: "Captures node state transitions"
+  
+  regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<node_uuid>[a-f0-9-]+)\s+state\s+change:\s+(?P<from_state>\w+)\s+->\s+(?P<to_state>\w+)'
+  
+  context: LOCAL  # This is a local node event
+  
+  confidence: 0.95
+  
+  extraction_mapping:
+    - match_group: "timestamp"
+      extraction_fn: "transform"
+      transform: "parse_datetime"
+      target_field: "timestamp"
+      
+    - match_group: "node_uuid"
+      extraction_fn: "direct_mapping"
+      target_field: "node_uuid"
+      context_note: "This identifies the parent Node entity"
+      
+    - match_group: "from_state"
+      extraction_fn: "transform"
+      transform: "normalize_state"
+      target_field: "from_state"
+      
+    - match_group: "to_state"
+      extraction_fn: "transform"
+      transform: "normalize_state"
+      target_field: "to_state"
+      
+    - computed: true
+      source: "current_line"
+      extraction_fn: "direct_mapping"
+      target_field: "log_line"
+      
+    - computed: true
+      source: "line_number"
+      extraction_fn: "direct_mapping"
+      target_field: "line_number"
+  
+  entity_action:
+    action_type: "CREATE_TEMPORAL"
+    entity_type: "NodeStateChange"
+    parent_refs:
+      - entity_type: "Node"
+        foreign_key: "node_uuid"
+        source_field: "node_uuid"
+        auto_create_parent: true  # Create Node if doesn't exist
+        parent_attributes:
+          node_uuid: "{node_uuid}"
+          first_seen: "{timestamp}"
+          log_source: "{log_file_path}"
+  
+  validation_rules:
+    - rule: "required_fields"
+      fields: ["timestamp", "to_state", "node_uuid"]
+      
+    - rule: "enum_check"
+      field: "to_state"
+      allowed_values: ["OPEN", "PRIMARY", "JOINER", "JOINED", "SYNCED", "DONOR", "DESYNCED", "DESTROYED", "CLOSED"]
+      
+    - rule: "relationship_exists"
+      entity_type: "Node"
+      foreign_key: "node_uuid"
+  
+  examples:
+    - input: "2024-09-15 10:30:45 12345 [Note] WSREP: a1b2c3d4-e5f6-7890-abcd-123456789012 state change: Synced -> Donor/Desynced"
+      expected_extraction:
+        timestamp: "2024-09-15T10:30:45"
+        node_uuid: "a1b2c3d4-e5f6-7890-abcd-123456789012"
+        from_state: "SYNCED"
+        to_state: "DONOR"
+      expected_action:
+        action: "CREATE_TEMPORAL"
+        entity: "NodeStateChange"
+        parent: "Node[a1b2c3d4-e5f6-7890-abcd-123456789012]"
+
+# ==============================================================================
+# PATTERN PRIORITY AND ORDERING
+# ==============================================================================
+
+pattern_matching_strategy:
+  description: "How patterns are applied to log lines"
+  
+  ordering:
+    description: "Patterns are tried in priority order"
+    priority_levels:
+      - level: 1
+        description: "High-confidence, specific patterns"
+        confidence_threshold: 0.9
+        
+      - level: 2
+        description: "Medium-confidence patterns"
+        confidence_threshold: 0.7
+        
+      - level: 3
+        description: "Low-confidence, generic patterns"
+        confidence_threshold: 0.5
+  
+  multi_match:
+    description: "Whether multiple patterns can match same line"
+    allowed: false
+    behavior: "First matching pattern wins (by priority)"
+  
+  fallback:
+    description: "What to do when no pattern matches"
+    behavior: "Log as unmatched line, continue processing"

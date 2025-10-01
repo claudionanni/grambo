@@ -1,0 +1,564 @@
+# Comprehensive Pattern Definitions for Galera Log Analysis
+# Following the pattern schema for deterministic entity extraction
+
+version: "1.0.0"
+description: "Complete pattern library for Galera cluster log analysis"
+
+# ==============================================================================
+# CORE ENTITY PATTERNS
+# Patterns that create or enrich CORE entities
+# ==============================================================================
+
+core_patterns:
+
+  # --------------------------------------------------------------------------
+  # Cluster Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "cluster_uuid_detection"
+    entity_target: "Cluster"
+    description: "Detects cluster UUID establishing cluster entity"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:wsrep_cluster_state_uuid|Cluster\s+state\s+uuid):\s*(?P<cluster_uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+    
+    context: GLOBAL
+    confidence: 0.95
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "first_seen"
+      
+      - match_group: "cluster_uuid"
+        extraction_fn: "direct_mapping"
+        target_field: "cluster_uuid"
+    
+    entity_action:
+      action_type: "CREATE_CORE"
+      entity_type: "Cluster"
+      unique_keys: ["cluster_uuid"]
+      attributes:
+        cluster_uuid: "{cluster_uuid}"
+        first_seen: "{first_seen}"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["cluster_uuid"]
+      - rule: "pattern_match"
+        field: "cluster_uuid"
+        pattern: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+
+  # --------------------------------------------------------------------------
+  # Node Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "node_server_synced"
+    entity_target: "Node"
+    description: "Extracts node name from 'Server X synced with group' message"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+synced\s+with\s+group'
+    
+    context: LOCAL
+    confidence: 0.98
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "first_seen"
+      
+      - match_group: "node_name"
+        extraction_fn: "direct_mapping"
+        target_field: "node_name"
+      
+      - computed: true
+        source: "log_file_path"
+        extraction_fn: "direct_mapping"
+        target_field: "log_source"
+    
+    entity_action:
+      action_type: "CREATE_CORE"
+      entity_type: "Node"
+      unique_keys: ["node_name"]
+      attributes:
+        node_name: "{node_name}"
+        first_seen: "{first_seen}"
+        log_source: "{log_source}"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["node_name"]
+
+  - pattern_id: "node_uuid_detection"
+    entity_target: "Node"
+    description: "Extracts node UUID from 'My UUID' message"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*My UUID:\s+(?P<node_uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+    
+    context: LOCAL
+    confidence: 0.99
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "first_seen"
+      
+      - match_group: "node_uuid"
+        extraction_fn: "direct_mapping"
+        target_field: "node_uuid"
+      
+      - computed: true
+        source: "log_file_path"
+        extraction_fn: "direct_mapping"
+        target_field: "log_source"
+    
+    entity_action:
+      action_type: "CREATE_CORE"
+      entity_type: "Node"
+      unique_keys: ["node_uuid"]
+      attributes:
+        node_uuid: "{node_uuid}"
+        first_seen: "{first_seen}"
+        log_source: "{log_source}"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["node_uuid"]
+      - rule: "pattern_match"
+        field: "node_uuid"
+        pattern: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+
+  - pattern_id: "node_connected_to_cluster"
+    entity_target: "Node"
+    description: "Extracts node name, UUID and cluster connection info"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Server\s+(?P<node_name>[A-Za-z0-9_.-]+)\s+connected\s+to\s+cluster\s+at\s+position\s+(?P<cluster_position>[a-f0-9-]+:\d+)\s+with\s+ID\s+(?P<node_uuid>[a-f0-9-]+)'
+    
+    context: LOCAL
+    confidence: 0.95
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "first_seen"
+      
+      - match_group: "node_name"
+        extraction_fn: "direct_mapping"
+        target_field: "node_name"
+      
+      - match_group: "node_uuid"
+        extraction_fn: "direct_mapping"
+        target_field: "node_uuid"
+      
+      - computed: true
+        source: "log_file_path"
+        extraction_fn: "direct_mapping"
+        target_field: "log_source"
+    
+    entity_action:
+      action_type: "CREATE_CORE"
+      entity_type: "Node"
+      unique_keys: ["node_uuid"]
+      attributes:
+        node_uuid: "{node_uuid}"
+        node_name: "{node_name}"
+        first_seen: "{first_seen}"
+        log_source: "{log_source}"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["node_name", "node_uuid"]
+
+  - pattern_id: "node_address_info"
+    entity_target: "Node"
+    description: "Enriches node with address information"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:Member|Node)\s+(?P<node_index>\d+)\.(?P<node_id>[a-f0-9-]+)\s+at\s+(?P<node_address>[\d\.]+:\d+)'
+    
+    context: GLOBAL
+    confidence: 0.85
+    
+    extraction_mapping:
+      - match_group: "node_id"
+        extraction_fn: "direct_mapping"
+        target_field: "node_uuid"
+      
+      - match_group: "node_address"
+        extraction_fn: "direct_mapping"
+        target_field: "node_address"
+    
+    entity_action:
+      action_type: "UPDATE_CORE"
+      entity_type: "Node"
+      lookup_keys: ["node_uuid"]
+      attributes:
+        node_address: "{node_address}"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["node_uuid", "node_address"]
+
+# ==============================================================================
+# TEMPORAL ENTITY PATTERNS
+# Patterns that create time-based events
+# ==============================================================================
+
+temporal_patterns:
+
+  # --------------------------------------------------------------------------
+  # Node State Change Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "node_state_transition"
+    entity_target: "NodeStateChange"
+    description: "Captures node state transitions"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?P<node_uuid>[a-f0-9-]+)\s+state\s+change:\s+(?P<from_state>[\w/]+)\s+->\s+(?P<to_state>[\w/]+)'
+    
+    context: LOCAL
+    confidence: 0.95
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "timestamp"
+      
+      - match_group: "node_uuid"
+        extraction_fn: "direct_mapping"
+        target_field: "node_uuid"
+      
+      - match_group: "from_state"
+        extraction_fn: "transform"
+        transform: "normalize_state"
+        target_field: "from_state"
+      
+      - match_group: "to_state"
+        extraction_fn: "transform"
+        transform: "normalize_state"
+        target_field: "to_state"
+      
+      - computed: true
+        source: "current_line"
+        extraction_fn: "direct_mapping"
+        target_field: "log_line"
+      
+      - computed: true
+        source: "line_number"
+        extraction_fn: "direct_mapping"
+        target_field: "line_number"
+    
+    entity_action:
+      action_type: "CREATE_TEMPORAL"
+      entity_type: "NodeStateChange"
+      parent_refs:
+        - entity_type: "Node"
+          foreign_key: "node_uuid"
+          source_field: "node_uuid"
+          auto_create_parent: true
+          parent_attributes:
+            node_uuid: "{node_uuid}"
+            first_seen: "{timestamp}"
+            log_source: "{log_file_path}"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["timestamp", "node_uuid", "to_state"]
+      - rule: "enum_check"
+        field: "to_state"
+        allowed_values: ["OPEN", "PRIMARY", "JOINER", "JOINED", "SYNCED", "DONOR", "DESYNCED", "DESTROYED", "CLOSED", "UNKNOWN"]
+
+  # --------------------------------------------------------------------------
+  # Cluster View Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "cluster_view_change"
+    entity_target: "ClusterView"
+    description: "Captures cluster view changes with member list"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+(?:New cluster view|VIEW):\s*(?:primary|non-primary)?\s*\(\s*(?P<view_id>[a-f0-9-]+:\d+),\s*member\(s\)\s*=\s*(?P<member_count>\d+),\s*joined\s*=\s*\d+,\s*left\s*=\s*\d+,\s*partitioned\s*=\s*\d+\s*\)'
+    
+    context: GLOBAL
+    confidence: 0.90
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "timestamp"
+      
+      - match_group: "view_id"
+        extraction_fn: "direct_mapping"
+        target_field: "view_id"
+      
+      - match_group: "view_id"
+        extraction_fn: "transform"
+        transform: "extract_seqno_from_view_id"
+        target_field: "view_seqno"
+      
+      - match_group: "member_count"
+        extraction_fn: "transform"
+        transform: "parse_int"
+        target_field: "member_count"
+      
+      - computed: true
+        source: "current_line"
+        extraction_fn: "direct_mapping"
+        target_field: "log_line"
+      
+      - computed: true
+        source: "line_number"
+        extraction_fn: "direct_mapping"
+        target_field: "line_number"
+      
+      - computed: true
+        source: "next_lines"
+        extraction_fn: "extract_member_list"
+        target_field: "member_uuids"
+        note: "Requires looking ahead to parse member list"
+    
+    entity_action:
+      action_type: "CREATE_TEMPORAL"
+      entity_type: "ClusterView"
+      parent_refs:
+        - entity_type: "Cluster"
+          foreign_key: "cluster_uuid"
+          source_field: "view_id"
+          extract_from_field: true
+          extraction: "uuid_part_of_view_id"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["timestamp", "view_id", "member_count", "member_uuids"]
+      - rule: "pattern_match"
+        field: "view_id"
+        pattern: "^[a-f0-9-]+:\\d+$"
+
+  # --------------------------------------------------------------------------
+  # State Transfer Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "sst_request"
+    entity_target: "StateTransfer"
+    description: "Captures SST request initiation"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:\s+Requesting\s+(?:state transfer|SST):\s*(?P<method>\w+)'
+    
+    context: LOCAL
+    confidence: 0.92
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "timestamp"
+      
+      - match_group: "method"
+        extraction_fn: "transform"
+        transform: "to_lowercase"
+        target_field: "transfer_method"
+      
+      - constant: "SST"
+        target_field: "transfer_type"
+      
+      - constant: "STARTED"
+        target_field: "status"
+      
+      - computed: true
+        source: "local_node_uuid"
+        extraction_fn: "direct_mapping"
+        target_field: "joiner_uuid"
+      
+      - computed: true
+        source: "current_line"
+        extraction_fn: "direct_mapping"
+        target_field: "log_line"
+    
+    entity_action:
+      action_type: "CREATE_TEMPORAL"
+      entity_type: "StateTransfer"
+      parent_refs:
+        - entity_type: "Node"
+          foreign_key: "joiner_uuid"
+          source_field: "joiner_uuid"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["timestamp", "transfer_type", "joiner_uuid"]
+      - rule: "enum_check"
+        field: "transfer_method"
+        allowed_values: ["rsync", "mysqldump", "xtrabackup", "mariabackup", "clone"]
+
+  - pattern_id: "sst_donor_selected"
+    entity_target: "StateTransfer"
+    description: "Updates SST with donor information"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*Donor:\s+(?P<donor_uuid>[a-f0-9-]+)'
+    
+    context: LOCAL
+    confidence: 0.88
+    
+    extraction_mapping:
+      - match_group: "donor_uuid"
+        extraction_fn: "direct_mapping"
+        target_field: "donor_uuid"
+    
+    entity_action:
+      action_type: "UPDATE_TEMPORAL"
+      entity_type: "StateTransfer"
+      lookup_keys: ["joiner_uuid", "status=STARTED"]
+      attributes:
+        donor_uuid: "{donor_uuid}"
+        status: "IN_PROGRESS"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["donor_uuid"]
+
+  - pattern_id: "sst_completed"
+    entity_target: "StateTransfer"
+    description: "Marks SST as completed"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*SST\s+complete,\s+seqno:\s*(?P<end_seqno>\d+)'
+    
+    context: LOCAL
+    confidence: 0.95
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "completion_time"
+      
+      - match_group: "end_seqno"
+        extraction_fn: "transform"
+        transform: "parse_int"
+        target_field: "end_seqno"
+    
+    entity_action:
+      action_type: "UPDATE_TEMPORAL"
+      entity_type: "StateTransfer"
+      lookup_keys: ["joiner_uuid", "status=IN_PROGRESS"]
+      attributes:
+        status: "COMPLETED"
+        end_seqno: "{end_seqno}"
+      computed_fields:
+        duration_seconds: "compute_duration(start_timestamp, completion_time)"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["end_seqno"]
+
+  # --------------------------------------------------------------------------
+  # Quorum Event Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "quorum_lost"
+    entity_target: "QuorumEvent"
+    description: "Detects quorum loss events"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[(?P<level>\w+)\]\s+WSREP:.*(?:quorum lost|non-primary view)'
+    
+    context: GLOBAL
+    confidence: 0.98
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "timestamp"
+      
+      - constant: "QUORUM_LOST"
+        target_field: "event_type"
+      
+      - constant: false
+        target_field: "quorum_status"
+      
+      - computed: true
+        source: "current_line"
+        extraction_fn: "direct_mapping"
+        target_field: "log_line"
+    
+    entity_action:
+      action_type: "CREATE_TEMPORAL"
+      entity_type: "QuorumEvent"
+      parent_refs:
+        - entity_type: "Cluster"
+          foreign_key: "cluster_uuid"
+          source_field: "cluster_uuid"
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["timestamp", "event_type", "quorum_status"]
+
+  # --------------------------------------------------------------------------
+  # Error Event Patterns
+  # --------------------------------------------------------------------------
+  
+  - pattern_id: "generic_error"
+    entity_target: "ErrorEvent"
+    description: "Captures general error messages"
+    
+    regex: '(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[ERROR\]\s+WSREP:\s+(?P<error_message>.*)'
+    
+    context: LOCAL
+    confidence: 0.75
+    
+    extraction_mapping:
+      - match_group: "timestamp"
+        extraction_fn: "transform"
+        transform: "parse_datetime"
+        target_field: "timestamp"
+      
+      - match_group: "error_message"
+        extraction_fn: "direct_mapping"
+        target_field: "error_message"
+      
+      - constant: "ERROR"
+        target_field: "severity"
+      
+      - constant: "UNKNOWN"
+        target_field: "error_type"
+      
+      - computed: true
+        source: "error_message"
+        extraction_fn: "classify_error_type"
+        target_field: "error_type"
+      
+      - computed: true
+        source: "current_line"
+        extraction_fn: "direct_mapping"
+        target_field: "log_line"
+    
+    entity_action:
+      action_type: "CREATE_TEMPORAL"
+      entity_type: "ErrorEvent"
+      parent_refs:
+        - entity_type: "Node"
+          foreign_key: "node_uuid"
+          source_field: "node_uuid"
+          optional: true
+    
+    validation_rules:
+      - rule: "required_fields"
+        fields: ["timestamp", "error_message", "severity"]
+
+# ==============================================================================
+# PATTERN METADATA
+# ==============================================================================
+
+metadata:
+  total_patterns: 15
+  core_patterns: 5
+  temporal_patterns: 10
+  coverage:
+    - Cluster identification
+    - Node discovery and enrichment
+    - State transitions
+    - Cluster views
+    - State transfers (SST/IST)
+    - Quorum events
+    - Error tracking

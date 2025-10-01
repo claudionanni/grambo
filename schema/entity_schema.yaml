@@ -1,0 +1,473 @@
+# Grambo Entity Schema Definition
+# This file defines the complete entity model including:
+# - CORE entities (immutable base entities)
+# - TEMPORAL entities (time-based entities linked to CORE entities)
+# - Relationships between entities
+# - Attributes and their types
+
+version: "1.0.0"
+schema_type: "entity_definition"
+description: "Complete entity schema for Galera cluster log analysis"
+
+# ==============================================================================
+# CORE ENTITIES
+# These are immutable entities that represent the foundational structure
+# of the cluster. They are created once and persist throughout the timeline.
+# ==============================================================================
+
+core_entities:
+  
+  Cluster:
+    description: "Represents a Galera cluster"
+    immutable: true
+    unique_keys:
+      - cluster_uuid
+    attributes:
+      cluster_uuid:
+        type: string
+        required: true
+        description: "Unique identifier for the cluster"
+        pattern: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+      cluster_name:
+        type: string
+        required: false
+        description: "Human-readable cluster name"
+      first_seen:
+        type: datetime
+        required: true
+        description: "When cluster was first detected in logs"
+      galera_version:
+        type: string
+        required: false
+        description: "Galera version (e.g., 26.4.14)"
+      wsrep_version:
+        type: string
+        required: false
+        description: "WSREP protocol version"
+    relationships:
+      - type: has_many
+        target: Node
+        description: "A cluster contains multiple nodes"
+
+  Node:
+    description: "Represents a cluster node (server)"
+    immutable: true
+    unique_keys:
+      - node_uuid
+      - [node_name, cluster_uuid]  # Composite key
+    attributes:
+      node_uuid:
+        type: string
+        required: true
+        description: "Short or long UUID for the node"
+        pattern: "^[a-f0-9-]+$"
+      node_name:
+        type: string
+        required: false
+        description: "Human-readable node name (hostname)"
+      node_address:
+        type: string
+        required: false
+        description: "Network address (IP:port)"
+        pattern: "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+$"
+      log_source:
+        type: string
+        required: true
+        description: "Path to log file where node was discovered"
+      first_seen:
+        type: datetime
+        required: true
+        description: "When node was first detected"
+      mariadb_version:
+        type: string
+        required: false
+        description: "MariaDB/MySQL version"
+      galera_version:
+        type: string
+        required: false
+        description: "Galera library version"
+      uuid_aliases:
+        type: array[string]
+        required: false
+        description: "Alternative UUIDs seen for this node (short/long forms)"
+    relationships:
+      - type: belongs_to
+        target: Cluster
+        foreign_key: cluster_uuid
+        description: "Node belongs to a cluster"
+      - type: has_many
+        target: NodeStateChange
+        description: "Node has multiple state changes over time"
+      - type: has_many
+        target: StateTransfer
+        as: donor
+        description: "Node acts as donor in state transfers"
+      - type: has_many
+        target: StateTransfer
+        as: joiner
+        description: "Node acts as joiner in state transfers"
+
+# ==============================================================================
+# TEMPORAL ENTITIES
+# These entities represent time-based events and state changes that reference
+# CORE entities. They track evolution of the cluster over time.
+# ==============================================================================
+
+temporal_entities:
+
+  NodeStateChange:
+    description: "Records a node state transition at a specific time"
+    entity_type: EVENT
+    time_series: true
+    attributes:
+      timestamp:
+        type: datetime
+        required: true
+        description: "When the state change occurred"
+      from_state:
+        type: enum
+        required: false
+        description: "Previous state"
+        values: [OPEN, PRIMARY, JOINER, JOINED, SYNCED, DONOR, DESYNCED, DESTROYED, CLOSED, UNKNOWN]
+      to_state:
+        type: enum
+        required: true
+        description: "New state"
+        values: [OPEN, PRIMARY, JOINER, JOINED, SYNCED, DONOR, DESYNCED, DESTROYED, CLOSED, UNKNOWN]
+      log_line:
+        type: string
+        required: false
+        description: "Original log line"
+      line_number:
+        type: integer
+        required: false
+        description: "Line number in log file"
+      confidence:
+        type: float
+        required: false
+        default: 1.0
+        description: "Extraction confidence (0.0-1.0)"
+    relationships:
+      - type: belongs_to
+        target: Node
+        foreign_key: node_uuid
+        required: true
+        description: "State change belongs to a node"
+
+  ClusterView:
+    description: "Records cluster membership view at a specific time"
+    entity_type: EVENT
+    time_series: true
+    attributes:
+      timestamp:
+        type: datetime
+        required: true
+        description: "When the view was established"
+      view_id:
+        type: string
+        required: true
+        description: "Unique view identifier (UUID:seqno)"
+        pattern: "^[a-f0-9-]+:\\d+$"
+      view_seqno:
+        type: integer
+        required: false
+        description: "Sequence number for this view"
+      member_count:
+        type: integer
+        required: true
+        description: "Number of members in this view"
+      member_uuids:
+        type: array[string]
+        required: true
+        description: "List of node UUIDs in this view"
+      primary_view:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether this is a PRIMARY view"
+      log_line:
+        type: string
+        required: false
+      line_number:
+        type: integer
+        required: false
+    relationships:
+      - type: belongs_to
+        target: Cluster
+        foreign_key: cluster_uuid
+        required: true
+        description: "View belongs to a cluster"
+      - type: references_many
+        target: Node
+        through: member_uuids
+        description: "View contains multiple nodes"
+
+  StateTransfer:
+    description: "Records SST or IST operation between nodes"
+    entity_type: EVENT
+    time_series: true
+    attributes:
+      timestamp:
+        type: datetime
+        required: true
+        description: "When transfer started"
+      transfer_type:
+        type: enum
+        required: true
+        description: "Type of state transfer"
+        values: [SST, IST]
+      transfer_method:
+        type: enum
+        required: false
+        description: "Method used for transfer"
+        values: [rsync, mysqldump, xtrabackup, mariabackup, clone]
+      status:
+        type: enum
+        required: false
+        description: "Transfer status"
+        values: [STARTED, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
+      donor_uuid:
+        type: string
+        required: false
+        description: "UUID of donor node"
+      joiner_uuid:
+        type: string
+        required: true
+        description: "UUID of joiner node"
+      start_seqno:
+        type: integer
+        required: false
+        description: "Starting sequence number"
+      end_seqno:
+        type: integer
+        required: false
+        description: "Ending sequence number"
+      duration_seconds:
+        type: float
+        required: false
+        description: "Duration in seconds"
+      bytes_transferred:
+        type: integer
+        required: false
+        description: "Bytes transferred"
+      error_message:
+        type: string
+        required: false
+        description: "Error message if failed"
+      log_line:
+        type: string
+        required: false
+      line_number:
+        type: integer
+        required: false
+    relationships:
+      - type: belongs_to
+        target: Node
+        foreign_key: joiner_uuid
+        required: true
+        description: "Transfer belongs to joiner node"
+      - type: references
+        target: Node
+        foreign_key: donor_uuid
+        required: false
+        description: "Transfer references donor node"
+
+  QuorumEvent:
+    description: "Records quorum loss or restoration events"
+    entity_type: EVENT
+    time_series: true
+    attributes:
+      timestamp:
+        type: datetime
+        required: true
+        description: "When the quorum event occurred"
+      event_type:
+        type: enum
+        required: true
+        description: "Type of quorum event"
+        values: [QUORUM_LOST, QUORUM_RESTORED, NON_PRIMARY_VIEW, PRIMARY_VIEW_ESTABLISHED]
+      quorum_status:
+        type: boolean
+        required: true
+        description: "Whether quorum is present"
+      member_count:
+        type: integer
+        required: false
+        description: "Number of members visible"
+      required_count:
+        type: integer
+        required: false
+        description: "Required members for quorum"
+      log_line:
+        type: string
+        required: false
+      line_number:
+        type: integer
+        required: false
+    relationships:
+      - type: belongs_to
+        target: Cluster
+        foreign_key: cluster_uuid
+        required: true
+        description: "Quorum event belongs to cluster"
+
+  ErrorEvent:
+    description: "Records error events in the cluster"
+    entity_type: EVENT
+    time_series: true
+    attributes:
+      timestamp:
+        type: datetime
+        required: true
+        description: "When the error occurred"
+      error_type:
+        type: enum
+        required: true
+        description: "Category of error"
+        values: [NETWORK, REPLICATION, STATE_TRANSFER, CERTIFICATION, FLOW_CONTROL, AUTHENTICATION, CONFIGURATION, UNKNOWN]
+      severity:
+        type: enum
+        required: true
+        description: "Error severity"
+        values: [ERROR, WARNING, CRITICAL]
+      error_code:
+        type: string
+        required: false
+        description: "Error code if available"
+      error_message:
+        type: string
+        required: true
+        description: "Error message"
+      context:
+        type: string
+        required: false
+        description: "Additional context"
+      log_line:
+        type: string
+        required: false
+      line_number:
+        type: integer
+        required: false
+    relationships:
+      - type: belongs_to
+        target: Node
+        foreign_key: node_uuid
+        required: false
+        description: "Error may be associated with a node"
+      - type: belongs_to
+        target: Cluster
+        foreign_key: cluster_uuid
+        required: false
+        description: "Error may be associated with a cluster"
+
+  FlowControlEvent:
+    description: "Records flow control events affecting replication"
+    entity_type: EVENT
+    time_series: true
+    attributes:
+      timestamp:
+        type: datetime
+        required: true
+        description: "When flow control was triggered"
+      event_type:
+        type: enum
+        required: true
+        description: "Type of flow control event"
+        values: [FC_PAUSED, FC_RESUMED, FC_SENT, FC_RECEIVED]
+      pause_duration:
+        type: float
+        required: false
+        description: "Pause duration in seconds"
+      queue_size:
+        type: integer
+        required: false
+        description: "Replication queue size"
+      log_line:
+        type: string
+        required: false
+      line_number:
+        type: integer
+        required: false
+    relationships:
+      - type: belongs_to
+        target: Node
+        foreign_key: node_uuid
+        required: true
+        description: "Flow control event belongs to a node"
+
+# ==============================================================================
+# ENTITY LIFECYCLE RULES
+# Define rules for entity creation, updates, and relationships
+# ==============================================================================
+
+lifecycle_rules:
+  
+  Cluster:
+    creation:
+      trigger: "First cluster_uuid detection"
+      idempotent: true
+      deduplication_keys: [cluster_uuid]
+    
+  Node:
+    creation:
+      trigger: "First node_uuid detection or node_name with cluster context"
+      idempotent: true
+      deduplication_keys: [node_uuid, [node_name, cluster_uuid]]
+    uuid_merging:
+      description: "Merge short and long UUIDs for same node"
+      strategy: "Track in uuid_aliases array"
+    
+  NodeStateChange:
+    creation:
+      trigger: "Every state transition pattern match"
+      idempotent: false
+      requires_parent: [Node]
+    validation:
+      - rule: "from_state should be chronologically before to_state"
+      - rule: "timestamp must be monotonically increasing for same node"
+  
+  ClusterView:
+    creation:
+      trigger: "View change message"
+      idempotent: false
+      requires_parent: [Cluster]
+    validation:
+      - rule: "All member_uuids should reference existing Nodes"
+      - rule: "view_seqno should increase over time"
+  
+  StateTransfer:
+    creation:
+      trigger: "SST/IST start message"
+      idempotent: false
+      requires_parent: [Node]
+    updates:
+      - trigger: "SST/IST progress messages"
+        fields: [status, bytes_transferred]
+      - trigger: "SST/IST completion messages"
+        fields: [status, end_seqno, duration_seconds]
+
+# ==============================================================================
+# DATA TYPES REGISTRY
+# Define custom data types and validation rules
+# ==============================================================================
+
+data_types:
+  uuid:
+    base_type: string
+    pattern: "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$|^[a-f0-9]+$"
+    description: "UUID in full or short format"
+  
+  ipv4_port:
+    base_type: string
+    pattern: "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+$"
+    description: "IPv4 address with port"
+  
+  seqno:
+    base_type: integer
+    min: 0
+    description: "Galera sequence number"
+  
+  view_id:
+    base_type: string
+    pattern: "^[a-f0-9-]+:\\d+$"
+    description: "View identifier (UUID:seqno format)"
