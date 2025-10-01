@@ -265,14 +265,26 @@ def load_frames():
 
 def load_frames_from_file(path):
     with open(path, 'r') as f:
+        # Check if this is NDJSON by looking at the first line
+        first_line = f.readline().strip()
+        f.seek(0)  # Reset to beginning
         content = f.read()
-        if content.strip().startswith('{'):
+        
+        # If first line is a complete JSON object and content has newlines, it's NDJSON
+        if first_line.startswith('{') and '\n' in content.strip():
+            try:
+                # Try parsing first line as JSON to confirm NDJSON format
+                json.loads(first_line)
+                # NDJSON format - each line is a frame
+                frames = [json.loads(line) for line in content.splitlines() if line.strip()]
+            except:
+                # Fall back to single JSON object
+                data = json.loads(content)
+                frames = data.get('frames', [])
+        else:
             # Single JSON object with frames array
             data = json.loads(content)
             frames = data.get('frames', [])
-        else:
-            # JSONL format - each line is a frame
-            frames = [json.loads(line) for line in content.splitlines() if line.strip()]
         return propagate_node_states(frames)
 
 if __name__ == '__main__':
