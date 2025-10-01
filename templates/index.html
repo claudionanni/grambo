@@ -44,7 +44,7 @@
             letter-spacing: 0.3px;
         }
         .board-wrapper {
-            padding: 2em 4vw 2em; /* Reduced bottom padding */
+            padding: 2em 4vw 18em; /* Extra bottom padding for inspector panel */
             min-height: calc(100% - 4em); /* Ensure full height usage */
         }
         .frame-meta {
@@ -1706,8 +1706,22 @@
                             clusterData.node_views.forEach(({key, props}) => {
                                 const nodeName = props.node_name || key.replace('node_view:', '');
                                 
-                                block += `<div style="margin-bottom: 1em; margin-left: 1em; border-left: 2px solid #444; padding-left: 1em;">`;
-                                block += `<div class="entity-block"><span class="entity-label accent-node">Node:</span> <span class="entity-value">${escapeHtml(nodeName)}</span></div>`;
+                                // Check if this view is NON-PRIMARY
+                                const status = props.status || props.cluster_state || props.view_status || '';
+                                const isNonPrimary = status.toUpperCase().includes('NON') || status.toUpperCase().includes('NON_PRIM');
+                                
+                                // Use red border for NON-PRIMARY views
+                                const borderColor = isNonPrimary ? '#e53935' : '#444';
+                                const borderStyle = isNonPrimary ? '3px solid' : '2px solid';
+                                
+                                block += `<div style="margin-bottom: 1em; margin-left: 1em; border-left: ${borderStyle} ${borderColor}; padding-left: 1em;">`;
+                                block += `<div class="entity-block"><span class="entity-label accent-node">Node:</span> <span class="entity-value">${escapeHtml(nodeName)}</span>`;
+                                
+                                // Add NON-PRIMARY badge if applicable
+                                if (isNonPrimary) {
+                                    block += ` <span style="background: #e53935; color: white; padding: 0.1em 0.4em; border-radius: 3px; font-size: 0.75em; font-weight: bold; margin-left: 0.5em;">⚠ NON-PRIMARY</span>`;
+                                }
+                                block += `</div>`;
                                 
                                 // Display key view fields (excluding view_id since we have group_uuid and view_seq)
                                 const customViewFields = ['group_uuid', 'view_seq', 'status', 'cluster_state', 'member_count', 'own_index', 'members'];
@@ -1738,9 +1752,9 @@
                     const quorumDiv = document.getElementById('quorum-section');
                     quorumDiv.innerHTML = '';
                     const quorumEntities = Object.entries(entities).filter(([key]) => key.startsWith('quorum:'));
-                    const quorumFields = ['component', 'conf_id', 'group_uuid', 'last_appl', 'protocols', 'quorum_members', 'version', 'vote_policy'];
+                    const quorumFields = ['timestamp', 'event_type', 'event_text', 'quorum_status', 'severity'];
                     if (quorumEntities.length === 0) {
-                        quorumDiv.innerHTML = `<div class="empty-state">No quorum data for this frame</div>`;
+                        quorumDiv.innerHTML = `<div class="empty-state">No quorum events in this frame</div>`;
                     } else {
                         quorumEntities.forEach(([entKey, props]) => {
                             let block = '<div class="entity-block-group">';

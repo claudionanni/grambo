@@ -751,26 +751,25 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         quorum_section = None
         quorum_sm = state_machine.get("quorum", {})
         best_ts = None
+        
+        # Try to match quorum to cluster by group_uuid, cluster_uuid, or cluster_ref
         for ck in cluster_keys:
             c = frame_clusters[ck]
             for qk in [c.get("group_uuid"), c.get("cluster_uuid"), ck]:
                 if qk and qk in quorum_sm:
                     qent = quorum_sm[qk]
-                    qts = qent.get("timestamp")
-                    if qts:
+                    qts = parse_iso(qent.get("timestamp"))
+                    if qts and ts and qts <= ts:
                         if best_ts is None or (qts > best_ts):
                             quorum_section = qent
                             best_ts = qts
-        # If no timestamped quorum found, fallback to any match
-        if quorum_section is None:
-            for ck in cluster_keys:
-                c = frame_clusters[ck]
-                for qk in [c.get("group_uuid"), c.get("cluster_uuid"), ck]:
-                    if qk and qk in quorum_sm:
-                        quorum_section = quorum_sm[qk]
-                        break
-                if quorum_section:
-                    break
+        
+        # If no timestamped quorum found, check for default key
+        if quorum_section is None and "_default" in quorum_sm:
+            qent = quorum_sm["_default"]
+            qts = parse_iso(qent.get("timestamp"))
+            if qts and ts and qts <= ts:
+                quorum_section = qent
 
         hotspots: Dict[str, Any] = {}
 
@@ -823,6 +822,29 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         node_component_non_primary: List[Dict[str, Any]] = []
         node_non_member_seen: Set[Tuple[str, Optional[str], Optional[str]]] = set()
         node_comp_seen: Set[Tuple[str, Optional[str]]] = set()
+        
+        # Check wsrep views for NON-PRIMARY status (node-level)
+        for node_key, wsrep_view in frame_node_views.items():
+            display_name = wsrep_view.get("node_name") or node_key
+            state_candidate = (
+                wsrep_view.get("status")
+                or wsrep_view.get("cluster_state")
+                or wsrep_view.get("view_status")
+            )
+            state_norm = _normalize_cluster_state(state_candidate)
+            if state_norm == "NON_PRIM":
+                sig = (display_name, wsrep_view.get("view_id") or str(wsrep_view.get("view_seq")))
+                if sig not in node_comp_seen:
+                    node_comp_seen.add(sig)
+                    node_component_non_primary.append({
+                        "node": display_name,
+                        "component_state": state_norm,
+                        "view_id": wsrep_view.get("view_id"),
+                        "view_seq": wsrep_view.get("view_seq"),
+                        "layer": "wsrep_view"
+                    })
+        
+        # Check gcomm views (legacy - from node state)
         for node_key, node_state in frame_nodes.items():
             gcomm = node_state.get("gcomm_view") or {}
             if not gcomm:
