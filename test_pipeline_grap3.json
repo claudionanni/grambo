@@ -1,9 +1,6 @@
-[GRAP] Processing 3 file(s)...
-[GRAP] Sorting 859 entities chronologically across 3 files
-[GRAP] Adding per-timestamp indices for deterministic frame ordering
 {
   "grap_version": "v3.0.0-alpha",
-  "extraction_time": "2025-10-01T12:38:34.550911",
+  "extraction_time": "2025-10-01T14:13:06.542125",
   "total_entities": 859,
   "entities": [
     {
@@ -128,7 +125,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "d9c6d6f5-abb6",
+      "cluster_ref": "cluster_d9c6d6f5"
     },
     {
       "entity_type": "node_state",
@@ -186,6 +185,7 @@
       "view_seq": 1,
       "view_id": "d9c70dcb-97e3-11f0-b2ad-4f637476a656:1",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -246,6 +246,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 0
     },
     {
@@ -276,6 +279,7 @@
       "view_seq": 2,
       "view_id": "d9c70dcb-97e3-11f0-b2ad-4f637476a656:2",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -351,7 +355,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "7a30da88-aef8",
+      "cluster_ref": "cluster_7a30da88"
     },
     {
       "entity_type": "node_state",
@@ -415,6 +421,7 @@
       "view_seq": 3,
       "view_id": "d9c70dcb-97e3-11f0-b2ad-4f637476a656:3",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -502,7 +509,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "7a30da88-aef9",
+      "cluster_ref": "cluster_7a30da88"
     },
     {
       "entity_type": "node_state",
@@ -566,6 +575,7 @@
       "view_seq": 4,
       "view_id": "d9c70dcb-97e3-11f0-b2ad-4f637476a656:4",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -685,7 +695,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "89c65b64-87c2",
+      "cluster_ref": "cluster_89c65b64"
     },
     {
       "entity_type": "node_state",
@@ -749,6 +761,7 @@
       "view_seq": 1,
       "view_id": "89c68fa5-97f2-11f0-a9b5-ea9f686adb7f:1",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -868,7 +881,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "89c65b64-87c3",
+      "cluster_ref": "cluster_89c65b64"
     },
     {
       "entity_type": "node_state",
@@ -932,6 +947,7 @@
       "view_seq": 1,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1005,7 +1021,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "01072cd7-b1d4",
+      "cluster_ref": "cluster_01072cd7"
     },
     {
       "entity_type": "wsrep_view",
@@ -1018,6 +1036,7 @@
       "view_seq": 2,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:2",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1232,7 +1251,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "89c65b64-87c3",
+      "cluster_ref": "cluster_89c65b64"
     },
     {
       "entity_type": "wsrep_view",
@@ -1245,6 +1266,7 @@
       "view_seq": 3,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:3",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1305,6 +1327,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 0
     },
     {
@@ -1335,6 +1360,7 @@
       "view_seq": 3,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:3",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1410,7 +1436,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -1474,6 +1502,7 @@
       "view_seq": 4,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:4",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1547,7 +1576,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -1560,6 +1591,7 @@
       "view_seq": 5,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:5",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1774,7 +1806,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -1787,6 +1821,7 @@
       "view_seq": 6,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:6",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -1860,7 +1895,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -1873,6 +1910,7 @@
       "view_seq": 9,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:9",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2023,7 +2061,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -2036,6 +2076,7 @@
       "view_seq": 10,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:10",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2196,7 +2237,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -2232,7 +2275,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -2245,6 +2290,7 @@
       "view_seq": 10,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:10",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2299,6 +2345,7 @@
       "view_seq": 10,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:10",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2374,7 +2421,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -2387,6 +2436,7 @@
       "view_seq": 11,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:11",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2480,7 +2530,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -2493,6 +2545,7 @@
       "view_seq": 12,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:12",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2576,7 +2629,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "01df0404-a8e2",
+      "cluster_ref": "cluster_01df0404"
     },
     {
       "entity_type": "wsrep_view",
@@ -2589,6 +2644,7 @@
       "view_seq": 13,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:13",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2749,7 +2805,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -2762,6 +2820,7 @@
       "view_seq": 14,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:14",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -2845,7 +2904,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "37914f28-8155",
+      "cluster_ref": "cluster_37914f28"
     },
     {
       "entity_type": "wsrep_view",
@@ -2858,6 +2919,7 @@
       "view_seq": 15,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:15",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3018,7 +3080,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -3031,6 +3095,7 @@
       "view_seq": 16,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:16",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3114,7 +3179,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -3127,6 +3194,7 @@
       "view_seq": 17,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:17",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3335,7 +3403,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -3371,7 +3441,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -3401,6 +3473,7 @@
       "view_seq": 17,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:17",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3471,6 +3544,7 @@
       "view_seq": 17,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:17",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3724,7 +3798,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -3737,6 +3813,7 @@
       "view_seq": 17,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:17",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3836,7 +3913,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -3866,6 +3945,7 @@
       "view_seq": 18,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:18",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -3959,7 +4039,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -3995,7 +4077,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -4008,6 +4092,7 @@
       "view_seq": 18,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:18",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4062,6 +4147,7 @@
       "view_seq": 18,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:18",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4137,7 +4223,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -4150,6 +4238,7 @@
       "view_seq": 19,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:19",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4307,7 +4396,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -4343,7 +4434,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -4373,6 +4466,7 @@
       "view_seq": 19,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:19",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4443,6 +4537,7 @@
       "view_seq": 19,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:19",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4694,7 +4789,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -4724,6 +4821,7 @@
       "view_seq": 20,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:20",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4817,7 +4915,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -4853,7 +4953,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -4866,6 +4968,7 @@
       "view_seq": 20,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:20",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4920,6 +5023,7 @@
       "view_seq": 20,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:20",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -4995,7 +5099,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5008,6 +5114,7 @@
       "view_seq": 21,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:21",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5101,7 +5208,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5114,6 +5223,7 @@
       "view_seq": 41831,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:41831",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5197,7 +5307,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5210,6 +5322,7 @@
       "view_seq": 67338,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:67338",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5319,7 +5432,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5332,6 +5447,7 @@
       "view_seq": 739331,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:739331",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5415,7 +5531,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5428,6 +5546,7 @@
       "view_seq": 793238,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:793238",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5652,7 +5771,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5665,6 +5786,7 @@
       "view_seq": 904041,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:904041",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5764,7 +5886,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -5777,6 +5901,7 @@
       "view_seq": 998316,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:998316",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -5901,7 +6026,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -6127,7 +6254,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -6140,6 +6269,7 @@
       "view_seq": 1030551,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1030551",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -6225,7 +6355,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -6244,6 +6376,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 4
     },
     {
@@ -6291,6 +6426,7 @@
       "view_seq": 1030550,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1030550",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -6361,6 +6497,7 @@
       "view_seq": 1030550,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1030550",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -6440,7 +6577,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "383ebaa7-b484",
+      "cluster_ref": "cluster_383ebaa7"
     },
     {
       "entity_type": "wsrep_view",
@@ -6453,6 +6592,7 @@
       "view_seq": 1041405,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1041405",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -6544,7 +6684,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "383ebaa7-b484",
+      "cluster_ref": "cluster_383ebaa7"
     },
     {
       "entity_type": "node_state",
@@ -6695,6 +6837,7 @@
       "view_seq": 1030551,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1030551",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -6776,6 +6919,7 @@
       "view_seq": 1041405,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1041405",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -6903,7 +7047,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -6916,6 +7062,7 @@
       "view_seq": 1055183,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1055183",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7001,7 +7148,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "383ebaa7-b484",
+      "cluster_ref": "cluster_383ebaa7"
     },
     {
       "entity_type": "view",
@@ -7020,6 +7169,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 4
     },
     {
@@ -7067,6 +7219,7 @@
       "view_seq": 1055182,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1055182",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7137,6 +7290,7 @@
       "view_seq": 1055182,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1055182",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7216,7 +7370,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -7250,7 +7406,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -7263,6 +7421,7 @@
       "view_seq": 1055184,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1055184",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7471,6 +7630,7 @@
       "view_seq": 1055183,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1055183",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7533,6 +7693,7 @@
       "view_seq": 1055184,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1055184",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7679,7 +7840,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -7692,6 +7855,7 @@
       "view_seq": 1078279,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1078279",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7777,7 +7941,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -7796,6 +7962,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 4
     },
     {
@@ -7843,6 +8012,7 @@
       "view_seq": 1078278,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1078278",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7913,6 +8083,7 @@
       "view_seq": 1078278,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1078278",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -7992,7 +8163,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -8005,6 +8178,7 @@
       "view_seq": 1127403,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1127403",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -8112,7 +8286,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -8247,6 +8423,7 @@
       "view_seq": 1078279,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1078279",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -8328,6 +8505,7 @@
       "view_seq": 1127403,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1127403",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -8551,7 +8729,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -8587,7 +8767,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -8617,6 +8799,7 @@
       "view_seq": 1245639,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245639",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -8687,6 +8870,7 @@
       "view_seq": 1245639,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245639",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -8844,7 +9028,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -8880,7 +9066,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "node_state",
@@ -8910,6 +9098,7 @@
       "view_seq": 1245639,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245639",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -8980,6 +9169,7 @@
       "view_seq": 1245639,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245639",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -9361,7 +9551,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -9374,6 +9566,7 @@
       "view_seq": 1245639,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245639",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -9475,7 +9668,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -9488,6 +9683,7 @@
       "view_seq": 1245639,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245639",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -9587,7 +9783,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -9617,6 +9815,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -9708,7 +9907,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -9738,6 +9939,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -9831,7 +10033,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -9867,7 +10071,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -9880,6 +10086,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -9934,6 +10141,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10011,7 +10219,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -10047,7 +10257,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "wsrep_view",
@@ -10060,6 +10272,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10114,6 +10327,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10191,7 +10405,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "4f28049d-8901",
+      "cluster_ref": "cluster_4f28049d"
     },
     {
       "entity_type": "wsrep_view",
@@ -10204,6 +10420,7 @@
       "view_seq": 1245640,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245640",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10287,7 +10504,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -10300,6 +10519,7 @@
       "view_seq": 1245641,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245641",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10391,7 +10611,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -10404,6 +10626,7 @@
       "view_seq": 1245641,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245641",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10561,7 +10784,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -10597,7 +10822,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -10627,6 +10854,7 @@
       "view_seq": 1245644,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245644",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10697,6 +10925,7 @@
       "view_seq": 1245644,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245644",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10854,7 +11083,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -10890,7 +11121,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "node_state",
@@ -10920,6 +11153,7 @@
       "view_seq": 1245644,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245644",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -10990,6 +11224,7 @@
       "view_seq": 1245644,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245644",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -11369,7 +11604,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -11399,6 +11636,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -11490,7 +11728,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -11520,6 +11760,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -11677,7 +11918,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -11713,7 +11956,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -11743,6 +11988,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -11813,6 +12059,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -11954,7 +12201,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -11990,7 +12239,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "node_state",
@@ -12020,6 +12271,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -12090,6 +12342,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14231,7 +14484,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -14244,6 +14499,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14345,7 +14601,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -14358,6 +14616,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14459,7 +14718,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -14472,6 +14733,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14573,7 +14835,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -14586,6 +14850,7 @@
       "view_seq": 1245645,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245645",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14685,7 +14950,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -14715,6 +14982,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14806,7 +15074,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -14836,6 +15106,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -14993,7 +15264,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -15029,7 +15302,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -15059,6 +15334,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -15129,6 +15405,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -15286,7 +15563,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -15322,7 +15601,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "node_state",
@@ -15352,6 +15633,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -15422,6 +15704,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -15803,7 +16086,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -15816,6 +16101,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -15917,7 +16203,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -15930,6 +16218,7 @@
       "view_seq": 1245646,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245646",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16029,7 +16318,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -16059,6 +16350,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16150,7 +16442,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -16180,6 +16474,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16273,7 +16568,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -16309,7 +16606,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -16322,6 +16621,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16376,6 +16676,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16453,7 +16754,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -16489,7 +16792,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "wsrep_view",
@@ -16502,6 +16807,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16556,6 +16862,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16633,7 +16940,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -16646,6 +16955,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16731,7 +17041,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -16744,6 +17056,7 @@
       "view_seq": 1245647,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245647",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16827,7 +17140,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -16840,6 +17155,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -16931,7 +17247,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -16944,6 +17262,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -17133,7 +17452,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -17169,7 +17490,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -17199,6 +17522,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -17269,6 +17593,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -17426,7 +17751,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -17462,7 +17789,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "node_state",
@@ -17492,6 +17821,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -17562,6 +17892,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -17911,7 +18242,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -17924,6 +18257,7 @@
       "view_seq": 1245648,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245648",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18023,7 +18357,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -18053,6 +18389,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18144,7 +18481,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -18174,6 +18513,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18267,7 +18607,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -18303,7 +18645,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -18316,6 +18660,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18370,6 +18715,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18447,7 +18793,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -18483,7 +18831,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "b9008526-a61b",
+      "cluster_ref": "cluster_b9008526"
     },
     {
       "entity_type": "wsrep_view",
@@ -18496,6 +18846,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18550,6 +18901,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18627,7 +18979,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -18640,6 +18994,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18725,7 +19080,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -18738,6 +19095,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18823,7 +19181,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -18836,6 +19196,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -18921,7 +19282,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -18934,6 +19297,7 @@
       "view_seq": 1245649,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245649",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19017,7 +19381,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -19030,6 +19396,7 @@
       "view_seq": 1245650,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245650",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19121,7 +19488,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -19134,6 +19503,7 @@
       "view_seq": 1245650,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245650",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19227,7 +19597,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -19240,6 +19612,7 @@
       "view_seq": 1245651,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245651",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19325,7 +19698,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "view",
@@ -19344,6 +19719,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 4
     },
     {
@@ -19391,6 +19769,7 @@
       "view_seq": 1245650,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245650",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19461,6 +19840,7 @@
       "view_seq": 1245650,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245650",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19540,7 +19920,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "view",
@@ -19574,7 +19956,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -19587,6 +19971,7 @@
       "view_seq": 1245652,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245652",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19831,7 +20216,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -19844,6 +20231,7 @@
       "view_seq": 1245653,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245653",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -19929,7 +20317,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "ist",
@@ -19980,6 +20370,7 @@
       "view_seq": 1245651,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245651",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -20042,6 +20433,7 @@
       "view_seq": 1245652,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245652",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -20165,6 +20557,7 @@
       "view_seq": 1245653,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245653",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -20248,7 +20641,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "error",
@@ -20298,7 +20693,9 @@
       "log_source": "cl407/error.21407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "view",
@@ -20332,7 +20729,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -20345,6 +20744,7 @@
       "view_seq": 1245654,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245654",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -20515,6 +20915,7 @@
       "view_seq": 1245654,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245654",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21051,7 +21452,9 @@
       "log_source": "cl407/error.21407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -21064,6 +21467,7 @@
       "view_seq": 1245655,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245655",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21149,7 +21553,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -21162,6 +21568,7 @@
       "view_seq": 1245655,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245655",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21247,7 +21654,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "view",
@@ -21283,7 +21692,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -21313,6 +21724,7 @@
       "view_seq": 1245654,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245654",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21383,6 +21795,7 @@
       "view_seq": 1245654,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245654",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21506,7 +21919,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "node_state",
@@ -21624,6 +22039,7 @@
       "view_seq": 1245655,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245655",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21705,6 +22121,7 @@
       "view_seq": 1245656,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245656",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -21830,7 +22247,9 @@
       "log_source": "cl407/error.21407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -21843,6 +22262,7 @@
       "view_seq": 1245656,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245656",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22001,7 +22421,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "wsrep_view",
@@ -22014,6 +22436,7 @@
       "view_seq": 1245656,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245656",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22235,7 +22658,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -22248,6 +22673,7 @@
       "view_seq": 1245657,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245657",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22333,7 +22759,9 @@
       "log_source": "cl407/error.21407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -22346,6 +22774,7 @@
       "view_seq": 1245657,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245657",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22431,7 +22860,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "2c7ff87c-ae9b",
+      "cluster_ref": "cluster_2c7ff87c"
     },
     {
       "entity_type": "view",
@@ -22450,6 +22881,9 @@
       "joined": [],
       "left": [],
       "partitioned": [],
+      "view_uuid": "empty",
+      "view_id": "empty",
+      "cluster_ref": "cluster_empty",
       "timestamp_index": 7
     },
     {
@@ -22497,6 +22931,7 @@
       "view_seq": 1245656,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245656",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22567,6 +23002,7 @@
       "view_seq": 1245656,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245656",
       "status": "NON-PRIMARY",
+      "view_status": "NON_PRIM",
       "cluster_state": "NON_PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22646,7 +23082,9 @@
       "log_source": "cl407/error.11407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -22659,6 +23097,7 @@
       "view_seq": 1245658,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245658",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22750,7 +23189,9 @@
       "log_source": "cl407/error.21407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "wsrep_view",
@@ -22763,6 +23204,7 @@
       "view_seq": 1245658,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245658",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -22854,7 +23296,9 @@
       "log_source": "cl407/error.31407.log",
       "confidence": 0.95,
       "pattern_name": "view_multiline",
-      "extraction_method": "multiline_parse"
+      "extraction_method": "multiline_parse",
+      "cluster_uuid": "3a42f33d-ae74",
+      "cluster_ref": "cluster_3a42f33d"
     },
     {
       "entity_type": "node_state",
@@ -23072,6 +23516,7 @@
       "view_seq": 1245657,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245657",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [
@@ -23134,6 +23579,7 @@
       "view_seq": 1245658,
       "view_id": "a572a681-97f2-11f0-9f63-c7c3a72b2527:1245658",
       "status": "PRIMARY",
+      "view_status": "PRIM",
       "cluster_state": "PRIM",
       "protocol_version": 4,
       "capabilities": [

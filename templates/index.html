@@ -1674,8 +1674,16 @@
                             viewsByCluster[clusterKey][layer] = props;
                         });
                         
+                        // Sort clusters by most recent view timestamp (descending)
+                        const sortedClusters = Object.entries(viewsByCluster).sort((a, b) => {
+                            const timestampA = a[1].wsrep?.timestamp || '';
+                            const timestampB = b[1].wsrep?.timestamp || '';
+                            // Sort descending (most recent first)
+                            return timestampB.localeCompare(timestampA);
+                        });
+                        
                         // Render each cluster's views
-                        for (const [clusterKey, layers] of Object.entries(viewsByCluster)) {
+                        for (const [clusterKey, layers] of sortedClusters) {
                             let block = '<div class="entity-block-group">';
                             block += `<div class="entity-subtitle">${escapeHtml(clusterKey)}</div>`;
                             
@@ -1685,7 +1693,8 @@
                                 block += `<div style="margin-bottom: 1em;">`;
                                 block += `<div class="entity-block"><span class="entity-label accent-view">layer:</span> <span class="entity-value">WSREP</span></div>`;
                                 
-                                const customViewFields = ['status', 'cluster_state', 'view_id', 'view_seq', 'member_count', 'own_index', 'members', 'capabilities'];
+                                // Display key view fields including group_uuid and view_id
+                                const customViewFields = ['group_uuid', 'view_id', 'view_seq', 'status', 'cluster_state', 'member_count', 'own_index', 'members', 'capabilities'];
                                 const metrics = renderPropertyList(wsrepView, customViewFields, 'accent-view');
                                 block += metrics || '';
                                 
@@ -1696,25 +1705,8 @@
                                 block += `</div>`;
                             }
                             
-                            // Render gcomm view layer
-                            if (layers.gcomm) {
-                                const gcommView = layers.gcomm;
-                                block += `<div style="margin-top: ${layers.wsrep ? '1em' : '0'};">`;
-                                block += `<div class="entity-block"><span class="entity-label accent-view">layer:</span> <span class="entity-value">GCOMM</span></div>`;
-                                
-                                const gcommFields = ['cluster_state', 'view_id', 'view_seq', 'member_count', 'members', 'joined', 'left', 'partitioned'];
-                                const gcommMetrics = renderPropertyList(gcommView, gcommFields, 'accent-view');
-                                block += gcommMetrics || '';
-                                
-                                if (gcommView.timestamp) {
-                                    const timestampValue = escapeHtml(formatEntityValue(gcommView.timestamp));
-                                    block += `<div class="entity-block"><span class="entity-label accent-view">view changed:</span> <span class="entity-value">${timestampValue}</span></div>`;
-                                }
-                                block += `</div>`;
-                            }
-                            
-                            if (!layers.wsrep && !layers.gcomm) {
-                                block += `<div class="empty-state">No valid view layers</div>`;
+                            if (!layers.wsrep) {
+                                block += `<div class="empty-state">No view data</div>`;
                             }
                             block += '</div>';
                             viewsDiv.innerHTML += block;
