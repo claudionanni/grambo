@@ -552,32 +552,36 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                          if k not in ("entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source", "cluster_ref")}
             }
             state_machine[et][key].append(timestamped_state)
-        elif et == "view":
+        elif et == "view" or et == "wsrep_view":
             cluster_key = e.get("cluster_ref") or eid
-            layer = (e.get("view_layer") or "gcomm").lower()
+            layer = (e.get("view_layer") or ("wsrep" if et == "wsrep_view" else "gcomm")).lower()
             node_name = e.get("node_name")
             node_uuid = e.get("node_uuid")
             is_node_view = bool(node_name or node_uuid)
 
             if not is_node_view:
                 # Track cluster-level view (gcomm + wsrep layers)
-                if cluster_key not in state_machine[et]:
-                    state_machine[et][cluster_key] = {}
+                # Normalize entity_type to "view" for state machine
+                view_et = "view"
+                if view_et not in state_machine:
+                    state_machine[view_et] = {}
+                if cluster_key not in state_machine[view_et]:
+                    state_machine[view_et][cluster_key] = {}
                 payload = {
                     k: v
                     for k, v in e.items()
                     if k not in {"entity_type", "entity_id", "timestamp", "line_number", "raw_line", "log_source"}
                 }
                 if layer == "wsrep":
-                    existing = dict(state_machine[et][cluster_key].get("wsrep_view", {}))
+                    existing = dict(state_machine[view_et][cluster_key].get("wsrep_view", {}))
                     existing.update(payload)
                     existing["timestamp"] = to_iso_string(ts)
                     existing["view_layer"] = "wsrep"
-                    state_machine[et][cluster_key]["wsrep_view"] = existing
+                    state_machine[view_et][cluster_key]["wsrep_view"] = existing
                 else:
                     payload.pop("view_layer", None)
-                    state_machine[et][cluster_key].update(payload)
-                    state_machine[et][cluster_key]["timestamp"] = to_iso_string(ts)
+                    state_machine[view_et][cluster_key].update(payload)
+                    state_machine[view_et][cluster_key]["timestamp"] = to_iso_string(ts)
 
             # Track per-node local view snapshots when node information present
             if node_name or node_uuid:
