@@ -105,6 +105,7 @@ def main(argv: List[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     sst_path = output_dir / args.sst_report_name
+    sst_json_path = output_dir / "sst_sessions.json"  # Add SST JSON output
     grap_path = output_dir / args.grap_output_name
     frames_path = output_dir / args.frames_output_name
 
@@ -144,6 +145,12 @@ def main(argv: List[str] | None = None) -> int:
             sst_file.flush()
     print(f"[grax] SST report saved to {sst_path}")
 
+    # Step 1.5: graa --sst --json (for GRAV frontend integration)
+    graa_json_cmd = [python_cmd, str(GRAA), "--sst", "--json", *map(str, args.logs)]
+    with sst_json_path.open("w", encoding="utf-8") as sst_json_file:
+        run_step(graa_json_cmd, stdout=sst_json_file)
+    print(f"[grax] SST JSON data saved to {sst_json_path}")
+
     # Step 2: grap
     grap_cmd: List[str] = [python_cmd, str(GRAP)]
     grap_cmd.extend(["--format=json", *map(str, args.logs)])
@@ -165,6 +172,7 @@ def main(argv: List[str] | None = None) -> int:
         str(GRAV),
         f"--frames={frames_path}",
         f"--sst-report={sst_path}",
+        f"--sst-json={sst_json_path}",  # Pass SST JSON to grav
         f"--host={args.host}",
         f"--port={args.port}",
         "--logs",

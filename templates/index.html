@@ -600,7 +600,100 @@
                 font-size: 0.7rem;
             }
         }
-        @media (min-width: 720px) {
+        /* SST Sessions Card Styles */
+        .sst-session {
+            margin-bottom: 1.2em;
+            padding: 0.8em 1em;
+            background: rgba(248, 250, 252, 0.6);
+            border-radius: 8px;
+            border-left: 4px solid #cbd5e1;
+        }
+        .sst-session.completed {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        .sst-session.failed {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+        }
+        .sst-session.ongoing {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.05);
+        }
+        .sst-session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .sst-session-title {
+            color: #1e293b;
+        }
+        .sst-session-status {
+            padding: 0.2em 0.6em;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .sst-session-status.completed {
+            background: #10b981;
+            color: white;
+        }
+        .sst-session-status.failed {
+            background: #ef4444;
+            color: white;
+        }
+        .sst-session-status.ongoing {
+            background: #f59e0b;
+            color: white;
+        }
+        .sst-session-details {
+            font-size: 0.85rem;
+            color: #64748b;
+            line-height: 1.4;
+        }
+        .sst-session-flow {
+            margin: 0.4em 0;
+            padding: 0.3em 0.6em;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            font-weight: 500;
+            color: #1e293b;
+        }
+        .sst-session-events {
+            margin-top: 0.6em;
+        }
+        .sst-event-item {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin: 0.2em 0;
+            padding-left: 1em;
+            position: relative;
+        }
+        .sst-event-item::before {
+            content: '•';
+            position: absolute;
+            left: 0.3em;
+            color: #cbd5e1;
+        }
+        .sst-sessions-empty {
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+            padding: 2em 1em;
+        }
+        
+        @media (max-width: 640px) {
+            .sst-session-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.3em;
+            }
+        }
             .detail-inspector-panel {
                 max-width: none;
                 height: 15em;
@@ -848,6 +941,14 @@
                 <div class="card-body">
                     <div id="graph"></div>
                     <div id="graph-sst-status" class="hidden"></div>
+                </div>
+            </div>
+            
+            <!-- SST Sessions Card -->
+            <div class="card" data-card="sst-sessions" draggable="true">
+                <div class="card-header">SST Sessions <span class="hint">current frame timeline</span></div>
+                <div class="card-body">
+                    <div id="sst-sessions-content"></div>
                 </div>
             </div>
             <div class="card" data-card="cluster" draggable="true">
@@ -1497,6 +1598,86 @@
         };
 
         let latestGraphNodes = [];
+        let sstSessionsData = null; // Cache for SST sessions JSON data
+
+        // Load SST sessions data if available
+        async function loadSSTSessionsData() {
+            try {
+                const response = await fetch('/api/sst-sessions');
+                if (response.ok) {
+                    sstSessionsData = await response.json();
+                    console.log('Loaded SST sessions data:', sstSessionsData);
+                } else {
+                    console.log('No SST sessions data available');
+                }
+            } catch (error) {
+                console.log('Could not load SST sessions data:', error);
+            }
+        }
+
+        // Display SST sessions for current frame
+        function displaySSTSessions(frameTimestamp) {
+            const container = document.getElementById('sst-sessions-content');
+            if (!container) return;
+            
+            if (!sstSessionsData || !sstSessionsData.sessions) {
+                container.innerHTML = '<div class="sst-sessions-empty">No SST session data available for analysis</div>';
+                return;
+            }
+            
+            // Find sessions that overlap with current frame timestamp
+            const currentSessions = sstSessionsData.sessions.filter(session => {
+                if (!frameTimestamp || !session.time_range) return false;
+                
+                const frameTime = new Date(frameTimestamp.replace(' ', 'T'));
+                const startTime = new Date(session.time_range.start.replace(' ', 'T'));
+                const endTime = new Date(session.time_range.end.replace(' ', 'T'));
+                
+                return frameTime >= startTime && frameTime <= endTime;
+            });
+            
+            if (currentSessions.length === 0) {
+                container.innerHTML = '<div class="sst-sessions-empty">No SST sessions active at this time</div>';
+                return;
+            }
+            
+            const sessionsHtml = currentSessions.map(session => {
+                const statusClass = session.status.toLowerCase();
+                const duration = session.duration_seconds ? 
+                    `${Math.round(session.duration_seconds)}s` : 'Unknown';
+                
+                const eventsHtml = session.events.slice(0, 5).map(event => {
+                    const eventTime = event.timestamp.split(' ')[1]; // Get time part
+                    const category = event.category.replace(/_/g, ' ').toUpperCase();
+                    return `<div class="sst-event-item">${eventTime} — ${category}</div>`;
+                }).join('');
+                
+                const moreEvents = session.events.length > 5 ? 
+                    `<div class="sst-event-item">... and ${session.events.length - 5} more events</div>` : '';
+                
+                return `
+                    <div class="sst-session ${statusClass}">
+                        <div class="sst-session-header">
+                            <div class="sst-session-title">Session ${session.session_id}</div>
+                            <div class="sst-session-status ${statusClass}">${session.status}</div>
+                        </div>
+                        <div class="sst-session-flow">
+                            ${session.donor_node} → ${session.joiner_node}
+                        </div>
+                        <div class="sst-session-details">
+                            Duration: ${duration} | Method: ${session.transfer_method}
+                            <br>Timeline: ${session.time_range.start} → ${session.time_range.end}
+                        </div>
+                        <div class="sst-session-events">
+                            ${eventsHtml}
+                            ${moreEvents}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = sessionsHtml;
+        }
 
         function updateFrame(idx) {
             // Always clear timestamp field at start
@@ -1865,6 +2046,9 @@
                     // Graph section (center)
                     latestGraphNodes = nodeEntities;
                     drawNodeGraph(latestGraphNodes);
+                    
+                    // Display SST sessions for current frame
+                    displaySSTSessions(tsDisplay);
                 });
         }
     let totalFrames = Number('{{ total_frames }}') || 0;
@@ -2160,6 +2344,9 @@
         
         // Initialize Detail Inspector
         detailInspector.init();
+        
+        // Load SST sessions data
+        loadSSTSessionsData();
         
         // Initial state
         updateFrame(0);

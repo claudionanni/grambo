@@ -194,7 +194,7 @@ class SSTSessionTracker:
                 # Start new session
                 current_session = SSTSession(timestamp, line)
                 current_session.status = 'ONGOING'
-                current_session.add_event(timestamp, f"[START] {line}")
+                current_session.add_event(timestamp, line)  # Remove [START] prefix
                 
             # SESSION END: Success or Failure  
             elif current_session and ('sst succeeded for position' in line.lower() or 
@@ -239,21 +239,21 @@ class SSTSessionTracker:
                     parsed = self._parse_sst_log_line(line)
                     current_session.donor = parsed.get('donor', current_session.donor)
                     current_session.joiner = parsed.get('joiner', current_session.joiner)
-                    current_session.add_event(timestamp, f"[REQUEST] {line}")
+                    current_session.add_event(timestamp, line)  # Remove [REQUEST] prefix
                 elif 'sst started on donor' in line.lower():
-                    current_session.add_event(timestamp, f"[DONOR_START] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix 
                 elif 'sst started on joiner' in line.lower():
-                    current_session.add_event(timestamp, f"[JOINER_START] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst completed on donor' in line.lower():
-                    current_session.add_event(timestamp, f"[DONOR_COMPLETE] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst completed on joiner' in line.lower():
-                    current_session.add_event(timestamp, f"[JOINER_COMPLETE] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst sent:' in line.lower():
-                    current_session.add_event(timestamp, f"[SST_SENT] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst received' in line.lower():
-                    current_session.add_event(timestamp, f"[SST_RECEIVED] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 else:
-                    current_session.add_event(timestamp, f"[EVENT] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
         
         # Handle any remaining session
         if current_session:
@@ -335,7 +335,7 @@ class SSTSessionTracker:
                 # Start new session
                 current_session = SSTSession(timestamp, line)
                 current_session.status = 'ONGOING'
-                current_session.add_event(timestamp, f"[START] {line}")
+                current_session.add_event(timestamp, line)  # Remove [START] prefix
                 seen_cluster_events.clear()  # Reset for new session
                 
             # SESSION END: Success or Failure
@@ -388,27 +388,27 @@ class SSTSessionTracker:
                     parsed = self._parse_sst_log_line(line)
                     current_session.donor = parsed.get('donor', current_session.donor)
                     current_session.joiner = parsed.get('joiner', current_session.joiner)
-                    current_session.add_event(timestamp, f"[REQUEST] {line}")
+                    current_session.add_event(timestamp, line)  # Remove [REQUEST] prefix
                 elif 'sst started on donor' in line.lower():
-                    current_session.add_event(timestamp, f"[DONOR_START] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst started on joiner' in line.lower():
-                    current_session.add_event(timestamp, f"[JOINER_START] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst completed on donor' in line.lower():
-                    current_session.add_event(timestamp, f"[DONOR_COMPLETE] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst completed on joiner' in line.lower():
-                    current_session.add_event(timestamp, f"[JOINER_COMPLETE] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst sent:' in line.lower():
-                    current_session.add_event(timestamp, f"[SST_SENT] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'sst received' in line.lower():
-                    current_session.add_event(timestamp, f"[SST_RECEIVED] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'prepared ist receiver' in line.lower():
-                    current_session.add_event(timestamp, f"[IST_PREPARED] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'receiving ist' in line.lower():
-                    current_session.add_event(timestamp, f"[IST_RECEIVING] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 elif 'ist received' in line.lower():
-                    current_session.add_event(timestamp, f"[IST_RECEIVED] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
                 else:
-                    current_session.add_event(timestamp, f"[EVENT] {line}")
+                    current_session.add_event(timestamp, line)  # Remove prefix
         
         # Handle any remaining session
         if current_session:
@@ -802,7 +802,7 @@ class GraAnalyzer:
             all_entities = []
             all_metadata = {}
             
-            print(f"[GRAA] Processing {len(logfiles)} log files for multi-node analysis...")
+            print(f"[GRAA] Processing {len(logfiles)} log files for multi-node analysis...", file=sys.stderr)
             
             for i, logfile_path in enumerate(logfiles):
                 logfile = Path(logfile_path)
@@ -810,7 +810,7 @@ class GraAnalyzer:
                     print(f"Error: Log file '{logfile}' not found", file=sys.stderr)
                     return False
                 
-                print(f"[GRAA] Processing file {i+1}/{len(logfiles)}: {logfile.name}")
+                print(f"[GRAA] Processing file {i+1}/{len(logfiles)}: {logfile.name}", file=sys.stderr)
                 
                 # Run grap on this file
                 cmd = [sys.executable, 'grap3', '--format=json', str(logfile)]
@@ -850,7 +850,7 @@ class GraAnalyzer:
             # Store file paths for session tracking
             self.log_file_paths = logfiles
             
-            print(f"[GRAA] Merged {len(all_entities)} entities from {len(logfiles)} files")
+            print(f"[GRAA] Merged {len(all_entities)} entities from {len(logfiles)} files", file=sys.stderr)
             return True
             
         except Exception as e:
@@ -2490,15 +2490,40 @@ def _describe_sst_event_line(line: str) -> str:
 
     if 'requested state transfer' in lower:
         return f"[REQUEST] {summary}"
-    if 'selected' in lower and 'donor' in lower:
+    elif 'sst started on donor' in lower:
+        return f"[DONOR_START] {summary}"
+    elif 'sst started on joiner' in lower:
+        return f"[JOINER_START] {summary}"
+    elif 'sst completed on donor' in lower:
+        return f"[DONOR_COMPLETE] {summary}"
+    elif 'sst completed on joiner' in lower:
+        return f"[JOINER_COMPLETE] {summary}"
+    elif 'sst sent:' in lower:
+        return f"[SST_SENT] {summary}"
+    elif 'sst received' in lower and ('position' in lower or ':' in summary.split('received')[1] if 'received' in summary else False):
+        return f"[SST_RECEIVED] {summary}"
+    elif 'sst succeeded for position' in lower:
+        return f"[END] {summary}"
+    elif 'state transfer.*failed' in lower:
+        return f"[END] {summary}"
+    elif 'prepared ist receiver' in lower:
+        return f"[IST_PREPARED] {summary}"
+    elif 'receiving ist' in lower:
+        return f"[IST_RECEIVING] {summary}"
+    elif 'ist received' in lower:
+        return f"[IST_RECEIVED] {summary}"
+    elif 'selected' in lower and 'donor' in lower:
         return f"[DONOR] {summary}"
-    if 'state transfer' in lower and 'failed' in lower:
+    elif 'state transfer' in lower and 'failed' in lower:
         return f"[FAILED] {summary}"
-    if 'state transfer' in lower and 'complete' in lower:
+    elif 'state transfer' in lower and 'complete' in lower:
         return f"[COMPLETE] {summary}"
-    if 'wsrep_sst' in lower:
+    elif 'state transfer required' in lower:
+        return f"[START] {summary}"
+    elif 'wsrep_sst' in lower:
         return f"[SCRIPT] {summary}"
-    return summary
+    else:
+        return summary
 
 
 def _describe_ist_event(ist: Dict[str, Any]) -> str:
@@ -2562,6 +2587,7 @@ def main():
     parser.add_argument('logfiles', nargs='*', help='Galera log file(s) to analyze')
     parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap)')
     parser.add_argument('--sst', action='store_true', help='Show hierarchical SST+IST relationship tree')
+    parser.add_argument('--json', action='store_true', help='Output results in JSON format for integration')
     parser.add_argument('--version', action='version', version=f'gra-analyzer {__version__}')
     
     args = parser.parse_args()
@@ -2595,10 +2621,74 @@ def main():
     
     # Perform analysis
     if args.sst:
-        print_sst_ist_tree(analyzer)
+        if args.json:
+            print_sst_sessions_json(analyzer)
+        else:
+            print_sst_ist_tree(analyzer)
     else:
-        analysis = analyzer.analyze()
-        print_analysis(analysis)
+        if args.json:
+            analysis = analyzer.analyze()
+            print_analysis_json(analysis)
+        else:
+            analysis = analyzer.analyze()
+            print_analysis(analysis)
+
+
+def print_sst_sessions_json(analyzer):
+    """Print SST sessions in JSON format for GRAV integration"""
+    import json
+    
+    # Get SST sessions
+    tracker = SSTSessionTracker()
+    if hasattr(analyzer, 'log_file_paths') and analyzer.log_file_paths:
+        tracker.log_file_paths = analyzer.log_file_paths
+    elif analyzer.log_file_path:
+        tracker.log_file_path = analyzer.log_file_path
+    sessions = tracker.process_entities(analyzer.entities)
+    
+    # Convert to JSON format
+    sessions_data = []
+    for i, session in enumerate(sessions, 1):
+        session_data = {
+            'session_id': i,
+            'status': session.status,
+            'start_time': session.request_time,
+            'end_time': session.completion_time,
+            'duration_seconds': session.duration_seconds,
+            'joiner_node': session.joiner,
+            'donor_node': session.donor,
+            'transfer_method': session.method or 'mariabackup',
+            'events': [{'timestamp': ts, 'message': _trim_log_line(msg), 'category': _categorize_event_for_json(msg)} for ts, msg in session.events],
+            'time_range': {'start': session.request_time, 'end': session.completion_time or session.request_time}
+        }
+        sessions_data.append(session_data)
+    
+    output = {
+        'analysis_type': 'sst_sessions',
+        'total_sessions': len(sessions_data),
+        'sessions': sessions_data
+    }
+    print(json.dumps(output, indent=2, default=str))
+
+
+def _categorize_event_for_json(event_line):
+    """Categorize event for JSON"""
+    lower = event_line.lower()
+    if 'state transfer required' in lower: return 'session_start'
+    elif 'sst succeeded' in lower: return 'session_end_success'
+    elif 'state transfer' in lower and 'failed' in lower: return 'session_end_failure'
+    elif 'requested state transfer' in lower: return 'sst_request'
+    elif 'sst started on donor' in lower: return 'sst_donor_start'
+    elif 'sst started on joiner' in lower: return 'sst_joiner_start'
+    elif 'sst sent:' in lower: return 'sst_data_sent'
+    elif 'sst received' in lower: return 'sst_data_received'
+    else: return 'other'
+
+
+def print_analysis_json(analysis):
+    """Print analysis in JSON format"""
+    import json
+    print(json.dumps(analysis, indent=2, default=str))
 
 
 if __name__ == '__main__':

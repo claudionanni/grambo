@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 FRAMES = []
 SST_REPORT_PATH = None
+SST_JSON_PATH = None  # Path to SST JSON data for frontend
 SOURCE_LOG_FILES = []
 TIMELINE_HOTSPOTS = {
     "cluster_non_primary": [],
@@ -125,6 +126,31 @@ def sst_report():
             headers={'Content-Disposition': 'attachment; filename="graa_sst_report.txt"'}
         )
     return render_template('sst.html', report_text=report_text)
+
+
+@app.route('/api/sst-sessions')
+def sst_sessions_api():
+    """API endpoint for SST sessions data (JSON format for frontend)"""
+    if not SST_JSON_PATH or not os.path.exists(SST_JSON_PATH):
+        return jsonify({
+            'error': 'SST sessions data not available',
+            'analysis_type': 'sst_sessions',
+            'total_sessions': 0,
+            'sessions': []
+        })
+    
+    try:
+        with open(SST_JSON_PATH, 'r', encoding='utf-8') as f:
+            sst_data = json.load(f)
+        return jsonify(sst_data)
+    except Exception as e:
+        return jsonify({
+            'error': f'Failed to load SST sessions: {str(e)}',
+            'analysis_type': 'sst_sessions',
+            'total_sessions': 0,
+            'sessions': []
+        })
+
 
 @app.route('/frame/<int:idx>')
 def get_frame(idx):
@@ -303,6 +329,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='grav web visualizer')
     parser.add_argument('--frames', type=str, help='graf output file (json or ndjson) to load at startup')
     parser.add_argument('--sst-report', type=str, help='graa --sst report file to expose via the SST viewer')
+    parser.add_argument('--sst-json', type=str, help='graa --sst --json output file for frontend API')
     parser.add_argument('--logs', type=str, nargs='*', help='source log files to make available for context viewing')
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=5000)
@@ -313,6 +340,9 @@ if __name__ == '__main__':
         refresh_hotspot_cache()
     if args.sst_report:
         SST_REPORT_PATH = args.sst_report
+    if args.sst_json:
+        SST_JSON_PATH = args.sst_json
+        print(f"[grav] SST JSON data available at: {SST_JSON_PATH}")
     if args.logs:
         SOURCE_LOG_FILES = [
             {'path': log_path, 'name': os.path.basename(log_path)}
