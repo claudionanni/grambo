@@ -1,8 +1,0 @@
-egrep -i "requested state|SST started on donor|SST started on joiner|SST completed on donor|SST completed on joiner|WSREP: SST succeeded for position|WSREP: Prepared IST receiver for|IST received:" cl407/error.11407.log 
-grep -i "SST started on donor" cl407/error.11407.log 
-grep -i "SST started on joiner" cl407/error.31407.log 
-grep -i "SST completed on donor" cl407/error.11407.log 
-grep -i "SST completed on joiner" cl407/error.31407.log 
-grep -i "WSREP: SST succeeded for position " cl407/error.31407.log 
-grep "WSREP: Prepared IST receiver for" cl407/error.31407.log 
-grep "IST received:" cl407/error.31407.log  
