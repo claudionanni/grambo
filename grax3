@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""GRAX - end-to-end Galera analysis pipeline helper.
+"""GRAX3 - end-to-end Galera analysis pipeline helper (v3).
 
-This utility orchestrates the standard analysis workflow:
+This utility orchestrates the standard v3 analysis workflow:
 
     graa --sst <logs>  →  SST session summary
-    grap --format=json <logs>  →  Structured entities
-    graf <grap.json> --ndjson  →  Timeline frames
-    grav --frames=<frames.ndjson> --sst-report=<sst.txt>
+    grap3 --format=json <logs>  →  Structured entities
+    graf3 <grap.json> --ndjson  →  Timeline frames
+    grav3 --frames=<frames.ndjson> --sst-report=<sst.txt>
 
 Example usage:
 
-    ./grax 11407/error.11407.log jfd/*.log
+    ./grax3 11407/error.11407.log jfd/*.log
 
-You can override the output directory or skip launching the grav web UI via
+You can override the output directory or skip launching the grav3 web UI via
 command-line options. Run with --help for details.
 """
 
@@ -44,7 +44,7 @@ def run_step(cmd: List[str], *, stdout=None) -> None:
 
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run graa → grap → graf → grav in sequence",
+        description="Run graa → grap3 → graf3 → grav3 in sequence",
     )
     parser.add_argument(
         "logs",
@@ -69,7 +69,7 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument(
         "--frames-output-name",
         default="graf_frames.ndjson",
-        help="Filename for the graf frames output (default: %(default)s)",
+        help="Filename for the graf3 frames output (default: %(default)s)",
     )
     parser.add_argument(
         "--use-cache",
@@ -85,12 +85,12 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument(
         "--no-serve",
         action="store_true",
-        help="Skip launching the grav web UI",
+        help="Skip launching the grav3 web UI",
     )
     parser.add_argument(
         "--host",
         default="127.0.0.1",
-        help="Host interface for grav (default: %(default)s)",
+        help="Host interface for grav3 (default: %(default)s)",
     )
     parser.add_argument(
         "--port",
