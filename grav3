@@ -305,8 +305,13 @@ def get_log_context(log_path):
         
         # If we found a target line, extract context around it
         if target_line_idx is not None:
-            start_idx = max(0, target_line_idx - context_lines)
-            end_idx = min(len(lines), target_line_idx + context_lines + 1)
+            # Show more lines AFTER the target timestamp for better context
+            # Default: 10 lines before, 50 lines after
+            lines_before = min(context_lines // 3, 10)
+            lines_after = context_lines + (context_lines - lines_before)
+            
+            start_idx = max(0, target_line_idx - lines_before)
+            end_idx = min(len(lines), target_line_idx + lines_after + 1)
             context_lines_data = lines[start_idx:end_idx]
             
             # Mark the target line(s) - there might be multiple lines with the same timestamp

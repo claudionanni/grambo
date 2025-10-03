@@ -2074,8 +2074,8 @@
                 
                 console.log('Loading log context for:', { logPath, timestamp: this.currentFrame.timestamp });
                 
-                // Fetch log lines around the current timestamp (30 lines context)
-                const url = `/logs/${encodeURIComponent(logPath)}?timestamp=${encodeURIComponent(this.currentFrame.timestamp)}&context=30`;
+                // Fetch log lines around the current timestamp (60 lines context, mostly after)
+                const url = `/logs/${encodeURIComponent(logPath)}?timestamp=${encodeURIComponent(this.currentFrame.timestamp)}&context=60`;
                 console.log('Fetching:', url);
                 
                 fetch(url)
@@ -2136,7 +2136,8 @@
                 setTimeout(() => {
                     const targetLine = logsEl.querySelector('.log-line-target');
                     if (targetLine) {
-                        targetLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        // Scroll to show target near top (we already show more lines after)
+                        targetLine.scrollIntoView({ block: 'start', behavior: 'smooth' });
                     }
                 }, 100);
             }
