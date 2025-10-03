@@ -294,7 +294,7 @@
             align-items: center;
             margin-left: 1em;
             margin-right: 1em;
-            padding-top: 60px; /* Space for marker tracks above */
+            padding-top: 110px; /* Increased space for date bar + hotspot tracks */
         }
         .timeline-wrapper input[type="range"] {
             width: 100%;
@@ -332,9 +332,114 @@
         .legend-marker.component {
             background: #8e24aa;
         }
-        #timeline-hotspot-track {
+        /* Timeline Date Bar */
+        .timeline-date-bar {
             position: absolute;
             top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            border-bottom: 1px solid #e2e8f0;
+            background: rgba(248, 250, 252, 0.9);
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .date-marker {
+            position: absolute;
+            height: 100%;
+            border-left: 1px solid #cbd5e1;
+            pointer-events: none;
+        }
+        
+        .date-marker.major {
+            border-left: 2px solid #64748b;
+        }
+        
+        .date-marker.start, .date-marker.end {
+            border-left: 3px solid #1e40af;
+        }
+        
+        .date-label {
+            position: absolute;
+            bottom: 4px;
+            left: 2px;
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 500;
+            white-space: nowrap;
+            background: rgba(248, 250, 252, 0.9);
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+        
+        .date-label.start, .date-label.end {
+            color: #1e40af;
+            font-weight: 600;
+        }
+        
+        .date-label.major {
+            bottom: 20px; /* Day labels positioned higher (on top) */
+            font-weight: 600;
+            color: #475569;
+            font-size: 11px;
+        }
+        
+        .date-label.hour {
+            bottom: 4px; /* Hour labels positioned lower (below day labels) */
+            color: #94a3b8;
+            font-weight: 400;
+            font-size: 9px;
+        }
+        
+        /* Frame markers on date bar */
+        .frame-marker {
+            position: absolute;
+            top: 2px;
+            width: 2px;
+            height: calc(100% - 16px);
+            background: #3b82f6;
+            opacity: 0.6;
+            pointer-events: auto; /* Enable clicking */
+            border-radius: 1px;
+            transition: all 0.2s ease;
+            z-index: 6;
+        }
+        
+        .frame-marker:hover {
+            opacity: 1;
+            transform: scaleX(1.5);
+            background: #1d4ed8;
+            z-index: 5;
+        }
+        
+        .frame-marker.multiple {
+            background: #1d4ed8;
+            opacity: 0.8;
+            width: 3px;
+        }
+        
+        .frame-marker.multiple:hover {
+            width: 4px;
+            background: #1e40af;
+        }
+        
+        .frame-marker.current {
+            background: #f59e0b !important;
+            opacity: 1 !important;
+            width: 4px !important;
+            box-shadow: 0 0 6px rgba(245, 158, 11, 0.8);
+            z-index: 10;
+        }
+        
+        .frame-marker.current.multiple {
+            width: 5px !important;
+            background: #d97706 !important;
+        }
+        
+        #timeline-hotspot-track {
+            position: absolute;
+            top: 50px; /* Moved down to make room for date bar */
             left: 0;
             right: 0;
             height: 60px; /* Fixed height for marker area above timeline */
@@ -343,7 +448,7 @@
         .timeline-track-labels {
             position: absolute;
             left: -50px;
-            top: 0;
+            top: 50px; /* Moved down to accommodate date bar */
             width: 45px;
             height: 60px;
             font-size: 10px;
@@ -915,6 +1020,7 @@
                     </div>
                 </div>
                 <div class="timeline-wrapper">
+                    <div class="timeline-date-bar" id="timeline-date-bar"></div>
                     <div class="timeline-track-labels">
                         <div class="track-label sst">SST</div>
                         <div class="track-label cluster">CLU</div>
@@ -1083,9 +1189,311 @@
                 return;
             }
             renderTimelineHotspots(totalFrames);
+            renderTimelineDateBar(totalFrames);
             timelineMarkersRendered = true;
             lastTimelineTotal = totalFrames;
             lastHotspotSignature = signature;
+        }
+
+        // Timeline Date Bar Rendering
+        function renderTimelineDateBar(totalFrames) {
+            const dateBar = document.getElementById('timeline-date-bar');
+            if (!dateBar || totalFrames <= 1) return;
+            
+            dateBar.innerHTML = '';
+            
+            // Collect all frame timestamps
+            const frameTimestamps = [];
+            const timestampToFrames = {}; // Map timestamps to frame indices
+            
+            // We'll collect timestamps as frames are loaded
+            if (window.frameTimestampCache) {
+                for (let i = 0; i < totalFrames; i++) {
+                    const ts = window.frameTimestampCache[i];
+                    frameTimestamps.push(ts);
+                    
+                    if (ts && ts !== '—') {
+                        // Normalize timestamp format (handle both 'T' and space formats)
+                        const normalizedTs = ts.replace('T', ' ').replace('Z', '');
+                        if (!timestampToFrames[normalizedTs]) {
+                            timestampToFrames[normalizedTs] = [];
+                        }
+                        timestampToFrames[normalizedTs].push(i);
+                    }
+                }
+            }
+            
+            // Filter out null timestamps and get unique dates
+            const validTimestamps = frameTimestamps.filter(ts => ts && ts !== '—');
+            
+            if (validTimestamps.length === 0) {
+                // No timestamps available - show frame position markers only
+                renderFramePositionMarkers(dateBar, totalFrames);
+                return;
+            }
+            
+            // Parse timestamps and create date range
+            const timestamps = validTimestamps.map(ts => {
+                // Handle different timestamp formats
+                const cleanTs = ts.replace('T', ' ').replace('Z', '');
+                return new Date(cleanTs);
+            }).filter(date => !isNaN(date.getTime()));
+            
+            if (timestamps.length === 0) {
+                renderFramePositionMarkers(dateBar, totalFrames);
+                return;
+            }
+            
+            const startDate = new Date(Math.min(...timestamps));
+            const endDate = new Date(Math.max(...timestamps));
+            const totalDuration = endDate.getTime() - startDate.getTime();
+            
+            console.log(`Timeline: ${validTimestamps.length} timestamps from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+            
+            // Render start and end markers
+            renderDateMarker(dateBar, 0, formatDateLabel(startDate), 'start');
+            renderDateMarker(dateBar, 100, formatDateLabel(endDate), 'end');
+            
+            // Render day markers in between
+            renderDayMarkers(dateBar, startDate, endDate, totalDuration);
+            
+            // Render hour markers for better temporal resolution
+            renderHourMarkers(dateBar, startDate, endDate, totalDuration);
+            
+            // Render all frame markers with precise timestamp positioning
+            renderAllFrameMarkers(dateBar, timestampToFrames, startDate, totalDuration);
+            
+            // Store timeline data for current frame highlighting
+            window.timelineData = {
+                startDate,
+                endDate,
+                totalDuration,
+                timestampToFrames
+            };
+        }
+        
+        function renderFramePositionMarkers(dateBar, totalFrames) {
+            // When no timestamps are available, show frame position indicators
+            const frameLabel = document.createElement('div');
+            frameLabel.className = 'date-label start';
+            frameLabel.textContent = 'Frame 1';
+            frameLabel.style.left = '2px';
+            dateBar.appendChild(frameLabel);
+            
+            const endLabel = document.createElement('div');
+            endLabel.className = 'date-label end';
+            endLabel.textContent = `Frame ${totalFrames}`;
+            endLabel.style.right = '2px';
+            endLabel.style.left = 'auto';
+            dateBar.appendChild(endLabel);
+            
+            // Add frame position markers every 10% if more than 10 frames
+            if (totalFrames > 10) {
+                for (let i = 1; i < 10; i++) {
+                    const position = (i * 10);
+                    const frameNum = Math.round((i / 10) * totalFrames);
+                    renderDateMarker(dateBar, position, `${frameNum}`, 'major');
+                }
+            }
+        }
+        
+        function renderDateMarker(container, percentPosition, label, type = 'normal') {
+            const marker = document.createElement('div');
+            marker.className = `date-marker ${type}`;
+            marker.style.left = `${percentPosition}%`;
+            
+            const labelElement = document.createElement('div');
+            labelElement.className = `date-label ${type}`;
+            labelElement.textContent = label;
+            labelElement.style.left = `${percentPosition}%`;
+            
+            container.appendChild(marker);
+            container.appendChild(labelElement);
+        }
+        
+        function renderDayMarkers(container, startDate, endDate, totalDuration) {
+            const oneDayMs = 24 * 60 * 60 * 1000;
+            const totalDays = Math.ceil(totalDuration / oneDayMs);
+            
+            // Don't overcrowd with too many day markers
+            const maxMarkers = 8;
+            const dayInterval = Math.max(1, Math.ceil(totalDays / maxMarkers));
+            
+            const currentDate = new Date(startDate);
+            currentDate.setHours(0, 0, 0, 0); // Start of day
+            currentDate.setDate(currentDate.getDate() + dayInterval); // Skip first day (already marked as start)
+            
+            while (currentDate < endDate) {
+                const timeFromStart = currentDate.getTime() - startDate.getTime();
+                const percentage = (timeFromStart / totalDuration) * 100;
+                
+                if (percentage > 5 && percentage < 95) { // Don't overlap with start/end markers
+                    const label = formatDayLabel(currentDate);
+                    renderDateMarker(container, percentage, label, 'major');
+                }
+                
+                currentDate.setDate(currentDate.getDate() + dayInterval);
+            }
+        }
+        
+        function renderHourMarkers(container, startDate, endDate, totalDuration) {
+            const oneHourMs = 60 * 60 * 1000;
+            const totalHours = totalDuration / oneHourMs;
+            
+            console.log(`Rendering hour markers for ${totalHours.toFixed(1)} hour timeline`);
+            
+            // Only add hour markers if the timeline spans a reasonable duration
+            let hourInterval = 1; // Default to every hour
+            
+            if (totalHours > 72) { // More than 3 days
+                hourInterval = 6; // Every 6 hours (6am, 12pm, 6pm, 12am)
+                console.log('Using 6-hour intervals for long timeline');
+            } else if (totalHours > 48) { // More than 2 days  
+                hourInterval = 4; // Every 4 hours
+                console.log('Using 4-hour intervals');
+            } else if (totalHours > 24) { // More than 1 day
+                hourInterval = 3; // Every 3 hours
+                console.log('Using 3-hour intervals');
+            } else if (totalHours >= 6) { // At least 6 hours
+                hourInterval = 2; // Every 2 hours for shorter timelines
+                console.log('Using 2-hour intervals');
+            } else { // Less than 6 hours - no hour markers
+                console.log('Timeline too short for hour markers');
+                return;
+            }
+            
+            // Start from the first hour boundary after start time
+            const currentTime = new Date(startDate);
+            // Round up to next hour boundary that matches our interval
+            currentTime.setMinutes(0, 0, 0);
+            
+            // For 6-hour intervals, find the next 6am, 12pm, 6pm, or 12am
+            if (hourInterval >= 6) {
+                const currentHour = currentTime.getHours();
+                const keyHours = [0, 6, 12, 18]; // 12am, 6am, 12pm, 6pm
+                let nextKeyHour = keyHours.find(h => h > currentHour);
+                if (!nextKeyHour) {
+                    // If current hour is after 6pm, go to midnight of next day
+                    nextKeyHour = 24;
+                }
+                currentTime.setHours(nextKeyHour);
+            } else {
+                // For other intervals, just round up to next interval boundary
+                const currentHour = currentTime.getHours();
+                const nextHour = Math.ceil(currentHour / hourInterval) * hourInterval;
+                currentTime.setHours(nextHour);
+            }
+            
+            let markerCount = 0;
+            while (currentTime < endDate && markerCount < 50) { // Safety limit
+                const timeFromStart = currentTime.getTime() - startDate.getTime();
+                const percentage = totalDuration > 0 ? (timeFromStart / totalDuration) * 100 : 0;
+                
+                // Only show hour markers that don't overlap with start/end markers
+                if (percentage > 3 && percentage < 97) {
+                    const hour = currentTime.getHours();
+                    
+                    // For 6-hour intervals, show key times: 6am, 12pm, 6pm, 12am
+                    let showMarker = false;
+                    if (hourInterval >= 6) {
+                        showMarker = (hour === 6 || hour === 12 || hour === 18 || hour === 0);
+                    } else if (hourInterval >= 4) {
+                        showMarker = (hour % 4 === 0 || hour === 6 || hour === 12 || hour === 18);
+                    } else {
+                        showMarker = (hour % hourInterval === 0);
+                    }
+                    
+                    if (showMarker) {
+                        const label = formatHourLabel(currentTime);
+                        renderDateMarker(container, percentage, label, 'hour');
+                        markerCount++;
+                        console.log(`Added hour marker: ${label} at ${percentage.toFixed(1)}%`);
+                    }
+                }
+                
+                currentTime.setHours(currentTime.getHours() + hourInterval);
+            }
+            
+            console.log(`Total hour markers added: ${markerCount}`);
+        }
+        
+        function renderAllFrameMarkers(container, timestampToFrames, startDate, totalDuration) {
+            // Render individual frame markers for each unique timestamp
+            Object.entries(timestampToFrames).forEach(([timestamp, frameIndices]) => {
+                const date = new Date(timestamp);
+                if (isNaN(date.getTime())) return;
+                
+                const timeFromStart = date.getTime() - startDate.getTime();
+                const percentage = totalDuration > 0 ? (timeFromStart / totalDuration) * 100 : 0;
+                
+                if (percentage >= 0 && percentage <= 100) {
+                    const marker = document.createElement('div');
+                    marker.className = frameIndices.length > 1 ? 'frame-marker multiple' : 'frame-marker';
+                    marker.style.left = `${percentage}%`;
+                    marker.dataset.frameIndices = JSON.stringify(frameIndices);
+                    marker.dataset.timestamp = timestamp;
+                    
+                    // Create tooltip text
+                    if (frameIndices.length === 1) {
+                        marker.title = `Frame ${frameIndices[0] + 1} at ${timestamp}`;
+                    } else {
+                        const frameNumbers = frameIndices.map(idx => idx + 1).join(', ');
+                        marker.title = `${frameIndices.length} frames (${frameNumbers}) at ${timestamp}`;
+                    }
+                    
+                    // Add click handler for navigation
+                    marker.style.cursor = 'pointer';
+                    marker.onclick = (e) => {
+                        e.stopPropagation();
+                        // Navigate to the first frame at this timestamp
+                        updateFrame(frameIndices[0]);
+                    };
+                    
+                    container.appendChild(marker);
+                }
+            });
+        }
+        
+        function highlightCurrentFrameMarker(currentFrameIndex) {
+            // Remove previous highlights
+            document.querySelectorAll('.frame-marker.current').forEach(marker => {
+                marker.classList.remove('current');
+            });
+            
+            // Find and highlight the marker for the current frame
+            document.querySelectorAll('.frame-marker').forEach(marker => {
+                const frameIndices = JSON.parse(marker.dataset.frameIndices || '[]');
+                if (frameIndices.includes(currentFrameIndex)) {
+                    marker.classList.add('current');
+                }
+            });
+        }
+        
+        function formatDateLabel(date) {
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${month}/${day} ${hours}:${minutes}`;
+        }
+        
+        function formatDayLabel(date) {
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${month}/${day}`;
+        }
+        
+        function formatHourLabel(date) {
+            const hour = date.getHours();
+            if (hour === 0) {
+                return '12am';
+            } else if (hour < 12) {
+                return `${hour}am`;
+            } else if (hour === 12) {
+                return '12pm';
+            } else {
+                return `${hour - 12}pm`;
+            }
         }
 
         function displayHotspotInfo(hotspots) {
@@ -1184,7 +1592,108 @@
             infoEl.classList.add('active');
         }
 
-        // Detail Inspector System
+        // Pre-load timestamps for timeline date bar - optimized for large datasets
+        async function preloadTimestamps(totalFrames) {
+            if (!window.frameTimestampCache) {
+                window.frameTimestampCache = {};
+            }
+            
+            console.log(`Preloading timestamps for ${totalFrames} frames...`);
+            
+            // For datasets with many frames (like 277+ timestamps), load more efficiently
+            const batchSize = 10; // Load frames in batches
+            const maxConcurrentRequests = 5;
+            
+            const loadBatch = async (startIndex, endIndex) => {
+                const promises = [];
+                for (let i = startIndex; i < Math.min(endIndex, totalFrames); i++) {
+                    if (promises.length >= maxConcurrentRequests) {
+                        await Promise.allSettled(promises);
+                        promises.length = 0;
+                    }
+                    
+                    promises.push(loadFrameTimestamp(i));
+                }
+                if (promises.length > 0) {
+                    await Promise.allSettled(promises);
+                }
+            };
+            
+            const loadFrameTimestamp = async (frameIndex) => {
+                try {
+                    const response = await fetch(`/frame/${frameIndex}`);
+                    const data = await response.json();
+                    if (!data.error) {
+                        let ts = extractTimestampFromFrame(data);
+                        const tsDisplay = ts ? ts.replace('T', ' ').replace('Z', '') : null;
+                        window.frameTimestampCache[frameIndex] = tsDisplay;
+                        
+                        // Update progress every 50 frames
+                        if (frameIndex % 50 === 0) {
+                            console.log(`Loaded timestamps up to frame ${frameIndex + 1}/${totalFrames}`);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Failed to load timestamp for frame ${frameIndex}:`, error);
+                }
+            };
+            
+            // Load all frames in batches
+            for (let i = 0; i < totalFrames; i += batchSize * maxConcurrentRequests) {
+                await loadBatch(i, i + (batchSize * maxConcurrentRequests));
+                
+                // Re-render timeline periodically as we load more data
+                if (i % 100 === 0 && i > 0) {
+                    renderTimelineDateBar(totalFrames);
+                }
+            }
+            
+            console.log('Timestamp loading complete, rendering final timeline...');
+            renderTimelineDateBar(totalFrames);
+        }
+        
+        function extractTimestampFromFrame(data) {
+            let ts = '';
+            if (data.timestamp) {
+                ts = data.timestamp;
+            } else if (data.entities) {
+                // Try to find timestamp in entities
+                let preferred = ['cluster:', 'quorum:', 'node_view:', 'node:', 'view:'];
+                let found = null;
+                for (let pref of preferred) {
+                    for (let ent in data.entities) {
+                        if (ent.startsWith(pref) && data.entities[ent].timestamp) {
+                            found = data.entities[ent].timestamp;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+                if (!found) {
+                    for (let ent in data.entities) {
+                        if (data.entities[ent].timestamp) {
+                            found = data.entities[ent].timestamp;
+                            break;
+                        }
+                    }
+                }
+                ts = found || '';
+            }
+            return ts;
+        }
+        
+        // Initialize timeline date bar when total frames is known
+        let initialTimelineRender = false;
+        
+        function initializeTimelineDateBar(totalFrames) {
+            if (!initialTimelineRender && totalFrames > 0) {
+                initialTimelineRender = true;
+                // Start background loading of timestamps
+                preloadTimestamps(totalFrames).then(() => {
+                    console.log('Timeline date bar updated with timestamps');
+                });
+            }
+        }
         const detailInspector = {
             panel: null,
             resizeHandle: null,
@@ -1691,6 +2200,10 @@
                     document.getElementById('total-frames').textContent = data.total;
                     document.getElementById('timeline-bar').max = data.total;
                     document.getElementById('timeline-bar').value = currentFrame + 1;
+                    
+                    // Initialize timeline date bar if this is first frame load
+                    initializeTimelineDateBar(data.total);
+                    
                     maybeRenderTimelineMarkers(data.total);
                     
                     let entities = data.entities || {};
@@ -1725,6 +2238,15 @@
                     const tsDisplay = ts ? ts.replace('T', ' ').replace('Z', '') : '—';
                     document.getElementById('frame-timestamp').textContent = tsDisplay;
                     document.getElementById('frame-info').textContent = tsDisplay;
+                    
+                    // Cache timestamp for timeline date bar
+                    if (!window.frameTimestampCache) {
+                        window.frameTimestampCache = {};
+                    }
+                    window.frameTimestampCache[idx] = tsDisplay !== '—' ? tsDisplay : null;
+                    
+                    // Highlight current frame marker on timeline
+                    highlightCurrentFrameMarker(idx);
                     
                     // Store frame data for Detail Inspector
                     detailInspector.currentFrame = data;
