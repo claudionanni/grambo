@@ -348,7 +348,7 @@
         /* Timeline Labels */
         .timeline-label {
             position: absolute;
-            right: 4px;
+            right: -80px; /* Position outside the timeline wrapper */
             top: 50%;
             transform: translateY(-50%);
             font-size: 10px;
@@ -359,16 +359,17 @@
             border-radius: 3px;
             border: 1px solid #e2e8f0;
             pointer-events: none;
+            white-space: nowrap;
         }
         
         .timeline-date-label {
-            top: 20px; /* Position in the date bar */
+            top: 20px; /* Position aligned with date bar */
             color: #475569;
             font-weight: 600;
         }
         
         .timeline-frames-label {
-            top: 80px; /* Position near the slider bar */
+            top: 90px; /* Position aligned with slider bar */
             color: #1e40af;
             font-weight: 600;
         }
@@ -1048,9 +1049,7 @@
                     </div>
                 </div>
                 <div class="timeline-wrapper">
-                    <div class="timeline-date-bar" id="timeline-date-bar">
-                        <div class="timeline-label timeline-date-label">Natural Timeline</div>
-                    </div>
+                    <div class="timeline-date-bar" id="timeline-date-bar"></div>
                     <div class="timeline-track-labels">
                         <div class="track-label sst">SST</div>
                         <div class="track-label cluster">CLU</div>
@@ -1059,6 +1058,8 @@
                     </div>
                     <div id="timeline-hotspot-track"></div>
                     <input type="range" id="timeline-bar" min="1" value="1">
+                    <!-- Timeline labels positioned outside the wrapper -->
+                    <div class="timeline-label timeline-date-label">Natural Timeline</div>
                     <div class="timeline-label timeline-frames-label">Frame Navigation</div>
                 </div>
                 <div class="timeline-legend">
