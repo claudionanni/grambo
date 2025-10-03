@@ -39,34 +39,84 @@ def summarize_hotspots(frames):
             entry = dict(item)
             entry['index'] = idx
             summary['node_component_non_primary'].append(entry)
-        
-        # Detect SST operations (DONOR + JOINER in same frame)
-        nodes = frame.get('nodes', {})
-        donors = []
-        joiners = []
-        for node_name, node_data in nodes.items():
-            # Use to_state if available (v3), fallback to node_state (v2)
-            to_state = node_data.get('to_state') or node_data.get('node_state', '')
-            from_state = node_data.get('from_state', '')
-            
-            # Check to_state for SST detection
-            if to_state:
-                to_state_upper = to_state.upper()
-                if 'DONOR' in to_state_upper or 'DESYNCED' in to_state_upper:
-                    donors.append(node_name)
-                elif to_state_upper == 'JOINER':
-                    joiners.append(node_name)
-        
-        if donors and joiners:
-            # Create SST hotspot entry
-            summary['sst_operations'].append({
-                'index': idx,
-                'donors': donors,
-                'joiners': joiners,
-                'description': f"SST: {', '.join(donors)} → {', '.join(joiners)}"
-            })
+    
+    # Load SST operations from graa JSON data (if available)
+    if SST_JSON_PATH and os.path.exists(SST_JSON_PATH):
+        try:
+            with open(SST_JSON_PATH, 'r', encoding='utf-8') as f:
+                sst_data = json.load(f)
+                sessions = sst_data.get('sessions', [])
+                
+                # For each SST session, find the closest frame by start_time
+                for session in sessions:
+                    start_time = session.get('start_time')
+                    if not start_time:
+                        continue
+                    
+                    # Find frame with matching or closest timestamp
+                    closest_idx = find_frame_by_timestamp(frames, start_time)
+                    if closest_idx is not None:
+                        joiner = session.get('joiner_node', 'unknown')
+                        donor = session.get('donor_node', 'unknown')
+                        status = session.get('status', 'UNKNOWN')
+                        
+                        summary['sst_operations'].append({
+                            'index': closest_idx,
+                            'joiner_node': joiner,
+                            'donor_node': donor,
+                            'status': status,
+                            'start_time': start_time,
+                            'description': f"SST: {joiner} ← {donor} ({status})"
+                        })
+        except Exception as e:
+            print(f"[grav] Warning: Could not load SST sessions from {SST_JSON_PATH}: {e}")
     
     return summary
+
+
+def find_frame_by_timestamp(frames, target_timestamp):
+    """Find the frame index that best matches the given timestamp."""
+    if not frames:
+        return None
+    
+    # Normalize timestamp formats (SST uses space, frames use T)
+    target_normalized = target_timestamp.replace(' ', 'T').replace('Z', '')
+    
+    # Try exact match first
+    for idx, frame in enumerate(frames):
+        frame_ts = frame.get('event', {}).get('timestamp')
+        if not frame_ts:
+            continue
+        
+        frame_normalized = frame_ts.replace(' ', 'T').replace('Z', '')
+        if frame_normalized == target_normalized:
+            return idx
+    
+    # Find closest match by timestamp distance
+    from datetime import datetime
+    try:
+        target_dt = datetime.fromisoformat(target_normalized)
+    except Exception:
+        return 0
+    
+    min_distance = float('inf')
+    closest_idx = 0
+    
+    for idx, frame in enumerate(frames):
+        frame_ts = frame.get('event', {}).get('timestamp')
+        if not frame_ts:
+            continue
+        try:
+            frame_normalized = frame_ts.replace(' ', 'T').replace('Z', '')
+            frame_dt = datetime.fromisoformat(frame_normalized)
+            distance = abs((frame_dt - target_dt).total_seconds())
+            if distance < min_distance:
+                min_distance = distance
+                closest_idx = idx
+        except:
+            continue
+    
+    return closest_idx
 
 
 def refresh_hotspot_cache():
@@ -335,14 +385,18 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=5000)
     args = parser.parse_args()
 
-    if args.frames:
-        FRAMES = load_frames_from_file(args.frames)
-        refresh_hotspot_cache()
+    # Set paths BEFORE loading frames and refreshing cache
     if args.sst_report:
         SST_REPORT_PATH = args.sst_report
     if args.sst_json:
         SST_JSON_PATH = args.sst_json
         print(f"[grav] SST JSON data available at: {SST_JSON_PATH}")
+    
+    # Now load frames and refresh hotspot cache (which will use SST_JSON_PATH)
+    if args.frames:
+        FRAMES = load_frames_from_file(args.frames)
+        refresh_hotspot_cache()
+    
     if args.logs:
         SOURCE_LOG_FILES = [
             {'path': log_path, 'name': os.path.basename(log_path)}
