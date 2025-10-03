@@ -62,5 +62,12 @@ galera-*/
 test_output/
 temp_results/
 
+# Test and sample data directories
+tests/
+unittest/
+cl407/
+jfd/
+
 # Temporary stuff directory (not to be committed)
 stuff/
+
