@@ -345,6 +345,34 @@
             z-index: 5;
         }
         
+        /* Timeline Labels */
+        .timeline-label {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 500;
+            background: rgba(248, 250, 252, 0.95);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid #e2e8f0;
+            pointer-events: none;
+        }
+        
+        .timeline-date-label {
+            top: 20px; /* Position in the date bar */
+            color: #475569;
+            font-weight: 600;
+        }
+        
+        .timeline-frames-label {
+            top: 80px; /* Position near the slider bar */
+            color: #1e40af;
+            font-weight: 600;
+        }
+        
         .date-marker {
             position: absolute;
             height: 100%;
@@ -1020,7 +1048,9 @@
                     </div>
                 </div>
                 <div class="timeline-wrapper">
-                    <div class="timeline-date-bar" id="timeline-date-bar"></div>
+                    <div class="timeline-date-bar" id="timeline-date-bar">
+                        <div class="timeline-label timeline-date-label">Natural Timeline</div>
+                    </div>
                     <div class="timeline-track-labels">
                         <div class="track-label sst">SST</div>
                         <div class="track-label cluster">CLU</div>
@@ -1029,6 +1059,7 @@
                     </div>
                     <div id="timeline-hotspot-track"></div>
                     <input type="range" id="timeline-bar" min="1" value="1">
+                    <div class="timeline-label timeline-frames-label">Frame Navigation</div>
                 </div>
                 <div class="timeline-legend">
                     <span class="legend-item"><span class="legend-marker sst"></span>SST Operations (Top Track)</span>
@@ -2155,14 +2186,11 @@
                 const duration = session.duration_seconds ? 
                     `${Math.round(session.duration_seconds)}s` : 'Unknown';
                 
-                const eventsHtml = session.events.slice(0, 5).map(event => {
+                const eventsHtml = session.events.map(event => {
                     const eventTime = event.timestamp.split(' ')[1]; // Get time part
                     const category = event.category.replace(/_/g, ' ').toUpperCase();
                     return `<div class="sst-event-item">${eventTime} — ${category}</div>`;
                 }).join('');
-                
-                const moreEvents = session.events.length > 5 ? 
-                    `<div class="sst-event-item">... and ${session.events.length - 5} more events</div>` : '';
                 
                 return `
                     <div class="sst-session ${statusClass}">
@@ -2179,7 +2207,6 @@
                         </div>
                         <div class="sst-session-events">
                             ${eventsHtml}
-                            ${moreEvents}
                         </div>
                     </div>
                 `;
