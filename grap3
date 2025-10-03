@@ -120,56 +120,15 @@ class EntityExtractor:
             confidence=0.96
         ))
         
-        patterns.append(Pattern(
-            pattern_id="server_status_change",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Server\s+status\s+change\s+(\w+)\s+->\s+(\w+)',
-            entity_type="node_state",
-            priority=97,
-            context="LOCAL",
-            extract_fields={
-                1: "timestamp",
-                2: "from_state",
-                3: "to_state"
-            },
-            computed_fields={
-                "transition_type": "SERVER_STATUS"
-            },
-            confidence=0.98
-        ))
+        # REMOVED: server_status_change pattern - captures non-canonical states
+        # Only track canonical states from Shifting pattern: CLOSED, OPEN, DONOR/DESYNCED, JOINED, SYNCED, JOINER, PRIMARY
+        # Non-canonical states like joiner->initializing, initializing->initialized are filtered out
         
-        patterns.append(Pattern(
-            pattern_id="synchronized_with_group",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Synchronized\s+with\s+group,\s+ready\s+for\s+connections',
-            entity_type="node_state",
-            priority=96,
-            context="LOCAL",
-            extract_fields={
-                1: "timestamp"
-            },
-            computed_fields={
-                "from_state": "JOINING",
-                "to_state": "SYNCED",
-                "transition_type": "GROUP_SYNC"
-            },
-            confidence=0.99
-        ))
+        # REMOVED: synchronized_with_group pattern - uses non-canonical JOINING state  
+        # Only track canonical states from Shifting pattern: CLOSED, OPEN, DONOR/DESYNCED, JOINED, SYNCED, JOINER, PRIMARY
         
-        patterns.append(Pattern(
-            pattern_id="ready_for_connections",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+.*mariadbd:\s+ready\s+for\s+connections',
-            entity_type="node_state",
-            priority=94,
-            context="LOCAL",
-            extract_fields={
-                1: "timestamp"
-            },
-            computed_fields={
-                "from_state": "INITIALIZING",
-                "to_state": "SYNCED",
-                "transition_type": "READY"
-            },
-            confidence=0.97
-        ))
+        # REMOVED: ready_for_connections pattern - uses non-canonical INITIALIZING state
+        # Only track canonical states from Shifting pattern: CLOSED, OPEN, DONOR/DESYNCED, JOINED, SYNCED, JOINER, PRIMARY
         
         patterns.append(Pattern(
             pattern_id="member_state_in_view",
