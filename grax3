@@ -29,8 +29,8 @@ from typing import Iterable, List, Optional
 ROOT_DIR = Path(__file__).resolve().parent
 GRAA = ROOT_DIR / "graa"
 GRAP = ROOT_DIR / "grap3"
-GRAF = ROOT_DIR / "graf"
-GRAV = ROOT_DIR / "grav"
+GRAF = ROOT_DIR / "graf3"
+GRAV = ROOT_DIR / "grav3"
 
 
 def format_cmd(cmd: Iterable[str]) -> str:
