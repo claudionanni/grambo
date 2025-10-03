@@ -2143,28 +2143,74 @@
 
         // Render SST markers from graa JSON data on timeline
         function renderSSTHotspots(track, totalFrames) {
+            console.log('renderSSTHotspots called:', {
+                sstSessionsData: sstSessionsData,
+                sessionsCount: sstSessionsData?.sessions?.length || 0,
+                totalFrames: totalFrames,
+                framesLength: FRAMES?.length || 0
+            });
+            
             if (!sstSessionsData || !sstSessionsData.sessions || !FRAMES || FRAMES.length === 0) {
+                console.log('Early return: missing data', {
+                    hasSST: !!sstSessionsData,
+                    hasSessions: !!sstSessionsData?.sessions,
+                    hasFrames: !!FRAMES,
+                    frameCount: FRAMES?.length || 0
+                });
                 return;
             }
             
             // Get timeline bounds from frames
             const firstFrame = FRAMES[0];
             const lastFrame = FRAMES[FRAMES.length - 1];
-            if (!firstFrame?.timestamp || !lastFrame?.timestamp) return;
+            console.log('Frame bounds:', {
+                firstTimestamp: firstFrame?.timestamp,
+                lastTimestamp: lastFrame?.timestamp
+            });
+            
+            if (!firstFrame?.timestamp || !lastFrame?.timestamp) {
+                console.log('No frame timestamps available');
+                return;
+            }
             
             const startTime = new Date(firstFrame.timestamp.replace(' ', 'T'));
             const endTime = new Date(lastFrame.timestamp.replace(' ', 'T'));
             const totalDuration = endTime.getTime() - startTime.getTime();
             
-            if (totalDuration <= 0) return;
+            console.log('Timeline bounds:', {
+                startTime: startTime.toISOString(),
+                endTime: endTime.toISOString(),
+                totalDuration: totalDuration
+            });
+            
+            if (totalDuration <= 0) {
+                console.log('Invalid timeline duration:', totalDuration);
+                return;
+            }
+            
+            let markersAdded = 0;
             
             // Render markers for each SST session and event
-            sstSessionsData.sessions.forEach(session => {
+            sstSessionsData.sessions.forEach((session, sessionIndex) => {
+                console.log(`Processing SST session ${sessionIndex + 1}:`, {
+                    sessionId: session.session_id,
+                    startTime: session.start_time,
+                    endTime: session.end_time,
+                    joiner: session.joiner_node,
+                    donor: session.donor_node
+                });
+                
                 // Create marker for session start
                 if (session.start_time) {
                     const sessionStart = new Date(session.start_time.replace(' ', 'T'));
                     const timeFromStart = sessionStart.getTime() - startTime.getTime();
                     const percentage = (timeFromStart / totalDuration) * 100;
+                    
+                    console.log(`Session ${sessionIndex + 1} start marker:`, {
+                        sessionStart: sessionStart.toISOString(),
+                        timeFromStart: timeFromStart,
+                        percentage: percentage
+                    });
                     
                     if (percentage >= 0 && percentage <= 100) {
                         const marker = document.createElement('div');
@@ -2181,6 +2227,8 @@
                         }
                         
                         track.appendChild(marker);
+                        markersAdded++;
+                        console.log(`Added session start marker ${markersAdded} at ${percentage.toFixed(2)}%`);
                     }
                 }
                 
@@ -2193,7 +2241,9 @@
                         event.category === 'session_end_success'
                     );
                     
-                    significantEvents.forEach(event => {
+                    console.log(`Session ${sessionIndex + 1} significant events:`, significantEvents.length);
+                    
+                    significantEvents.forEach((event, eventIndex) => {
                         if (event.timestamp) {
                             const eventTime = new Date(event.timestamp.replace(' ', 'T'));
                             const timeFromStart = eventTime.getTime() - startTime.getTime();
@@ -2216,11 +2266,15 @@
                                 }
                                 
                                 track.appendChild(marker);
+                                markersAdded++;
+                                console.log(`Added event marker ${markersAdded} for ${event.category} at ${percentage.toFixed(2)}%`);
                             }
                         }
                     });
                 }
             });
+            
+            console.log(`SST markers rendering complete: ${markersAdded} markers added to timeline`);
         }
         
         // Helper function to find closest frame by timestamp
