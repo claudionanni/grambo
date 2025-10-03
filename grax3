@@ -3,7 +3,7 @@
 
 This utility orchestrates the standard v3 analysis workflow:
 
-    graa --sst <logs>  →  SST session summary
+    graa3 --sst <logs>  →  SST session summary
     grap3 --format=json <logs>  →  Structured entities
     graf3 <grap.json> --ndjson  →  Timeline frames
     grav3 --frames=<frames.ndjson> --sst-report=<sst.txt>
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 ROOT_DIR = Path(__file__).resolve().parent
-GRAA = ROOT_DIR / "graa"
+GRAA3 = ROOT_DIR / "graa3"
 GRAP = ROOT_DIR / "grap3"
 GRAF = ROOT_DIR / "graf3"
 GRAV = ROOT_DIR / "grav3"
@@ -44,7 +44,7 @@ def run_step(cmd: List[str], *, stdout=None) -> None:
 
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run graa → grap3 → graf3 → grav3 in sequence",
+        description="Run graa3 → grap3 → graf3 → grav3 in sequence",
     )
     parser.add_argument(
         "logs",
@@ -58,8 +58,8 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "--sst-report-name",
-        default="graa_sst.txt",
-        help="Filename for the graa --sst report (default: %(default)s)",
+        default="graa3_sst.txt",
+        help="Filename for the graa3 --sst report (default: %(default)s)",
     )
     parser.add_argument(
         "--grap-output-name",
@@ -133,22 +133,22 @@ def main(argv: List[str] | None = None) -> int:
     python_cmd = select_python(args.python)
     print(f"[grax] using python interpreter: {python_cmd}")
 
-    # Step 1: graa --sst (per log file, appended)
+    # Step 1: graa3 --sst (per log file, appended)
     with sst_path.open("w", encoding="utf-8") as sst_file:
         for idx, log_path in enumerate(args.logs, start=1):
             if idx > 1:
                 sst_file.write("\n" + ("=" * 80) + "\n\n")
-            sst_file.write(f"GRAA --sst report for {log_path}\n")
+            sst_file.write(f"GRAA3 --sst report for {log_path}\n")
             sst_file.write("-" * 80 + "\n")
-            graa_cmd = [python_cmd, str(GRAA), "--sst", str(log_path)]
-            run_step(graa_cmd, stdout=sst_file)
+            graa3_cmd = [python_cmd, str(GRAA3), "--sst", str(log_path)]
+            run_step(graa3_cmd, stdout=sst_file)
             sst_file.flush()
     print(f"[grax] SST report saved to {sst_path}")
 
-    # Step 1.5: graa --sst --json (for GRAV frontend integration)
-    graa_json_cmd = [python_cmd, str(GRAA), "--sst", "--json", *map(str, args.logs)]
+    # Step 1.5: graa3 --sst --json (for GRAV frontend integration)
+    graa3_json_cmd = [python_cmd, str(GRAA3), "--sst", "--json", *map(str, args.logs)]
     with sst_json_path.open("w", encoding="utf-8") as sst_json_file:
-        run_step(graa_json_cmd, stdout=sst_json_file)
+        run_step(graa3_json_cmd, stdout=sst_json_file)
     print(f"[grax] SST JSON data saved to {sst_json_path}")
 
     # Step 2: grap
