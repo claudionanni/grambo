@@ -843,7 +843,7 @@ class GaleraLogParser:
 
         Canonical states: CLOSED, OPEN, PRIMARY, JOINER, JOINED, SYNCED, DONOR/DESYNCED
         The function extracts the RHS of arrow-style strings and maps to exact canonical values.
-        Returns None for non-canonical states.
+        Returns None for non-canonical states including UNKNOWN.
         """
         if not raw:
             return None
@@ -853,14 +853,18 @@ class GaleraLogParser:
             parts = s.split('->')
             s = parts[-1].strip()
         
-        # Exact case-insensitive matching with canonical states
+        # Exact case-insensitive matching with canonical states only
         s_upper = s.upper()
         canonical_states = {'CLOSED', 'OPEN', 'PRIMARY', 'JOINER', 'JOINED', 'SYNCED', 'DONOR/DESYNCED'}
         
         if s_upper in canonical_states:
             return s_upper
         
-        # Non-canonical states - return None to ignore them
+        # Filter out ALL non-canonical states including UNKNOWN
+        # Log filtered states for debugging
+        if s_upper not in {'', 'NONE', 'NULL'}:
+            print(f"[GRAP] Filtered non-canonical state: '{raw}' -> None (canonical states only)", file=sys.stderr)
+        
         return None
 
     def _backfill_view_members(self, name: str, identifiers: Set[str], uuid: Optional[str]):
