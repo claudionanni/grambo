@@ -1175,6 +1175,9 @@
             if (!timelineHotspots || totalFrames <= 1) return;
             const denom = Math.max(1, totalFrames - 1);
             
+            // Render SST markers from graa JSON data
+            renderSSTHotspots(track, totalFrames);
+            
             const addMarker = (percent, cssClass, title, frameIndex = null) => {
                 const marker = document.createElement('div');
                 marker.className = `hotspot-marker ${cssClass}`;
@@ -2137,6 +2140,111 @@
                 }, 100);
             }
         };
+
+        // Render SST markers from graa JSON data on timeline
+        function renderSSTHotspots(track, totalFrames) {
+            if (!sstSessionsData || !sstSessionsData.sessions || !FRAMES || FRAMES.length === 0) {
+                return;
+            }
+            
+            // Get timeline bounds from frames
+            const firstFrame = FRAMES[0];
+            const lastFrame = FRAMES[FRAMES.length - 1];
+            if (!firstFrame?.timestamp || !lastFrame?.timestamp) return;
+            
+            const startTime = new Date(firstFrame.timestamp.replace(' ', 'T'));
+            const endTime = new Date(lastFrame.timestamp.replace(' ', 'T'));
+            const totalDuration = endTime.getTime() - startTime.getTime();
+            
+            if (totalDuration <= 0) return;
+            
+            // Render markers for each SST session and event
+            sstSessionsData.sessions.forEach(session => {
+                // Create marker for session start
+                if (session.start_time) {
+                    const sessionStart = new Date(session.start_time.replace(' ', 'T'));
+                    const timeFromStart = sessionStart.getTime() - startTime.getTime();
+                    const percentage = (timeFromStart / totalDuration) * 100;
+                    
+                    if (percentage >= 0 && percentage <= 100) {
+                        const marker = document.createElement('div');
+                        marker.className = 'hotspot-marker sst';
+                        marker.style.left = `${percentage}%`;
+                        marker.title = `SST Session ${session.session_id}: ${session.joiner_node} ← ${session.donor_node} (${session.status})`;
+                        marker.style.cursor = 'pointer';
+                        
+                        // Find closest frame for navigation
+                        const closestFrameIndex = findClosestFrameByTimestamp(session.start_time);
+                        if (closestFrameIndex !== -1) {
+                            marker.onclick = () => updateFrame(closestFrameIndex);
+                            marker.title += ` (click to jump to frame ${closestFrameIndex + 1})`;
+                        }
+                        
+                        track.appendChild(marker);
+                    }
+                }
+                
+                // Create additional markers for significant SST events
+                if (session.events) {
+                    const significantEvents = session.events.filter(event => 
+                        event.category === 'sst_request' || 
+                        event.category === 'sst_data_sent' || 
+                        event.category === 'sst_data_received' ||
+                        event.category === 'session_end_success'
+                    );
+                    
+                    significantEvents.forEach(event => {
+                        if (event.timestamp) {
+                            const eventTime = new Date(event.timestamp.replace(' ', 'T'));
+                            const timeFromStart = eventTime.getTime() - startTime.getTime();
+                            const percentage = (timeFromStart / totalDuration) * 100;
+                            
+                            if (percentage >= 0 && percentage <= 100) {
+                                const marker = document.createElement('div');
+                                marker.className = 'hotspot-marker sst';
+                                marker.style.left = `${percentage}%`;
+                                marker.style.width = '6px';  // Smaller for events
+                                marker.style.height = '12px';
+                                marker.style.opacity = '0.7';
+                                marker.title = `SST Event: ${event.category} at ${event.timestamp}`;
+                                
+                                const closestFrameIndex = findClosestFrameByTimestamp(event.timestamp);
+                                if (closestFrameIndex !== -1) {
+                                    marker.style.cursor = 'pointer';
+                                    marker.onclick = () => updateFrame(closestFrameIndex);
+                                    marker.title += ` (frame ${closestFrameIndex + 1})`;
+                                }
+                                
+                                track.appendChild(marker);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Helper function to find closest frame by timestamp
+        function findClosestFrameByTimestamp(targetTimestamp) {
+            if (!FRAMES || !targetTimestamp) return -1;
+            
+            const targetTime = new Date(targetTimestamp.replace(' ', 'T'));
+            let closestIndex = -1;
+            let minDiff = Infinity;
+            
+            for (let i = 0; i < FRAMES.length; i++) {
+                const frame = FRAMES[i];
+                if (frame.timestamp) {
+                    const frameTime = new Date(frame.timestamp.replace(' ', 'T'));
+                    const diff = Math.abs(targetTime.getTime() - frameTime.getTime());
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestIndex = i;
+                    }
+                }
+            }
+            
+            return closestIndex;
+        }
 
         let latestGraphNodes = [];
         let sstSessionsData = null; // Cache for SST sessions JSON data
