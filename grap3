@@ -79,14 +79,125 @@ class EntityExtractor:
         self.patterns = self._load_patterns()
     
     def _load_patterns(self) -> List[Pattern]:
-        """Load all extraction patterns"""
+        """Load all extraction patterns from YAML files"""
         patterns = []
         
-        # ==================================================================
-        # NODE STATE CHANGE PATTERNS
-        # ==================================================================
+        # Import yaml library
+        try:
+            import yaml
+        except ImportError:
+            print("[GRAP3] WARNING: PyYAML not available, falling back to minimal hardcoded patterns", file=sys.stderr)
+            return self._load_minimal_hardcoded_patterns()
         
-        patterns.append(Pattern(
+        # Load patterns from YAML files
+        patterns_dir = Path(__file__).parent / "patterns"
+        if not patterns_dir.exists():
+            print(f"[GRAP3] WARNING: Patterns directory not found: {patterns_dir}", file=sys.stderr)
+            return self._load_minimal_hardcoded_patterns()
+        
+        yaml_files = list(patterns_dir.glob("*.yaml")) + list(patterns_dir.glob("*.yml"))
+        if not yaml_files:
+            print(f"[GRAP3] WARNING: No YAML pattern files found in {patterns_dir}", file=sys.stderr)
+            return self._load_minimal_hardcoded_patterns()
+        
+        print(f"[GRAP3] Loading patterns from {len(yaml_files)} YAML files", file=sys.stderr)
+        
+        for yaml_file in sorted(yaml_files):
+            try:
+                with open(yaml_file, 'r') as f:
+                    yaml_data = yaml.safe_load(f)
+                
+                if not yaml_data or 'patterns' not in yaml_data:
+                    print(f"[GRAP3] WARNING: No patterns found in {yaml_file.name}", file=sys.stderr)
+                    continue
+                
+                file_patterns = self._convert_yaml_patterns_to_objects(yaml_data['patterns'], yaml_file.name)
+                patterns.extend(file_patterns)
+                print(f"[GRAP3] Loaded {len(file_patterns)} patterns from {yaml_file.name}", file=sys.stderr)
+                
+            except Exception as e:
+                print(f"[GRAP3] ERROR loading {yaml_file.name}: {e}", file=sys.stderr)
+                continue
+        
+        if not patterns:
+            print("[GRAP3] WARNING: No patterns loaded from YAML, using minimal hardcoded fallback", file=sys.stderr)
+            return self._load_minimal_hardcoded_patterns()
+        
+        print(f"[GRAP3] Total patterns loaded: {len(patterns)}", file=sys.stderr)
+        return patterns
+    
+    def _convert_yaml_patterns_to_objects(self, yaml_patterns: Dict[str, List], filename: str) -> List[Pattern]:
+        """Convert YAML pattern definitions to Pattern objects"""
+        patterns = []
+        
+        for category, pattern_list in yaml_patterns.items():
+            for pattern_def in pattern_list:
+                try:
+                    # Extract pattern fields
+                    pattern_id = pattern_def.get('name', f"unknown_{len(patterns)}")
+                    regex = pattern_def.get('regex', '')
+                    confidence = pattern_def.get('confidence', 0.9)
+                    
+                    if not regex:
+                        print(f"[GRAP3] WARNING: No regex for pattern {pattern_id} in {filename}", file=sys.stderr)
+                        continue
+                    
+                    # Map category to entity type
+                    entity_type_map = {
+                        'VIEW': 'view',
+                        'SST': 'sst', 
+                        'IST': 'ist',
+                        'NODE': 'node_state',
+                        'CLUSTER': 'cluster',
+                        'ERROR': 'error',
+                        'QUORUM': 'quorum'
+                    }
+                    
+                    entity_type = entity_type_map.get(category.upper(), 'unknown')
+                    
+                    # Extract regex groups for field mapping
+                    extract_fields = {}
+                    computed_fields = {}
+                    
+                    # Try to map required fields from YAML
+                    if 'required_fields' in pattern_def:
+                        for i, field in enumerate(pattern_def['required_fields'], 1):
+                            extract_fields[i] = field
+                    
+                    # Create Pattern object
+                    pattern = Pattern(
+                        pattern_id=pattern_id,
+                        regex=regex,
+                        entity_type=entity_type,
+                        priority=90,  # Default priority
+                        context="GLOBAL",  # Default context
+                        extract_fields=extract_fields,
+                        computed_fields=computed_fields,
+                        confidence=confidence
+                    )
+                    
+                    patterns.append(pattern)
+                    
+                except Exception as e:
+                    print(f"[GRAP3] ERROR converting pattern {pattern_def.get('name', 'unknown')} in {filename}: {e}", file=sys.stderr)
+                    continue
+        
+        return patterns
+    
+    def _load_minimal_hardcoded_patterns(self) -> List[Pattern]:
+        """Minimal hardcoded patterns as fallback - only canonical Shifting states"""
+        return [
+            Pattern(
+                pattern_id="node_state_shifting",
+                regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Shifting\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED)\s+->\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED)',
+                entity_type="node_state",
+                priority=100,
+                context="LOCAL",
+                extract_fields={1: "timestamp", 2: "from_state", 3: "to_state"},
+                computed_fields={"transition_type": "LOCAL_SHIFT"},
+                confidence=0.98
+            )
+        ]
             pattern_id="node_state_shifting",
             regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Shifting\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED|DONOR|DESYNCED)\s+->\s+(CLOSED|OPEN|PRIMARY|JOINER|JOINED|SYNCED|DONOR/DESYNCED|DONOR|DESYNCED)',
             entity_type="node_state",
