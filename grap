@@ -1414,7 +1414,7 @@ class GaleraLogParser:
             }
         else:  # alternative format
             self._current_view_data = {
-                'type': 'UNKNOWN',
+                'type': None,  # Don't default to UNKNOWN - let it be filtered out
                 'uuid': match.group(1),
                 'seq': int(match.group(2)),
                 'members': [],
@@ -1762,7 +1762,7 @@ class GaleraLogParser:
         )
         self.entities.append(entity)
         # Emit NodeViewEntity only for the node that owns this local view snapshot
-        component_state = component_state or "UNKNOWN"
+        component_state = component_state or None  # Don't default to UNKNOWN - use None for filtering
         owner_name = view.get('owner_name')
         owner_uuid_norm = None
         if component_uuid_value:
