@@ -134,34 +134,36 @@ class SSTSessionTracker:
     def __init__(self, log_file_path: Optional[str] = None):
         self.sessions = []
         self.log_file_path = log_file_path
+        self.log_file_paths = []  # For multi-file support
         
     def process_entities(self, entities: List[Dict]) -> List[SSTSession]:
         """Process entities chronologically to build SST sessions"""
         # Always reset collected sessions before rebuilding
         self.sessions = []
 
-        # Prefer grap-provided temporal entities when available
-        sessions = self._build_sessions_from_entities(entities)
-        if sessions:
-            return sessions
-
-        # Fallback: derive sessions directly from the raw log when grap output
-        # does not include enriched STATE_TRANSFER entities
-        if self.log_file_path:
-            self.sessions = self._build_sessions_from_log_file()
-            return self.sessions
+        # For multi-file analysis, always use boundary-based approach
+        # For single-file analysis, also use boundary-based approach now
+        # (Entity-based approach was creating too many fake sessions)
+        
+        if hasattr(self, 'log_file_paths') and len(getattr(self, 'log_file_paths', [])) > 1:
+            # Multi-file: use boundary-based approach
+            return self._build_sessions_from_multi_logs()
+        else:
+            # Single file: use boundary-based approach  
+            if self.log_file_path:
+                self.sessions = self._build_sessions_from_log_file()
+                return self.sessions
         
         return []
     
     def _build_sessions_from_log_file(self) -> List[SSTSession]:
-        """Build SST sessions by parsing the log file directly"""
+        """Build SST sessions using correct chronological boundary approach for single file"""
         sessions = []
         
         if not self.log_file_path:
             return sessions
         
         try:
-            # Try UTF-8 first, fall back to latin-1 if that fails
             try:
                 with open(self.log_file_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
@@ -173,95 +175,244 @@ class SSTSessionTracker:
         
         current_session = None
         
-        def _is_completion_line(text: str) -> bool:
-            lower = text.lower()
-            if 'state transfer required' in lower:
-                return False
-            if 'complete' in lower or 'completed' in lower:
-                if 'state transfer' in lower or 'sst' in lower or 'process' in lower:
-                    return True
-            if 'process completed' in lower or 'sst completed' in lower:
-                return True
-            return False
-
-        def _is_failure_line(text: str) -> bool:
-            lower = text.lower()
-            return (
-                'error' in lower
-                or 'failed' in lower
-                or 'broken pipe' in lower
-                or 'interrupt' in lower
-                or 'aborted' in lower
-            )
-
         for line in lines:
             line = line.strip()
             
-            # Extract timestamp from the line
+            # Extract timestamp
             timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
             if not timestamp_match:
                 continue
             timestamp = timestamp_match.group(1)
             
-            # Check for SST request patterns
-            if 'requested state transfer' in line:
-                # If there's an ongoing session, mark it as interrupted/failed
+            # SESSION START: "State transfer required:"
+            if 'state transfer required' in line.lower():
+                # Close any existing session
                 if current_session:
-                    current_session.status = 'INTERRUPTED'
-                    current_session.completion_time = timestamp
-                    current_session.completion_line = "Session interrupted by new SST request"
-                    current_session.add_event(timestamp, "Session interrupted by new SST request")
+                    current_session.status = 'INCOMPLETE'
                     sessions.append(current_session)
-                
-                # Parse donor and joiner names
-                parsed = self._parse_sst_log_line(line)
                 
                 # Start new session
                 current_session = SSTSession(timestamp, line)
-                current_session.donor = parsed.get('donor', 'unknown_donor')
-                current_session.joiner = parsed.get('joiner', 'unknown_joiner')
-                current_session.method = 'mariabackup'  # Default
                 current_session.status = 'ONGOING'
-                current_session.add_event(timestamp, line)
+                current_session.add_event(timestamp, f"[START] {line}")
                 
-            # Check for SST completion (both success and failure)
-            elif current_session and _is_completion_line(line):
-                if _is_failure_line(line):
-                    current_session.status = 'FAILED'
-                    error_match = re.search(r'error:.*?(\d+) \(([^)]+)\)', line, re.IGNORECASE)
-                    failed_match = re.search(r'failed:\s*(.+)$', line, re.IGNORECASE)
-                    interrupt_match = re.search(r'(interrupt(?:ed)?|broken pipe|aborted.*)$', line, re.IGNORECASE)
-                    if error_match:
-                        current_session.error_message = f"Exit code {error_match.group(1)}: {error_match.group(2)}"
-                    elif failed_match:
-                        current_session.error_message = failed_match.group(1).strip()
-                    elif interrupt_match:
-                        current_session.error_message = interrupt_match.group(1).strip()
-                    else:
-                        current_session.error_message = _trim_log_line(line)
-                else:
-                    current_session.status = 'COMPLETED'
-
+            # SESSION END: Success or Failure  
+            elif current_session and ('sst succeeded for position' in line.lower() or 
+                                    re.search(r'state transfer.*failed', line.lower())):
+                # End current session
                 current_session.completion_time = timestamp
-                current_session.completion_line = line
-                current_session.add_event(timestamp, line)
+                current_session.add_event(timestamp, f"[END] {line}")
+                
+                if 'succeeded' in line.lower():
+                    current_session.status = 'COMPLETED'
+                elif 'failed' in line.lower():
+                    current_session.status = 'FAILED'
+                    if 'failed:' in line:
+                        error_part = line.split('failed:')[1].strip()
+                        current_session.error_message = error_part
                 
                 # Calculate duration
-                if current_session.request_time and current_session.completion_time:
+                if current_session.completion_time:
                     try:
                         start_dt = datetime.fromisoformat(current_session.request_time.replace(' ', 'T'))
                         end_dt = datetime.fromisoformat(current_session.completion_time.replace(' ', 'T'))
-                        duration_td = end_dt - start_dt
-                        current_session.duration_seconds = duration_td.total_seconds()
+                        current_session.duration_seconds = (end_dt - start_dt).total_seconds()
                     except:
                         current_session.duration_seconds = 0.0
                 
                 sessions.append(current_session)
                 current_session = None
+                
+            # INTERMEDIATE EVENTS: Add to current session if one exists
+            elif current_session and any(pattern in line.lower() for pattern in [
+                'requested state transfer',
+                'sst started on',
+                'sst completed on',
+                'sst sent:',
+                'sst received',
+                'prepared ist receiver',
+                'receiving ist',
+                'ist received'
+            ]):
+                # Categorize and add the event
+                if 'requested state transfer' in line:
+                    parsed = self._parse_sst_log_line(line)
+                    current_session.donor = parsed.get('donor', current_session.donor)
+                    current_session.joiner = parsed.get('joiner', current_session.joiner)
+                    current_session.add_event(timestamp, f"[REQUEST] {line}")
+                elif 'sst started on donor' in line.lower():
+                    current_session.add_event(timestamp, f"[DONOR_START] {line}")
+                elif 'sst started on joiner' in line.lower():
+                    current_session.add_event(timestamp, f"[JOINER_START] {line}")
+                elif 'sst completed on donor' in line.lower():
+                    current_session.add_event(timestamp, f"[DONOR_COMPLETE] {line}")
+                elif 'sst completed on joiner' in line.lower():
+                    current_session.add_event(timestamp, f"[JOINER_COMPLETE] {line}")
+                elif 'sst sent:' in line.lower():
+                    current_session.add_event(timestamp, f"[SST_SENT] {line}")
+                elif 'sst received' in line.lower():
+                    current_session.add_event(timestamp, f"[SST_RECEIVED] {line}")
+                else:
+                    current_session.add_event(timestamp, f"[EVENT] {line}")
         
-        # Handle any remaining ongoing session
+        # Handle any remaining session
         if current_session:
-            current_session.status = 'ONGOING'
+            current_session.status = 'INCOMPLETE'
+            sessions.append(current_session)
+        
+        return sessions
+    
+    def _build_sessions_from_multi_logs(self) -> List[SSTSession]:
+        """Build SST sessions using correct chronological boundary approach for multi-file"""
+        sessions = []
+        
+        if not hasattr(self, 'log_file_paths') or not self.log_file_paths:
+            return sessions
+        
+        # Collect ALL events from ALL log files with timestamps
+        all_events = []
+        
+        for log_file in self.log_file_paths:
+            try:
+                try:
+                    with open(log_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                except UnicodeDecodeError:
+                    with open(log_file, 'r', encoding='latin-1') as f:
+                        lines = f.readlines()
+                        
+                for line_num, line in enumerate(lines, 1):
+                    line = line.strip()
+                    
+                    # Extract timestamp
+                    timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                    if not timestamp_match:
+                        continue
+                    timestamp = timestamp_match.group(1)
+                    
+                    # Collect ALL SST/IST related events
+                    if any(pattern in line.lower() for pattern in [
+                        'state transfer required',
+                        'sst succeeded for position',
+                        'state transfer.*failed',
+                        'requested state transfer',
+                        'sst started on',
+                        'sst completed on',
+                        'sst sent:',
+                        'sst received',
+                        'prepared ist receiver',
+                        'receiving ist',
+                        'ist received'
+                    ]):
+                        all_events.append({
+                            'timestamp': timestamp,
+                            'line': line,
+                            'source_file': log_file,
+                            'line_number': line_num
+                        })
+                        
+            except (FileNotFoundError, IOError):
+                continue
+        
+        # Sort ALL events chronologically across ALL files
+        all_events.sort(key=lambda x: x['timestamp'])
+        
+        # Parse sessions using correct boundaries
+        current_session = None
+        seen_cluster_events = set()  # Track duplicate cluster events
+        
+        for event in all_events:
+            line = event['line']
+            timestamp = event['timestamp']
+            
+            # SESSION START: "State transfer required:"
+            if 'state transfer required' in line.lower():
+                # Close any existing session
+                if current_session:
+                    current_session.status = 'INCOMPLETE'
+                    sessions.append(current_session)
+                
+                # Start new session
+                current_session = SSTSession(timestamp, line)
+                current_session.status = 'ONGOING'
+                current_session.add_event(timestamp, f"[START] {line}")
+                seen_cluster_events.clear()  # Reset for new session
+                
+            # SESSION END: Success or Failure
+            elif current_session and ('sst succeeded for position' in line.lower() or 
+                                    re.search(r'state transfer.*failed', line.lower())):
+                # End current session
+                current_session.completion_time = timestamp
+                current_session.add_event(timestamp, f"[END] {line}")
+                
+                if 'succeeded' in line.lower():
+                    current_session.status = 'COMPLETED'
+                elif 'failed' in line.lower():
+                    current_session.status = 'FAILED'
+                    if 'failed:' in line:
+                        error_part = line.split('failed:')[1].strip()
+                        current_session.error_message = error_part
+                
+                # Calculate duration
+                if current_session.completion_time:
+                    try:
+                        start_dt = datetime.fromisoformat(current_session.request_time.replace(' ', 'T'))
+                        end_dt = datetime.fromisoformat(current_session.completion_time.replace(' ', 'T'))
+                        current_session.duration_seconds = (end_dt - start_dt).total_seconds()
+                    except:
+                        current_session.duration_seconds = 0.0
+                
+                sessions.append(current_session)
+                current_session = None
+                
+            # INTERMEDIATE EVENTS: Add to current session if one exists
+            elif current_session:
+                # Check for duplicate cluster events
+                is_cluster_event = any(pattern in line.lower() for pattern in [
+                    'requested state transfer',
+                    'member.*requested state transfer',
+                    'selected.*as donor'
+                ])
+                
+                if is_cluster_event:
+                    # Create a dedup key for cluster events (timestamp + core message)
+                    core_message = re.sub(r'Member \d+\.\d+ \([^)]+\)', 'Member X.Y (NODE)', line)
+                    dedup_key = f"{timestamp}:{core_message}"
+                    
+                    if dedup_key in seen_cluster_events:
+                        continue  # Skip duplicate cluster event
+                    seen_cluster_events.add(dedup_key)
+                
+                # Categorize and add the event
+                if 'requested state transfer' in line:
+                    parsed = self._parse_sst_log_line(line)
+                    current_session.donor = parsed.get('donor', current_session.donor)
+                    current_session.joiner = parsed.get('joiner', current_session.joiner)
+                    current_session.add_event(timestamp, f"[REQUEST] {line}")
+                elif 'sst started on donor' in line.lower():
+                    current_session.add_event(timestamp, f"[DONOR_START] {line}")
+                elif 'sst started on joiner' in line.lower():
+                    current_session.add_event(timestamp, f"[JOINER_START] {line}")
+                elif 'sst completed on donor' in line.lower():
+                    current_session.add_event(timestamp, f"[DONOR_COMPLETE] {line}")
+                elif 'sst completed on joiner' in line.lower():
+                    current_session.add_event(timestamp, f"[JOINER_COMPLETE] {line}")
+                elif 'sst sent:' in line.lower():
+                    current_session.add_event(timestamp, f"[SST_SENT] {line}")
+                elif 'sst received' in line.lower():
+                    current_session.add_event(timestamp, f"[SST_RECEIVED] {line}")
+                elif 'prepared ist receiver' in line.lower():
+                    current_session.add_event(timestamp, f"[IST_PREPARED] {line}")
+                elif 'receiving ist' in line.lower():
+                    current_session.add_event(timestamp, f"[IST_RECEIVING] {line}")
+                elif 'ist received' in line.lower():
+                    current_session.add_event(timestamp, f"[IST_RECEIVED] {line}")
+                else:
+                    current_session.add_event(timestamp, f"[EVENT] {line}")
+        
+        # Handle any remaining session
+        if current_session:
+            current_session.status = 'INCOMPLETE'
             sessions.append(current_session)
         
         return sessions
@@ -270,6 +421,18 @@ class SSTSessionTracker:
         """Build sessions from grap temporal entities (each represents a complete SST session)"""
         # Get STATE_TRANSFER entities sorted by timestamp
         sst_entities = [e for e in entities if e.get('entity_type') == 'STATE_TRANSFER']
+        
+        # If no STATE_TRANSFER entities, try to find sst_event entities that represent actual requests
+        if not sst_entities:
+            # Only look for SST request events, not script completion events
+            sst_entities = [e for e in entities 
+                           if e.get('entity_type') == 'sst_event' 
+                           and 'requested state transfer' in e.get('message', '')]
+        
+        if not sst_entities:
+            # No proper SST entities found, fall back to log parsing
+            return []
+            
         sst_entities = sorted(sst_entities, key=safe_timestamp_key)
         
         # Group entities by donor/joiner/time to avoid duplicates from multiple completion perspectives
@@ -599,7 +762,9 @@ class GraAnalyzer:
         self.entities = []
         self.metadata = {}
         self.analysis_timestamp = datetime.now()
-        self.log_file_path = None  # Store the source log file path
+        self.log_file_path = None  # Store the source log file path (single file)
+        self.log_file_paths = []   # Store multiple log file paths (multi-file) (single file)
+        self.log_file_paths = []   # Store multiple log file paths (multi-file)
         
     def load_from_json(self, json_data: str) -> bool:
         """Load entities from grap JSON output"""
@@ -613,6 +778,100 @@ class GraAnalyzer:
             return False
             
     def load_from_grap(self, logfile: Path) -> bool:
+        """Run grap on logfile and load the JSON output"""
+        try:
+            # Store the log file path for later use
+            self.log_file_path = str(logfile)
+            self.log_file_paths = [str(logfile)]
+            
+            cmd = [sys.executable, 'grap3', '--format=json', str(logfile)]
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent)
+            
+            if result.returncode != 0:
+                print(f"Error running grap3: {result.stderr}", file=sys.stderr)
+                return False
+                
+            return self.load_from_json(result.stdout)
+        except Exception as e:
+            print(f"Error running grap3: {e}", file=sys.stderr)
+            return False
+            
+    def load_from_multiple_graps(self, logfiles: List[str]) -> bool:
+        """Run grap on multiple logfiles and merge the JSON outputs"""
+        try:
+            all_entities = []
+            all_metadata = {}
+            
+            print(f"[GRAA] Processing {len(logfiles)} log files for multi-node analysis...")
+            
+            for i, logfile_path in enumerate(logfiles):
+                logfile = Path(logfile_path)
+                if not logfile.exists():
+                    print(f"Error: Log file '{logfile}' not found", file=sys.stderr)
+                    return False
+                
+                print(f"[GRAA] Processing file {i+1}/{len(logfiles)}: {logfile.name}")
+                
+                # Run grap on this file
+                cmd = [sys.executable, 'grap3', '--format=json', str(logfile)]
+                result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent)
+                
+                if result.returncode != 0:
+                    print(f"Error running grap3 on {logfile}: {result.stderr}", file=sys.stderr)
+                    return False
+                
+                # Parse the JSON output
+                try:
+                    data = json.loads(result.stdout)
+                    entities = data if isinstance(data, list) else data.get('entities', [])
+                    
+                    # Add source file information to each entity
+                    for entity in entities:
+                        entity['source_file'] = str(logfile)
+                        entity['source_node'] = self._extract_node_from_filename(str(logfile))
+                    
+                    all_entities.extend(entities)
+                    
+                    # Merge metadata
+                    if isinstance(data, dict) and 'metadata' in data:
+                        all_metadata.update(data['metadata'])
+                        
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON from {logfile}: {e}", file=sys.stderr)
+                    return False
+            
+            # Sort all entities chronologically across all files
+            all_entities.sort(key=lambda e: e.get('timestamp', '') or '')
+            
+            # Store merged data
+            self.entities = all_entities
+            self.metadata = all_metadata
+            
+            # Store file paths for session tracking
+            self.log_file_paths = logfiles
+            
+            print(f"[GRAA] Merged {len(all_entities)} entities from {len(logfiles)} files")
+            return True
+            
+        except Exception as e:
+            print(f"Error processing multiple log files: {e}", file=sys.stderr)
+            return False
+    
+    def _extract_node_from_filename(self, filepath: str) -> str:
+        """Extract node identifier from log filename"""
+        filename = Path(filepath).name
+        # Try to extract node ID from patterns like error.11407.log, node_21407.log, etc.
+        import re
+        match = re.search(r'(\d{5})', filename)  # 5-digit node ID
+        if match:
+            return f"NODE_{match.group(1)}"
+        
+        # Fallback patterns
+        match = re.search(r'node[_-]?(\d+)', filename, re.IGNORECASE)
+        if match:
+            return f"NODE_{match.group(1)}"
+            
+        return f"NODE_{filename}"
         """Run grap on logfile and load the JSON output"""
         try:
             # Store the log file path for later use
@@ -1628,7 +1887,14 @@ def print_sst_sessions_timeline(analyzer: GraAnalyzer):
     print("="*80)
     
     # Get SST sessions using chronological tracker
-    tracker = SSTSessionTracker(analyzer.log_file_path)
+    tracker = SSTSessionTracker()
+    
+    # Pass log file paths to tracker for multi-file support
+    if hasattr(analyzer, 'log_file_paths') and analyzer.log_file_paths:
+        tracker.log_file_paths = analyzer.log_file_paths
+    elif analyzer.log_file_path:
+        tracker.log_file_path = analyzer.log_file_path
+        
     sessions = tracker.process_entities(analyzer.entities)
     
     if not sessions:
@@ -1700,7 +1966,15 @@ def print_sst_ist_tree(analyzer):
     print("SST → IST RELATIONSHIP TREE")
     print("=" * 80)
 
-    tracker = SSTSessionTracker(analyzer.log_file_path)
+    # Get SST sessions using chronological tracker (reuse the one from print_sst_sessions_timeline)
+    tracker = SSTSessionTracker()
+    
+    # Pass log file paths to tracker for multi-file support
+    if hasattr(analyzer, 'log_file_paths') and analyzer.log_file_paths:
+        tracker.log_file_paths = analyzer.log_file_paths
+    elif analyzer.log_file_path:
+        tracker.log_file_path = analyzer.log_file_path
+        
     sessions = tracker.process_entities(analyzer.entities)
 
     sst_entities = _collect_entities_by_type(analyzer.entities, 'sst')
@@ -2244,7 +2518,11 @@ def _describe_ist_event(ist: Dict[str, Any]) -> str:
 
     progress = ist.get('progress_percent')
     if progress is not None:
-        details.append(f"progress {progress:.1f}%")
+        try:
+            progress_float = float(progress)
+            details.append(f"progress {progress_float:.1f}%")
+        except (ValueError, TypeError):
+            details.append(f"progress {progress}%")
 
     processed = ist.get('events_processed')
     total = ist.get('events_total')
@@ -2281,18 +2559,18 @@ def main():
         epilog=__doc__
     )
     
-    parser.add_argument('logfile', nargs='?', help='Galera log file to analyze')
+    parser.add_argument('logfiles', nargs='*', help='Galera log file(s) to analyze')
     parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin (from grap)')
     parser.add_argument('--sst', action='store_true', help='Show hierarchical SST+IST relationship tree')
     parser.add_argument('--version', action='version', version=f'gra-analyzer {__version__}')
     
     args = parser.parse_args()
     
-    if not args.logfile and not args.stdin:
-        parser.error("Either provide a logfile or use --stdin")
+    if not args.logfiles and not args.stdin:
+        parser.error("Either provide logfile(s) or use --stdin")
     
-    if args.logfile and args.stdin:
-        parser.error("Cannot use both logfile and --stdin")
+    if args.logfiles and args.stdin:
+        parser.error("Cannot use both logfile(s) and --stdin")
     
     analyzer = GraAnalyzer()
     
@@ -2301,23 +2579,25 @@ def main():
         json_input = sys.stdin.read()
         if not analyzer.load_from_json(json_input):
             sys.exit(1)
-    else:
-        # Run grap on the logfile
-        logfile = Path(args.logfile)
+    elif len(args.logfiles) == 1:
+        # Single log file - existing behavior
+        logfile = Path(args.logfiles[0])
         if not logfile.exists():
-            print(f"Error: Log file '{args.logfile}' does not exist", file=sys.stderr)
+            print(f"Error: Log file '{args.logfiles[0]}' does not exist", file=sys.stderr)
             sys.exit(1)
         
         if not analyzer.load_from_grap(logfile):
             sys.exit(1)
+    else:
+        # Multiple log files - new multi-file analysis
+        if not analyzer.load_from_multiple_graps(args.logfiles):
+            sys.exit(1)
     
     # Perform analysis
-    analysis = analyzer.analyze()
-    
-    # Print results
     if args.sst:
         print_sst_ist_tree(analyzer)
     else:
+        analysis = analyzer.analyze()
         print_analysis(analysis)
 
 
