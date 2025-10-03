@@ -2147,22 +2147,22 @@
                 sstSessionsData: sstSessionsData,
                 sessionsCount: sstSessionsData?.sessions?.length || 0,
                 totalFrames: totalFrames,
-                framesLength: FRAMES?.length || 0
+                framesLength: window.FRAMES?.length || 0
             });
             
-            if (!sstSessionsData || !sstSessionsData.sessions || !FRAMES || FRAMES.length === 0) {
+            if (!sstSessionsData || !sstSessionsData.sessions || !window.FRAMES || window.FRAMES.length === 0) {
                 console.log('Early return: missing data', {
                     hasSST: !!sstSessionsData,
                     hasSessions: !!sstSessionsData?.sessions,
-                    hasFrames: !!FRAMES,
-                    frameCount: FRAMES?.length || 0
+                    hasFrames: !!window.FRAMES,
+                    frameCount: window.FRAMES?.length || 0
                 });
                 return;
             }
             
             // Get timeline bounds from frames
-            const firstFrame = FRAMES[0];
-            const lastFrame = FRAMES[FRAMES.length - 1];
+            const firstFrame = window.FRAMES[0];
+            const lastFrame = window.FRAMES[window.FRAMES.length - 1];
             console.log('Frame bounds:', {
                 firstTimestamp: firstFrame?.timestamp,
                 lastTimestamp: lastFrame?.timestamp
@@ -2279,14 +2279,14 @@
         
         // Helper function to find closest frame by timestamp
         function findClosestFrameByTimestamp(targetTimestamp) {
-            if (!FRAMES || !targetTimestamp) return -1;
+            if (!window.FRAMES || !targetTimestamp) return -1;
             
             const targetTime = new Date(targetTimestamp.replace(' ', 'T'));
             let closestIndex = -1;
             let minDiff = Infinity;
             
-            for (let i = 0; i < FRAMES.length; i++) {
-                const frame = FRAMES[i];
+            for (let i = 0; i < window.FRAMES.length; i++) {
+                const frame = window.FRAMES[i];
                 if (frame.timestamp) {
                     const frameTime = new Date(frame.timestamp.replace(' ', 'T'));
                     const diff = Math.abs(targetTime.getTime() - frameTime.getTime());
