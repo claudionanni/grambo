@@ -343,7 +343,7 @@
             align-items: center;
             margin-left: 1em;
             margin-right: 1em;
-            padding-top: 110px; /* Increased space for date bar + hotspot tracks */
+            padding-top: 150px; /* Increased for taller timeline (date bar + 5 tracks including FC) */
         }
         .timeline-wrapper input[type="range"] {
             width: 100%;
@@ -520,7 +520,7 @@
             top: 50px; /* Moved down to make room for date bar */
             left: 0;
             right: 0;
-            height: 60px; /* Fixed height for marker area above timeline */
+            height: 100px; /* Increased from 60px to accommodate flow control track */
             pointer-events: none;
         }
         .timeline-track-labels {
@@ -528,7 +528,7 @@
             left: -50px;
             top: 50px; /* Moved down to accommodate date bar */
             width: 45px;
-            height: 60px;
+            height: 100px; /* Increased to match timeline track */
             font-size: 10px;
             color: #666;
             pointer-events: none;
@@ -543,6 +543,7 @@
         .track-label.cluster { top: 18px; color: #e53935; }
         .track-label.node { top: 32px; color: #fb8c00; }
         .track-label.component { top: 46px; color: #8e24aa; }
+        .track-label.flow-control { top: 62px; color: #10b981; }
         .hotspot-marker {
             position: absolute;
             width: 6px;
@@ -584,6 +585,7 @@
         .hotspot-marker.flow-control {
             width: 3px;
             border-radius: 1px;
+            top: 62px; /* Track 5: Flow control below all others */
         }
         .hotspot-marker.flow-control.critical {
             background-color: #ef4444;
@@ -1129,6 +1131,7 @@
                         <div class="track-label cluster">CLU</div>
                         <div class="track-label node">NOD</div>
                         <div class="track-label component">COM</div>
+                        <div class="track-label flow-control">FC</div>
                     </div>
                     <div id="timeline-hotspot-track"></div>
                     <input type="range" id="timeline-bar" min="1" value="1">
