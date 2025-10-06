@@ -1141,41 +1141,94 @@ class EntityExtractor:
                 if gu and '-' in gu and len(gu) > 20:
                     cluster_uuids.add(gu)
         
+        # Build cluster timeline: determine lifetime of each cluster bootstrap session
+        # Lifetime = [first_seen, next_cluster_first_seen) or [first_seen, now) for last cluster
+        cluster_lifetimes = []
+        for cluster_uuid in cluster_uuids:
+            # Find first timestamp where this cluster_uuid appears
+            first_ts = None
+            for e in self.temporal_entities:
+                if ((e.get('cluster_uuid') == cluster_uuid or 
+                     e.get('group_uuid') == cluster_uuid) and 
+                    e.get('timestamp')):
+                    first_ts = e['timestamp']
+                    break
+            if first_ts:
+                cluster_lifetimes.append((cluster_uuid, first_ts))
+        
+        # Sort by first_seen timestamp
+        cluster_lifetimes.sort(key=lambda x: x[1])
+        
+        # Helper function: assign entity to correct cluster based on timestamp
+        def get_cluster_for_timestamp(timestamp: Optional[str]) -> Optional[str]:
+            """Return cluster_uuid that was active at the given timestamp."""
+            if not timestamp or not cluster_lifetimes:
+                return None
+            
+            # Find the cluster whose lifetime contains this timestamp
+            for i, (cluster_uuid, start_ts) in enumerate(cluster_lifetimes):
+                # Check if timestamp is >= this cluster's start
+                if timestamp >= start_ts:
+                    # Check if timestamp is < next cluster's start (if exists)
+                    if i + 1 < len(cluster_lifetimes):
+                        next_start_ts = cluster_lifetimes[i + 1][1]
+                        if timestamp < next_start_ts:
+                            return cluster_uuid
+                    else:
+                        # This is the last cluster, so it extends to "now"
+                        return cluster_uuid
+            
+            # If timestamp is before all clusters, assign to first cluster
+            if cluster_lifetimes and timestamp < cluster_lifetimes[0][1]:
+                return cluster_lifetimes[0][0]
+            
+            return None
+        
         # Add CLUSTER entities (one per unique cluster UUID)
         for cluster_uuid in cluster_uuids:
             cluster_ref = f"cluster_{cluster_uuid[:8]}"
             
-            # Aggregate statistics from temporal entities
-            sst_count = sum(1 for e in self.temporal_entities 
-                          if e.get('entity_type') == 'sst' 
-                          and (e.get('cluster_uuid') == cluster_uuid or 
-                               e.get('cluster_ref') == cluster_ref))
+            # Aggregate statistics from temporal entities using time-based assignment
+            # Count only SST sessions that started (not all SST events)
+            sst_count = 0
+            for e in self.temporal_entities:
+                if (e.get('entity_type') == 'sst' and 
+                    e.get('status') == 'STARTED'):
+                    # Assign to cluster based on timestamp
+                    event_cluster = get_cluster_for_timestamp(e.get('timestamp'))
+                    if event_cluster == cluster_uuid:
+                        sst_count += 1
             
-            view_count = sum(1 for e in self.temporal_entities 
-                           if e.get('entity_type') in ('view', 'wsrep_view') 
-                           and (e.get('cluster_uuid') == cluster_uuid or 
-                                e.get('group_uuid') == cluster_uuid or
-                                e.get('cluster_ref') == cluster_ref))
+            # Count unique cluster-level view changes (by view_id) using time-based assignment
+            # Use wsrep_view only (cluster-level), ignore gcomm (per-node redundant views)
+            view_ids_seen = set()
+            for e in self.temporal_entities:
+                if e.get('entity_type') == 'wsrep_view':
+                    # Assign to cluster based on timestamp
+                    event_cluster = get_cluster_for_timestamp(e.get('timestamp'))
+                    if event_cluster == cluster_uuid:
+                        view_id = e.get('view_id')
+                        if view_id:
+                            view_ids_seen.add(view_id)
+            view_count = len(view_ids_seen)
             
-            error_count = sum(1 for e in self.temporal_entities 
-                            if e.get('entity_type') == 'error' 
-                            and (e.get('cluster_uuid') == cluster_uuid or
-                                 e.get('cluster_ref') == cluster_ref)
-                            and e.get('severity') == 'ERROR')
-            
-            warning_count = sum(1 for e in self.temporal_entities 
-                              if e.get('entity_type') == 'error' 
-                              and (e.get('cluster_uuid') == cluster_uuid or
-                                   e.get('cluster_ref') == cluster_ref)
-                              and e.get('severity') == 'WARNING')
+            # Count errors and warnings using time-based assignment
+            error_count = 0
+            warning_count = 0
+            for e in self.temporal_entities:
+                if e.get('entity_type') == 'error':
+                    event_cluster = get_cluster_for_timestamp(e.get('timestamp'))
+                    if event_cluster == cluster_uuid:
+                        if e.get('severity') == 'ERROR':
+                            error_count += 1
+                        elif e.get('severity') == 'WARNING':
+                            warning_count += 1
             
             # Find first timestamp for this cluster
             first_timestamp = None
             for e in self.temporal_entities:
-                if ((e.get('cluster_uuid') == cluster_uuid or 
-                     e.get('group_uuid') == cluster_uuid or
-                     e.get('cluster_ref') == cluster_ref) and 
-                    e.get('timestamp')):
+                event_cluster = get_cluster_for_timestamp(e.get('timestamp'))
+                if event_cluster == cluster_uuid and e.get('timestamp'):
                     first_timestamp = e['timestamp']
                     break
             

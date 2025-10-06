@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Card Documentation - Galera Cluster Timeline</title>
+    <link href="https://fonts.googleapis.com/css?family=Inter:400,500,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: light;
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: #f3f6fc;
+            color: #1f2933;
+            line-height: 1.6;
+        }
+        .main-header {
+            padding: 1.6em 4vw 0.8em;
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(30,58,138,0.25);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        #main-title {
+            margin: 0;
+            font-size: clamp(26px, 3vw, 36px);
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .nav-actions {
+            margin-top: 0.8em;
+            display: flex;
+            gap: 0.8em;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35em;
+            padding: 0.45em 0.9em;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        .main-content {
+            padding: 2em 4vw 6em;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .docs-container {
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            padding: 2.5em;
+        }
+        .docs-content {
+            color: #374151;
+        }
+        .docs-content h1 {
+            color: #1e40af;
+            margin-top: 0;
+            padding-bottom: 0.5em;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .docs-content h2 {
+            color: #1d4ed8;
+            margin-top: 2em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .docs-content h3 {
+            color: #2563eb;
+            margin-top: 1.5em;
+        }
+        .docs-content code {
+            background: #f1f5f9;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 0.9em;
+            color: #be185d;
+        }
+        .docs-content pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5em;
+            border-radius: 8px;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+        .docs-content pre code {
+            background: transparent;
+            padding: 0;
+            color: #e2e8f0;
+        }
+        .docs-content ul, .docs-content ol {
+            padding-left: 1.5em;
+        }
+        .docs-content li {
+            margin-bottom: 0.5em;
+        }
+        .docs-content strong {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        .docs-content hr {
+            border: none;
+            border-top: 2px solid #e2e8f0;
+            margin: 2em 0;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 4em 2em;
+            color: #6b7280;
+        }
+        .empty-state h3 {
+            margin: 0 0 0.5em 0;
+            color: #9ca3af;
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 1em 1.5em;
+            margin: 1.5em 0;
+            border-radius: 6px;
+        }
+        .warning-box strong {
+            color: #92400e;
+        }
+        @media (max-width: 640px) {
+            .main-content {
+                padding: 1.5em 3vw 4em;
+            }
+            .docs-container {
+                padding: 1.5em;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <header class="main-header">
+        <h1 id="main-title">Card Documentation</h1>
+        <div class="nav-actions">
+            <a class="nav-link" href="/">← Back to Timeline</a>
+        </div>
+    </header>
+    
+    <main class="main-content">
+        <div class="docs-container">
+            {% if docs_content %}
+            <div class="docs-content" id="markdown-content"></div>
+            <script>
+                const markdown = {{ docs_content|tojson|safe }};
+                document.getElementById('markdown-content').innerHTML = marked.parse(markdown);
+                
+                // Style warning boxes
+                const content = document.getElementById('markdown-content');
+                const paragraphs = content.querySelectorAll('p');
+                paragraphs.forEach(p => {
+                    if (p.innerHTML.includes('⚠️') || p.innerHTML.includes('Important:')) {
+                        p.classList.add('warning-box');
+                    }
+                });
+            </script>
+            {% else %}
+            <div class="empty-state">
+                <h3>Documentation Not Available</h3>
+                <p>The card documentation file could not be found.</p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

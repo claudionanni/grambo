@@ -164,6 +164,18 @@ def index():
     )
 
 
+@app.route('/docs')
+def docs():
+    """Serve card documentation page"""
+    docs_path = os.path.join(os.path.dirname(__file__), 'docs', 'CARD_DOCUMENTATION.md')
+    try:
+        with open(docs_path, 'r', encoding='utf-8') as f:
+            docs_content = f.read()
+        return render_template('docs.html', docs_content=docs_content)
+    except FileNotFoundError:
+        return render_template('docs.html', docs_content=None)
+
+
 @app.route('/sst')
 def sst_report():
     report_text = _load_sst_report()

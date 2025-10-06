@@ -95,6 +95,41 @@
             color: rgba(29, 78, 216, 0.7);
             letter-spacing: 0.4px;
         }
+        .card-header .view-report-btn {
+            margin-left: auto;
+            padding: 0.4em 0.8em;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3em;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+        .card-header .view-report-btn:hover {
+            background: #2563eb;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+            transform: translateY(-1px);
+        }
+        .card-header .help-icon {
+            margin-left: 0.5em;
+            color: #60a5fa;
+            text-decoration: none;
+            font-size: 1.1rem;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            opacity: 0.7;
+        }
+        .card-header .help-icon:hover {
+            opacity: 1;
+            transform: scale(1.15);
+            color: #3b82f6;
+        }
         .card-body {
             padding: 1.1em 1.3em 1.3em;
             overflow: auto;
@@ -1008,6 +1043,11 @@
     <div class="content-wrapper">
         <header class="main-header">
             <h1 id="main-title">Grambo Cluster Timeline</h1>
+            <div style="margin-top: 0.8em;">
+                <a href="/docs" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.4em; padding: 0.45em 0.9em; border-radius: 999px; background: rgba(255, 255, 255, 0.15); color: #fff; text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: background 0.2s ease;" onmouseover="this.style.background='rgba(255, 255, 255, 0.25)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.15)'">
+                    📖 Card Documentation
+                </a>
+            </div>
         </header>
         <div class="main-content-area">
             <div class="frame-meta">
@@ -1068,14 +1108,15 @@
                     <span class="legend-item"><span class="legend-marker node"></span>Node Issues</span>
                     <span class="legend-item"><span class="legend-marker component"></span>Component Issues</span>
                 </div>
-                {% if sst_available %}
-                <a class="nav-link" href="/sst" target="_blank" rel="noopener">View SST Sessions</a>
-                {% endif %}
             </div>
             <main class="board-wrapper">
                 <div id="card-board" class="card-grid">
             <div class="card" data-card="graph" draggable="true">
-                <div class="card-header">Cluster Graph <span class="hint">drag to reposition</span></div>
+                <div class="card-header">
+                    Cluster Graph 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#cluster-graph" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
                 <div class="card-body">
                     <div id="graph"></div>
                     <div id="graph-sst-status" class="hidden"></div>
@@ -1084,25 +1125,50 @@
             
             <!-- SST Sessions Card -->
             <div class="card" data-card="sst-sessions" draggable="true">
-                <div class="card-header">SST Sessions <span class="hint">current frame timeline</span></div>
+                <div class="card-header">
+                    SST Sessions 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#sst-sessions" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                    {% if sst_available %}
+                    <a href="/sst" target="_blank" rel="noopener" class="view-report-btn">
+                        📊 View Full Report
+                    </a>
+                    {% endif %}
+                </div>
                 <div class="card-body">
                     <div id="sst-sessions-content"></div>
                 </div>
             </div>
             <div class="card" data-card="cluster" draggable="true">
-                <div class="card-header">Cluster Details <span class="hint">drag to reposition</span></div>
+                <div class="card-header">
+                    Cluster Details 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#cluster-details" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
                 <div class="card-body" id="cluster-section"></div>
             </div>
             <div class="card" data-card="wsrep" draggable="true">
-                <div class="card-header">Wsrep Layer View <span class="hint">drag to reposition</span></div>
+                <div class="card-header">
+                    Wsrep Layer View 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#wsrep-layer-view" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
                 <div class="card-body" id="views-section"></div>
             </div>
             <div class="card" data-card="quorum" draggable="true">
-                <div class="card-header">Quorum State <span class="hint">drag to reposition</span></div>
+                <div class="card-header">
+                    Quorum State 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#quorum-state" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
                 <div class="card-body" id="quorum-section"></div>
             </div>
             <div class="card" data-card="nodes" draggable="true">
-                <div class="card-header">Nodes <span class="hint">drag to reposition</span></div>
+                <div class="card-header">
+                    Nodes 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#nodes" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
                 <div class="card-body" id="nodes-section"></div>
             </div>
         </div>

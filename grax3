@@ -133,16 +133,10 @@ def main(argv: List[str] | None = None) -> int:
     python_cmd = select_python(args.python)
     print(f"[grax] using python interpreter: {python_cmd}")
 
-    # Step 1: graa3 --sst (per log file, appended)
+    # Step 1: graa3 --sst (all log files together for proper multi-node analysis)
+    graa3_cmd = [python_cmd, str(GRAA3), "--sst", *map(str, args.logs)]
     with sst_path.open("w", encoding="utf-8") as sst_file:
-        for idx, log_path in enumerate(args.logs, start=1):
-            if idx > 1:
-                sst_file.write("\n" + ("=" * 80) + "\n\n")
-            sst_file.write(f"GRAA3 --sst report for {log_path}\n")
-            sst_file.write("-" * 80 + "\n")
-            graa3_cmd = [python_cmd, str(GRAA3), "--sst", str(log_path)]
-            run_step(graa3_cmd, stdout=sst_file)
-            sst_file.flush()
+        run_step(graa3_cmd, stdout=sst_file)
     print(f"[grax] SST report saved to {sst_path}")
 
     # Step 1.5: graa3 --sst --json (for GRAV frontend integration)
