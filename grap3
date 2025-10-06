@@ -578,6 +578,25 @@ class EntityExtractor:
             confidence=0.95
         ))
         
+        # ==================================================================
+        # FLOW CONTROL PATTERNS
+        # ==================================================================
+        
+        patterns.append(Pattern(
+            pattern_id="flow_control_interval",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\d+\s+\[Note\]\s+WSREP:\s+Flow-control interval:\s+\[(\d+),\s*(\d+)\]',
+            entity_type="flow_control",
+            priority=80,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "lower_limit",
+                3: "upper_limit"
+            },
+            computed_fields={},
+            confidence=0.99
+        ))
+        
         # Sort by priority (descending)
         patterns.sort(key=lambda p: p.priority, reverse=True)
         
@@ -1079,6 +1098,31 @@ class EntityExtractor:
         # For empty views with placeholder view_uuid, create a cluster_ref
         elif entity.get('view_uuid') == 'empty':
             entity['cluster_ref'] = 'cluster_empty'
+        
+        # Special handling for flow_control entities
+        if entity.get('entity_type') == 'flow_control':
+            upper_limit = entity.get('upper_limit')
+            lower_limit = entity.get('lower_limit')
+            
+            # Convert string to int if needed
+            if isinstance(upper_limit, str):
+                upper_limit = int(upper_limit)
+                entity['upper_limit'] = upper_limit
+            if isinstance(lower_limit, str):
+                lower_limit = int(lower_limit)
+                entity['lower_limit'] = lower_limit
+            
+            # Calculate inferred cluster size
+            # Formula: upper_limit = 16 * sqrt(cluster_size)
+            # Therefore: cluster_size = (upper_limit / 16)^2
+            if upper_limit and upper_limit > 0:
+                inferred_size = round((upper_limit / 16.0) ** 2)
+                entity['inferred_cluster_size'] = inferred_size
+                entity['fc_status'] = 'active'
+            else:
+                # [0, 0] means flow control disabled (node not SYNCED)
+                entity['inferred_cluster_size'] = 0
+                entity['fc_status'] = 'disabled'
         
         # Add timestamp index for frame ordering
         timestamp = entity.get('timestamp')

@@ -63,6 +63,20 @@
             gap: 1.5em;
             align-items: stretch;
         }
+        .card-section-header {
+            grid-column: 1 / -1;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 1.5em;
+            padding-bottom: 0.5em;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .card-section-header:first-child {
+            margin-top: 0;
+        }
         .card {
             background: #ffffff;
             border-radius: 14px;
@@ -1111,6 +1125,10 @@
             </div>
             <main class="board-wrapper">
                 <div id="card-board" class="card-grid">
+            
+            <!-- CLUSTER OVERVIEW -->
+            <div class="card-section-header">Cluster Overview</div>
+            
             <div class="card" data-card="graph" draggable="true">
                 <div class="card-header">
                     Cluster Graph 
@@ -1121,6 +1139,15 @@
                     <div id="graph"></div>
                     <div id="graph-sst-status" class="hidden"></div>
                 </div>
+            </div>
+            
+            <div class="card" data-card="cluster" draggable="true">
+                <div class="card-header">
+                    Cluster Details 
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#cluster-details" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
+                <div class="card-body" id="cluster-section"></div>
             </div>
             
             <!-- SST Sessions Card -->
@@ -1139,22 +1166,19 @@
                     <div id="sst-sessions-content"></div>
                 </div>
             </div>
-            <div class="card" data-card="cluster" draggable="true">
+            
+            <!-- NODE STATUS -->
+            <div class="card-section-header">Node Status</div>
+            
+            <div class="card" data-card="nodes" draggable="true">
                 <div class="card-header">
-                    Cluster Details 
+                    Nodes 
                     <span class="hint">drag to reposition</span>
-                    <a href="/docs#cluster-details" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                    <a href="/docs#nodes" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
                 </div>
-                <div class="card-body" id="cluster-section"></div>
+                <div class="card-body" id="nodes-section"></div>
             </div>
-            <div class="card" data-card="wsrep" draggable="true">
-                <div class="card-header">
-                    Wsrep Layer View 
-                    <span class="hint">drag to reposition</span>
-                    <a href="/docs#wsrep-layer-view" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
-                </div>
-                <div class="card-body" id="views-section"></div>
-            </div>
+            
             <div class="card" data-card="quorum" draggable="true">
                 <div class="card-header">
                     Quorum State 
@@ -1163,12 +1187,27 @@
                 </div>
                 <div class="card-body" id="quorum-section"></div>
             </div>
-            <div class="card" data-card="nodes" draggable="true">
+            
+            <div class="card" data-card="wsrep" draggable="true">
                 <div class="card-header">
-                    Nodes 
+                    Wsrep Layer View 
                     <span class="hint">drag to reposition</span>
-                    <a href="/docs#nodes" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                    <a href="/docs#wsrep-layer-view" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
                 </div>
+                <div class="card-body" id="views-section"></div>
+            </div>
+            
+            <!-- OPERATIONS & METRICS -->
+            <div class="card-section-header">Operations & Metrics</div>
+            
+            <div class="card" data-card="flow-control" draggable="true">
+                <div class="card-header">
+                    Flow Control
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#flow-control" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
+                <div class="card-body" id="flow-control-section"></div>
+            </div>
                 <div class="card-body" id="nodes-section"></div>
             </div>
         </div>
@@ -2763,6 +2802,7 @@
                     if (nodeEntities.length === 0) {
                         nodesDiv.innerHTML = '<div class="empty-state">No node data for this frame</div>';
                     } else {
+                        let allBlocks = '';  // Collect all blocks first
                         nodeEntities.forEach(([entKey, props]) => {
                             let block = '<div class="entity-block-group">';
                             const title = props.node_name || entKey.replace('node:', '');
@@ -2819,8 +2859,104 @@
                                 </details>`;
                             }
                             block += '</div>';
-                            nodesDiv.innerHTML += block;
+                            allBlocks += block;  // Concatenate to allBlocks
                         });
+                        nodesDiv.innerHTML = allBlocks;  // Set once at the end
+                    }
+
+                    // Flow Control card
+                    const flowControlDiv = document.getElementById('flow-control-section');
+                    if (flowControlDiv) {
+                        flowControlDiv.innerHTML = '';
+                        const fcEntities = Object.entries(entities).filter(([key]) => key.startsWith('flow_control:'));
+                        
+                        if (fcEntities.length === 0) {
+                            flowControlDiv.innerHTML = '<div class="empty-state">No flow control data for this frame</div>';
+                        } else {
+                            fcEntities.forEach(([entKey, props]) => {
+                                const lowerLimit = props.lower_limit || 0;
+                                const upperLimit = props.upper_limit || 0;
+                                const inferredSize = props.inferred_cluster_size || 0;
+                                const fcStatus = props.fc_status || 'unknown';
+                                const nodeName = props.node_name || 'Unknown';
+                                const timestamp = props.timestamp || '';
+                                
+                                // Determine status color and icon
+                                let statusColor = '#64748b';
+                                let statusIcon = '⚪';
+                                let statusText = fcStatus.toUpperCase();
+                                
+                                if (fcStatus === 'active') {
+                                    if (inferredSize >= 3) {
+                                        statusColor = '#10b981';  // green
+                                        statusIcon = '🟢';
+                                        statusText = 'ACTIVE (HEALTHY)';
+                                    } else if (inferredSize === 2) {
+                                        statusColor = '#f59e0b';  // yellow
+                                        statusIcon = '🟡';
+                                        statusText = 'ACTIVE (DEGRADED)';
+                                    } else if (inferredSize === 1) {
+                                        statusColor = '#ef4444';  // red
+                                        statusIcon = '🔴';
+                                        statusText = 'ACTIVE (CRITICAL)';
+                                    }
+                                } else if (fcStatus === 'disabled') {
+                                    statusColor = '#94a3b8';  // gray
+                                    statusIcon = '⚫';
+                                    statusText = 'DISABLED';
+                                }
+                                
+                                let block = '<div class="entity-block-group" style="border-left: 4px solid ' + statusColor + ';">';
+                                block += `<div class="entity-subtitle">${escapeHtml(nodeName)}</div>`;
+                                
+                                // Status row
+                                block += '<div style="margin: 1em 0; padding: 1em; background: #f8fafc; border-radius: 8px;">';
+                                block += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5em;">`;
+                                block += `<span style="font-weight: 600; font-size: 1.1em;">${statusIcon} ${statusText}</span>`;
+                                block += `<span style="font-size: 0.9em; color: #64748b;">Interval: [${lowerLimit}, ${upperLimit}]</span>`;
+                                block += `</div>`;
+                                
+                                // Cluster size indicator
+                                if (fcStatus === 'active') {
+                                    block += `<div style="margin-top: 0.75em; padding-top: 0.75em; border-top: 1px solid #e2e8f0;">`;
+                                    block += `<div style="font-size: 0.9em; color: #475569; margin-bottom: 0.5em;">Inferred Cluster Size:</div>`;
+                                    block += `<div style="display: flex; align-items: center; gap: 0.5em;">`;
+                                    block += `<div style="font-size: 2em; font-weight: 700; color: ${statusColor};">${inferredSize}</div>`;
+                                    block += `<div style="font-size: 0.85em; color: #64748b;">node${inferredSize !== 1 ? 's' : ''} active</div>`;
+                                    block += `</div>`;
+                                    
+                                    // Calculation explanation
+                                    block += `<div style="margin-top: 0.5em; font-size: 0.75em; color: #94a3b8; font-style: italic;">`;
+                                    block += `Formula: cluster_size = (upper_limit / 16)²`;
+                                    block += `</div>`;
+                                    block += `</div>`;
+                                } else {
+                                    block += `<div style="margin-top: 0.75em; padding: 0.75em; background: #fff; border-radius: 6px; border: 1px dashed #cbd5e1;">`;
+                                    block += `<div style="font-size: 0.85em; color: #64748b; text-align: center;">`;
+                                    block += `Flow control disabled - node not SYNCED<br>`;
+                                    block += `(Node may be in JOINER state receiving SST/IST)`;
+                                    block += `</div>`;
+                                    block += `</div>`;
+                                }
+                                
+                                block += '</div>';
+                                
+                                // Details
+                                block += '<div class="entity-metrics" style="margin-top: 1em;">';
+                                block += `<div class="entity-row"><span class="entity-label">Timestamp:</span><span class="entity-value">${escapeHtml(timestamp)}</span></div>`;
+                                block += `<div class="entity-row"><span class="entity-label">Lower Limit:</span><span class="entity-value">${lowerLimit} writesets</span></div>`;
+                                block += `<div class="entity-row"><span class="entity-label">Upper Limit:</span><span class="entity-value">${upperLimit} writesets</span></div>`;
+                                if (fcStatus === 'active') {
+                                    block += `<div class="entity-row"><span class="entity-label">FC_STOP triggered at:</span><span class="entity-value">Queue &gt; ${upperLimit}</span></div>`;
+                                    block += `<div class="entity-row"><span class="entity-label">FC_CONT triggered at:</span><span class="entity-value">Queue &lt; ${lowerLimit}</span></div>`;
+                                }
+                                block += '</div>';
+                                
+                                block += '</div>';
+                                
+                                flowControlDiv.innerHTML += block;
+                            });
+                        }
                     }
 
                     // Graph section (center)
@@ -3021,6 +3157,16 @@
             const board = document.getElementById('card-board');
             if (!board) return;
 
+            // Clear any old card ordering from localStorage
+            // With section headers, we use fixed organization
+            if (window.localStorage) {
+                window.localStorage.removeItem('grav-card-order');
+            }
+
+            // DISABLED: Card order restoration with section headers
+            // Section headers provide organization, so we disable custom ordering for now
+            // TODO: Implement section-aware card ordering if needed
+            /*
             const savedOrder = window.localStorage ? window.localStorage.getItem('grav-card-order') : null;
             if (savedOrder) {
                 try {
@@ -3035,6 +3181,7 @@
                     console.warn('Unable to restore card layout', err);
                 }
             }
+            */
 
             let activeCard = null;
 
@@ -3068,9 +3215,13 @@
             });
 
             function persistOrder() {
+                // DISABLED: With section headers, we use fixed organization
+                // Cards stay in their assigned sections
+                /*
                 if (!window.localStorage) return;
                 const order = [...board.querySelectorAll('.card')].map(card => card.dataset.card);
                 window.localStorage.setItem('grav-card-order', JSON.stringify(order));
+                */
             }
         }
 

@@ -1,0 +1,23 @@
+# Flow Control Patterns for Galera
+# Captures flow control interval messages that indicate cluster size and node state
+
+patterns:
+  - pattern_id: flow_control_interval
+    pattern: 'Flow-control interval: \[(\d+), (\d+)\]'
+    entity_type: flow_control
+    context: LOCAL
+    capture_groups:
+      1: lower_limit
+      2: upper_limit
+    severity: INFO
+    description: "Flow control interval showing slave queue thresholds"
+    
+  - pattern_id: flow_control_paused
+    pattern: 'WSREP: Flow control interval: \[(\d+), (\d+)\].*paused'
+    entity_type: flow_control
+    context: LOCAL
+    capture_groups:
+      1: lower_limit
+      2: upper_limit
+    severity: WARNING
+    description: "Flow control active - replication paused"
