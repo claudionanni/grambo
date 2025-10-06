@@ -892,6 +892,17 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             "node_views": frame_node_views,  # Per-node wsrep views
             "quorum": quorum_section,
         }
+        
+        # Add flow_control entities to entities dict for UI display
+        if et == "flow_control":
+            if "entities" not in frame:
+                frame["entities"] = {}
+            # Include flow_control entity data, excluding internal fields
+            frame["entities"][f"flow_control:{eid}"] = {
+                k: v for k, v in e.items()
+                if k not in ("line_number", "raw_line", "log_source", "extraction_method", "confidence", "pattern_name")
+            }
+        
         if hotspots:
             frame["hotspots"] = hotspots
         frames.append(frame)
