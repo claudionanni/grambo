@@ -54,6 +54,8 @@ Grambo uses a sophisticated four-stage pipeline, each building on the previous:
 │ SST/IST │    │ Entities│    │ Frames  │    │  Web    │
 │ Analysis│    │ Extract │    │ Timeline│    │  View   │
 └─────────┘    └─────────┘    └─────────┘    └─────────┘
+
+Orchestrated by grax3 for one-command execution
 ```
 
 #### Stage 1: graa3 - Domain-Specific Analysis
