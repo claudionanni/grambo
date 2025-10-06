@@ -586,22 +586,8 @@
             width: 3px;
             border-radius: 1px;
             top: 62px; /* Track 5: Flow control below all others */
-        }
-        .hotspot-marker.flow-control.critical {
-            background-color: #ef4444;
-            height: 35px;
-        }
-        .hotspot-marker.flow-control.degraded {
-            background-color: #f59e0b;
-            height: 28px;
-        }
-        .hotspot-marker.flow-control.healthy {
-            background-color: #10b981;
-            height: 20px;
-        }
-        .hotspot-marker.flow-control.disabled {
-            background-color: #94a3b8;
-            height: 15px;
+            background-color: #10b981; /* Consistent teal color for all flow control events */
+            height: 20px; /* Uniform height for all flow control markers */
         }
         .hotspot-marker.sst:hover {
             box-shadow: 0 3px 8px rgba(255, 87, 34, 0.6), 0 0 16px rgba(255, 87, 34, 0.4);
@@ -1347,8 +1333,7 @@
             // Flow Control markers (NEW)
             (timelineHotspots.flow_control_events || []).forEach(item => {
                 const pct = (item.index / denom) * 100;
-                const level = item.level || 'healthy';
-                addMarker(pct, `flow-control ${level}`, item.description || 'Flow Control', item.index);
+                addMarker(pct, 'flow-control', item.description || 'Flow Control', item.index);
             });
         }
 
