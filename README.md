@@ -1,7 +1,6 @@
 # Grambo v3 Alpha - Galera Cluster Log Analysis Suite
 
-**⚠️ Alpha Version**: This is a pre-release version under active development. For production use with the stable bash version, please checkout the [master branch](https://github.com/claudionanni/grambo/tree/master).
-
+**⚠️ Alpha Version**: This is a pre-release version under active development.
 > Transform unstructured Galera logs into comprehensive, interactive cluster analysis with frame-by-frame timeline visualization.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
