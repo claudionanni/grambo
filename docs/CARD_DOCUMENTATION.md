@@ -158,14 +158,13 @@ This affects all cards displaying node-level information.
 
 ## Flow Control
 
-**Purpose:** Monitor cluster capacity and flow control mechanism status.
+**Purpose:** Monitor flow control mechanism configuration and status.
 
 **Key Features:**
-- Real-time cluster size inference from flow control intervals
-- Visual health indicators (color-coded status)
+- Flow control status (Active/Disabled)
 - Flow control threshold display ([lower, upper])
-- Active/Disabled status tracking
-- Timeline markers showing cluster capacity over time
+- Cluster size inference from FC intervals
+- Timeline markers showing interval changes over time
 
 **Important Notes:**
 - **Flow control only active when node is SYNCED** - disabled during SST/IST
@@ -173,11 +172,28 @@ This affects all cards displaying node-level information.
 - Interval changes indicate cluster membership changes (nodes joining/leaving)
 - Each node reports its own flow control status independently
 
+**What You Can See from Logs:**
+- ▶️ **ACTIVE**: FC is enabled and monitoring (node is SYNCED)
+- ⏸️ **DISABLED**: FC is not active (node catching up via SST/IST)
+- **Interval values**: [lower, upper] thresholds
+- **Cluster size**: Inferred from interval values using formula
+
+**What You CANNOT See from Logs:**
+- ⚠️ **Whether FC is actively pausing the cluster** (not logged)
+- ⚠️ **Queue depth** at any moment (not logged)
+- ⚠️ **FC_STOP/FC_CONT signals** (sent over network, not logged)
+- ⚠️ **wsrep_flow_control_paused metric** (requires SQL SHOW STATUS)
+
+**Critical Understanding:**
+This card shows that flow control is *configured and operating*, not whether it's causing performance issues. To determine if FC is actively slowing your cluster, you must check `wsrep_flow_control_paused` on the live cluster using:
+```sql
+SHOW STATUS LIKE 'wsrep_flow_control_paused';
+-- Values > 0.1 (10%) indicate FC is frequently pausing the cluster
+```
+
 **Status Indicators:**
-- 🔴 **CRITICAL (1 node)**: Cluster running on single node - zero redundancy
-- 🟡 **DEGRADED (2 nodes)**: Reduced capacity - limited fault tolerance
-- 🟢 **HEALTHY (3+ nodes)**: Full cluster capacity with proper redundancy
-- ⚫ **DISABLED (0 nodes)**: Node catching up (SST/IST) - not yet synchronized
+- ▶️ **ACTIVE**: FC is enabled, node is SYNCED, mechanism is operating normally
+- ⏸️ **DISABLED**: Node not SYNCED yet (SST/IST in progress), FC will activate when ready
 
 ### Understanding Flow Control Intervals
 
@@ -249,23 +265,27 @@ Where:
 
 ### Timeline Visualization
 
-Flow control markers on the timeline show cluster capacity over time:
-- **Marker height** indicates severity (taller = more critical)
-- **Marker color** shows health status
-- **Marker position** shows when interval changed
+Flow control markers on the timeline show interval changes over time:
+- **Marker position** shows when interval changed (FC reconfigured)
+- **Marker color** indicates cluster size change:
+  - Purple: Single node (interval [16, 16])
+  - Blue: Two nodes (interval [23, 23])
+  - Cyan: Three+ nodes (interval [28, 28] or higher)
 - **Click marker** to jump to that frame and see details
 
+**Important:** Timeline markers show *when FC configuration changed*, not when FC was actively pausing the cluster. They indicate cluster membership changes.
+
 **Pattern Recognition:**
-- **Many red markers**: Cluster frequently at single-node capacity
-- **Orange clusters**: Extended periods of reduced redundancy
-- **Green sections**: Healthy operation with full cluster
-- **Gray markers**: Nodes catching up (SST/IST in progress)
+- **Frequent markers**: Cluster instability (nodes joining/leaving frequently)
+- **Interval decreases**: Nodes leaving cluster
+- **Interval increases**: Nodes joining cluster
+- **Interval = [0, 0]**: Node performing SST/IST (FC temporarily disabled)
 
 ### Typical Scenarios
 
 **Scenario 1: Cluster Bootstrap**
 ```
-Timeline: 🔴────🟡────🟢────────────🟢
+Timeline: ▶️────▶️────▶️────────────▶️
           [16,16] [23,23] [28,28]    [28,28]
 Time:     10:00   10:05   10:10      onwards
 Nodes:    1 node  2 nodes 3 nodes    stable
@@ -275,7 +295,7 @@ Story: Started with 1 node, others joined via SST over 10 minutes
 
 **Scenario 2: Node Failure & Recovery**
 ```
-Timeline: 🟢──────🟡──────🔴────🟡────🟢
+Timeline: ▶️──────▶️──────▶️────▶️────▶️
           [28,28] [23,23] [16,16] [23,23] [28,28]
 Event:    Normal  Node3   Node2   Node3   Full
                   crash   crash   rejoins cluster
@@ -285,7 +305,7 @@ Story: Sequential failures reduced to 1 node, then gradual recovery
 
 **Scenario 3: SST in Progress**
 ```
-Timeline: 🟢──⚫────🟡──────🟢
+Timeline: ▶️──⏸️────▶️──────▶️
           [28,28] disabled [23,23] [28,28]
 Event:    3 nodes Node3    2 nodes 3 nodes
                   SST      active  SST done
@@ -295,20 +315,34 @@ Story: Node3 performing SST (FC disabled), rejoins as SYNCED
 
 ### Troubleshooting with Flow Control
 
-**Q: Why is my cluster slow?**
-- Check timeline for red/orange markers at the time of slowness
-- Reduced cluster capacity = reduced throughput
-- Identify which node(s) were missing/catching up
+**Q: Is flow control causing my cluster to be slow?**
+- **A:** You cannot determine this from logs alone. Check the live cluster:
+  ```sql
+  SHOW STATUS LIKE 'wsrep_flow_control_paused';
+  ```
+  - Value = 0.0: FC is not pausing cluster (not the problem)
+  - Value > 0.1 (10%): FC is frequently pausing cluster (investigate)
+  - Value > 0.3 (30%): Significant performance impact from FC
 
-**Q: High flow control paused time (`wsrep_flow_control_paused`)?**
+**Q: What does high wsrep_flow_control_paused mean?**
 - One or more nodes can't keep up with replication
 - Check for slow disk I/O, CPU bottlenecks, or heavy queries
+- Identify which node is slow (causing others to pause)
 - Consider optimizing the slow node or increasing fc_limit
+
+**Q: Why does my cluster have reduced node count?**
+- This is a **cluster health** issue, not a flow control issue
+- Check for:
+  - Crashed nodes (check node logs)
+  - Network partitions (check network logs)
+  - Intentional maintenance (check change logs)
+- FC will correctly adjust intervals as nodes join/leave
 
 **Q: Frequent interval changes?**
 - Indicates cluster membership instability
 - Nodes frequently joining/leaving
 - Investigate node health and network issues
+- Not an FC problem, but FC shows you it's happening
 
 ### Configuration
 

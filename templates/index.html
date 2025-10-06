@@ -2911,67 +2911,72 @@
                                 const nodeName = props.node_name || 'Unknown';
                                 const timestamp = props.timestamp || '';
                                 
-                                // Determine status color and icon
-                                let statusColor = '#64748b';
-                                let statusIcon = '⚪';
-                                let statusText = fcStatus.toUpperCase();
+                                // Determine status color and appearance (no health judgement)
+                                let statusColor = '#3b82f6';  // neutral blue
+                                let statusIcon = '▶️';
+                                let statusText = 'ACTIVE';
+                                let bgColor = '#eff6ff';
                                 
-                                if (fcStatus === 'active') {
-                                    if (inferredSize >= 3) {
-                                        statusColor = '#10b981';  // green
-                                        statusIcon = '🟢';
-                                        statusText = 'ACTIVE (HEALTHY)';
-                                    } else if (inferredSize === 2) {
-                                        statusColor = '#f59e0b';  // yellow
-                                        statusIcon = '🟡';
-                                        statusText = 'ACTIVE (DEGRADED)';
-                                    } else if (inferredSize === 1) {
-                                        statusColor = '#ef4444';  // red
-                                        statusIcon = '🔴';
-                                        statusText = 'ACTIVE (CRITICAL)';
-                                    }
-                                } else if (fcStatus === 'disabled') {
+                                if (fcStatus === 'disabled') {
                                     statusColor = '#94a3b8';  // gray
-                                    statusIcon = '⚫';
+                                    statusIcon = '⏸️';
                                     statusText = 'DISABLED';
+                                    bgColor = '#f8fafc';
                                 }
                                 
                                 let block = '<div class="entity-block-group" style="border-left: 4px solid ' + statusColor + ';">';
                                 block += `<div class="entity-subtitle">${escapeHtml(nodeName)}</div>`;
                                 
                                 // Status row
-                                block += '<div style="margin: 1em 0; padding: 1em; background: #f8fafc; border-radius: 8px;">';
+                                block += `<div style="margin: 1em 0; padding: 1em; background: ${bgColor}; border-radius: 8px;">`;
                                 block += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5em;">`;
                                 block += `<span style="font-weight: 600; font-size: 1.1em;">${statusIcon} ${statusText}</span>`;
                                 block += `<span style="font-size: 0.9em; color: #64748b;">Interval: [${lowerLimit}, ${upperLimit}]</span>`;
                                 block += `</div>`;
                                 
-                                // Cluster size indicator
+                                // Cluster size indicator (informational, not health judgement)
                                 if (fcStatus === 'active') {
                                     block += `<div style="margin-top: 0.75em; padding-top: 0.75em; border-top: 1px solid #e2e8f0;">`;
-                                    block += `<div style="font-size: 0.9em; color: #475569; margin-bottom: 0.5em;">Inferred Cluster Size:</div>`;
-                                    block += `<div style="display: flex; align-items: center; gap: 0.5em;">`;
-                                    block += `<div style="font-size: 2em; font-weight: 700; color: ${statusColor};">${inferredSize}</div>`;
-                                    block += `<div style="font-size: 0.85em; color: #64748b;">node${inferredSize !== 1 ? 's' : ''} active</div>`;
+                                    block += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
+                                    
+                                    // Left: Cluster size
+                                    block += `<div>`;
+                                    block += `<div style="font-size: 0.9em; color: #475569; margin-bottom: 0.25em;">Inferred Cluster Size</div>`;
+                                    block += `<div style="display: flex; align-items: baseline; gap: 0.5em;">`;
+                                    block += `<span style="font-size: 2em; font-weight: 700; color: #3b82f6;">${inferredSize}</span>`;
+                                    block += `<span style="font-size: 0.9em; color: #64748b;">node${inferredSize !== 1 ? 's' : ''}</span>`;
+                                    block += `</div>`;
+                                    block += `</div>`;
+                                    
+                                    // Right: FC mechanism status
+                                    block += `<div style="text-align: right;">`;
+                                    block += `<div style="font-size: 0.9em; color: #475569; margin-bottom: 0.25em;">FC Mechanism</div>`;
+                                    block += `<div style="font-size: 1.2em; font-weight: 600; color: #10b981;">✓ Operating</div>`;
+                                    block += `</div>`;
+                                    
                                     block += `</div>`;
                                     
                                     // Calculation explanation
-                                    block += `<div style="margin-top: 0.5em; font-size: 0.75em; color: #94a3b8; font-style: italic;">`;
-                                    block += `Formula: cluster_size = (upper_limit / 16)²`;
+                                    block += `<div style="margin-top: 0.75em; padding-top: 0.75em; border-top: 1px dashed #e2e8f0; font-size: 0.8em; color: #94a3b8;">`;
+                                    block += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
+                                    block += `<span>Formula: cluster_size ≈ (upper_limit ÷ 16)²</span>`;
+                                    block += `<span style="font-style: italic;">FC protects cluster from replication lag</span>`;
+                                    block += `</div>`;
                                     block += `</div>`;
                                     block += `</div>`;
                                 } else {
                                     block += `<div style="margin-top: 0.75em; padding: 0.75em; background: #fff; border-radius: 6px; border: 1px dashed #cbd5e1;">`;
                                     block += `<div style="font-size: 0.85em; color: #64748b; text-align: center;">`;
-                                    block += `Flow control disabled - node not SYNCED<br>`;
-                                    block += `(Node may be in JOINER state receiving SST/IST)`;
+                                    block += `<div style="font-weight: 600; margin-bottom: 0.5em;">Flow Control Not Active</div>`;
+                                    block += `Node not in SYNCED state - likely receiving SST/IST<br>`;
+                                    block += `<span style="font-size: 0.75em; font-style: italic;">FC will activate when node becomes SYNCED</span>`;
                                     block += `</div>`;
                                     block += `</div>`;
                                 }
                                 
                                 block += '</div>';
                                 
-                                // Details
+                                // Technical details
                                 block += '<div class="entity-metrics" style="margin-top: 1em;">';
                                 block += `<div class="entity-row"><span class="entity-label">Timestamp:</span><span class="entity-value">${escapeHtml(timestamp)}</span></div>`;
                                 block += `<div class="entity-row"><span class="entity-label">Lower Limit:</span><span class="entity-value">${lowerLimit} writesets</span></div>`;
