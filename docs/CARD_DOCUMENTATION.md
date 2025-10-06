@@ -156,6 +156,221 @@ This affects all cards displaying node-level information.
 
 ---
 
+## Flow Control
+
+**Purpose:** Monitor cluster capacity and flow control mechanism status.
+
+**Key Features:**
+- Real-time cluster size inference from flow control intervals
+- Visual health indicators (color-coded status)
+- Flow control threshold display ([lower, upper])
+- Active/Disabled status tracking
+- Timeline markers showing cluster capacity over time
+
+**Important Notes:**
+- **Flow control only active when node is SYNCED** - disabled during SST/IST
+- Flow control protects cluster from replication lag and memory exhaustion
+- Interval changes indicate cluster membership changes (nodes joining/leaving)
+- Each node reports its own flow control status independently
+
+**Status Indicators:**
+- 🔴 **CRITICAL (1 node)**: Cluster running on single node - zero redundancy
+- 🟡 **DEGRADED (2 nodes)**: Reduced capacity - limited fault tolerance
+- 🟢 **HEALTHY (3+ nodes)**: Full cluster capacity with proper redundancy
+- ⚫ **DISABLED (0 nodes)**: Node catching up (SST/IST) - not yet synchronized
+
+### Understanding Flow Control Intervals
+
+The interval format is `[lower_limit, upper_limit]`, representing thresholds for the **slave queue** (writesets waiting to be applied):
+
+**How It Works:**
+```
+Queue Depth:
+
+   20 ────────────── FC_STOP ────── Node overwhelmed, signals others to pause
+   16 ══════════════ upper_limit
+                     Normal zone
+   16 ══════════════ lower_limit
+   10 ────────────── FC_CONT ─────── Node caught up, signals others to resume
+    0
+```
+
+**Flow Control Actions:**
+- **FC_STOP**: Sent when queue exceeds upper_limit → "I'm falling behind, please slow down"
+- **FC_CONT**: Sent when queue drops below lower_limit → "I've caught up, you can send more"
+
+### Inferring Cluster Size
+
+Galera calculates flow control limits based on cluster size:
+
+**Formula (default configuration):**
+```
+upper_limit = base_limit × √(cluster_size)
+lower_limit = upper_limit × resume_factor
+
+Where:
+  base_limit = 16 (default, configurable via gcs.fc_limit)
+  resume_factor = 1.0 (default, configurable via gcs.fc_factor)
+```
+
+**Common Intervals:**
+- `[16, 16]` → 1 node (or fc_single_primary=yes)
+- `[23, 23]` → 2 nodes (√2 × 16 ≈ 23)
+- `[28, 28]` → 3 nodes (√3 × 16 ≈ 28)
+- `[32, 32]` → 4 nodes (√4 × 16 = 32)
+
+**Note:** When lower = upper (e.g., `[16, 16]`), there's minimal hysteresis, resulting in aggressive flow control.
+
+### Why Flow Control Matters
+
+**Purpose:**
+1. **Prevents memory exhaustion** from unbounded queue growth
+2. **Limits replication lag** to keep nodes synchronized
+3. **Ensures cluster coherency** by pacing fast nodes
+4. **Protects slow nodes** from being overwhelmed
+
+**Cluster operates at the speed of the slowest node** - this is by design to maintain data consistency.
+
+### Performance Implications
+
+**Tight Intervals [16, 16]:**
+- ✅ Quick detection of slow nodes
+- ✅ Lower memory usage
+- ✅ Tight control over lag
+- ⚠️ May reduce throughput
+- ⚠️ Sensitive to temporary slowdowns
+
+**Looser Intervals [22, 28]:**
+- ✅ Higher throughput potential
+- ✅ Less sensitive to bursts
+- ✅ Smoother operation (hysteresis)
+- ⚠️ Larger potential lag
+- ⚠️ More memory usage
+
+### Timeline Visualization
+
+Flow control markers on the timeline show cluster capacity over time:
+- **Marker height** indicates severity (taller = more critical)
+- **Marker color** shows health status
+- **Marker position** shows when interval changed
+- **Click marker** to jump to that frame and see details
+
+**Pattern Recognition:**
+- **Many red markers**: Cluster frequently at single-node capacity
+- **Orange clusters**: Extended periods of reduced redundancy
+- **Green sections**: Healthy operation with full cluster
+- **Gray markers**: Nodes catching up (SST/IST in progress)
+
+### Typical Scenarios
+
+**Scenario 1: Cluster Bootstrap**
+```
+Timeline: 🔴────🟡────🟢────────────🟢
+          [16,16] [23,23] [28,28]    [28,28]
+Time:     10:00   10:05   10:10      onwards
+Nodes:    1 node  2 nodes 3 nodes    stable
+
+Story: Started with 1 node, others joined via SST over 10 minutes
+```
+
+**Scenario 2: Node Failure & Recovery**
+```
+Timeline: 🟢──────🟡──────🔴────🟡────🟢
+          [28,28] [23,23] [16,16] [23,23] [28,28]
+Event:    Normal  Node3   Node2   Node3   Full
+                  crash   crash   rejoins cluster
+
+Story: Sequential failures reduced to 1 node, then gradual recovery
+```
+
+**Scenario 3: SST in Progress**
+```
+Timeline: 🟢──⚫────🟡──────🟢
+          [28,28] disabled [23,23] [28,28]
+Event:    3 nodes Node3    2 nodes 3 nodes
+                  SST      active  SST done
+
+Story: Node3 performing SST (FC disabled), rejoins as SYNCED
+```
+
+### Troubleshooting with Flow Control
+
+**Q: Why is my cluster slow?**
+- Check timeline for red/orange markers at the time of slowness
+- Reduced cluster capacity = reduced throughput
+- Identify which node(s) were missing/catching up
+
+**Q: High flow control paused time (`wsrep_flow_control_paused`)?**
+- One or more nodes can't keep up with replication
+- Check for slow disk I/O, CPU bottlenecks, or heavy queries
+- Consider optimizing the slow node or increasing fc_limit
+
+**Q: Frequent interval changes?**
+- Indicates cluster membership instability
+- Nodes frequently joining/leaving
+- Investigate node health and network issues
+
+### Configuration
+
+Flow control behavior is tunable via `wsrep_provider_options`:
+
+```ini
+# Base limit for slave queue depth (default: 16)
+wsrep_provider_options="gcs.fc_limit=16"
+
+# Resume factor for lower_limit (default: 1.0, range: 0.0-1.0)
+wsrep_provider_options="gcs.fc_factor=1.0"
+
+# Use flat profile instead of scaling (default: NO)
+wsrep_provider_options="gcs.fc_single_primary=NO"
+```
+
+**Example: Create hysteresis to reduce FC oscillation:**
+```ini
+wsrep_provider_options="gcs.fc_limit=32;gcs.fc_factor=0.8"
+
+Result for 3-node cluster:
+  upper_limit = 32 × √3 ≈ 55
+  lower_limit = 55 × 0.8 = 44
+  Interval: [44, 55]  # 11-writeset hysteresis
+```
+
+### Monitoring
+
+Check flow control status in MySQL:
+```sql
+-- See how much time cluster is paused by FC
+SHOW STATUS LIKE 'wsrep_flow_control_paused';
+-- 0.0 = never paused, 1.0 = always paused, 0.3 = 30% of time
+
+-- Count FC messages sent by this node
+SHOW STATUS LIKE 'wsrep_flow_control_sent';
+
+-- Count FC messages received from other nodes  
+SHOW STATUS LIKE 'wsrep_flow_control_recv';
+```
+
+### Technical Deep Dive
+
+For complete source code analysis and technical details, see:
+- [`FLOW_CONTROL_INTERVAL.md`](FLOW_CONTROL_INTERVAL.md) - Complete technical documentation
+- Source: `galera-4-26.4.23/gcs/src/gcs.cpp` (lines 919-955)
+
+**Key Implementation Details:**
+- Flow control enabled when node state transitions to SYNCED
+- Limits recalculated on every view change (membership change)
+- Node sends FC_STOP when queue > upper_limit
+- Node sends FC_CONT when queue < lower_limit
+- All decisions local to each node (distributed mechanism)
+
+### Official Documentation
+
+- [Galera Flow Control](https://galeracluster.com/library/documentation/flow-control.html)
+- [Flow Control Parameters](https://galeracluster.com/library/documentation/galera-parameters.html#gcs-fc-limit)
+- [Monitoring Flow Control](https://galeracluster.com/library/documentation/monitoring-cluster.html#checking-flow-control)
+
+---
+
 ## General Tips
 
 ### Understanding Timeline Gaps
