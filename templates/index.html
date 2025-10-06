@@ -581,6 +581,26 @@
             background: #8e24aa;
             top: 46px; /* Track 4: Component issues at bottom */
         }
+        .hotspot-marker.flow-control {
+            width: 3px;
+            border-radius: 1px;
+        }
+        .hotspot-marker.flow-control.critical {
+            background-color: #ef4444;
+            height: 35px;
+        }
+        .hotspot-marker.flow-control.degraded {
+            background-color: #f59e0b;
+            height: 28px;
+        }
+        .hotspot-marker.flow-control.healthy {
+            background-color: #10b981;
+            height: 20px;
+        }
+        .hotspot-marker.flow-control.disabled {
+            background-color: #94a3b8;
+            height: 15px;
+        }
         .hotspot-marker.sst:hover {
             box-shadow: 0 3px 8px rgba(255, 87, 34, 0.6), 0 0 16px rgba(255, 87, 34, 0.4);
             background: #ff3d00;
@@ -1319,6 +1339,13 @@
             (timelineHotspots.sst_operations || []).forEach(item => {
                 const pct = (item.index / denom) * 100;
                 addMarker(pct, 'sst', item.description || 'SST Operation', item.index);
+            });
+            
+            // Flow Control markers (NEW)
+            (timelineHotspots.flow_control_events || []).forEach(item => {
+                const pct = (item.index / denom) * 100;
+                const level = item.level || 'healthy';
+                addMarker(pct, `flow-control ${level}`, item.description || 'Flow Control', item.index);
             });
         }
 

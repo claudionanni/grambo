@@ -14,7 +14,8 @@ TIMELINE_HOTSPOTS = {
     "cluster_non_primary": [],
     "node_non_member": [],
     "node_component_non_primary": [],
-    "sst_operations": []
+    "sst_operations": [],
+    "flow_control_events": []
 }
 
 
@@ -23,7 +24,8 @@ def summarize_hotspots(frames):
         "cluster_non_primary": [],
         "node_non_member": [],
         "node_component_non_primary": [],
-        "sst_operations": []
+        "sst_operations": [],
+        "flow_control_events": []
     }
     for idx, frame in enumerate(frames or []):
         hotspots = frame.get('hotspots') or {}
@@ -39,6 +41,39 @@ def summarize_hotspots(frames):
             entry = dict(item)
             entry['index'] = idx
             summary['node_component_non_primary'].append(entry)
+        
+        # Check for flow_control entities in this frame
+        entities = frame.get('entities', {})
+        for ent_key, ent_props in entities.items():
+            if ent_key.startswith('flow_control:'):
+                cluster_size = ent_props.get('inferred_cluster_size', 0)
+                fc_status = ent_props.get('fc_status', 'unknown')
+                lower_limit = ent_props.get('lower_limit', 0)
+                upper_limit = ent_props.get('upper_limit', 0)
+                
+                # Determine criticality
+                if fc_status == 'disabled':
+                    level = 'disabled'
+                    description = f"FC Disabled [0, 0]"
+                elif cluster_size == 1:
+                    level = 'critical'
+                    description = f"1 Node Active [{lower_limit}, {upper_limit}]"
+                elif cluster_size == 2:
+                    level = 'degraded'
+                    description = f"2 Nodes Active [{lower_limit}, {upper_limit}]"
+                else:
+                    level = 'healthy'
+                    description = f"{cluster_size} Nodes Active [{lower_limit}, {upper_limit}]"
+                
+                summary['flow_control_events'].append({
+                    'index': idx,
+                    'cluster_size': cluster_size,
+                    'fc_status': fc_status,
+                    'level': level,
+                    'lower_limit': lower_limit,
+                    'upper_limit': upper_limit,
+                    'description': description
+                })
     
     # Load SST operations from graa JSON data (if available)
     if SST_JSON_PATH and os.path.exists(SST_JSON_PATH):
@@ -224,7 +259,14 @@ def get_frame(idx):
             ents = frame.get(key, {})
             if ents:
                 for ent_name, ent_props in ents.items():
-                    all_entities[f"{key[:-1]}:{ent_name}"] = ent_props
+                    # For 'entities' dict, use the key as-is (already formatted like "flow_control:id")
+                    # For 'nodes' and 'clusters', prepend the type
+                    if key == 'entities':
+                        # Keys in entities dict are already prefixed (e.g., "flow_control:flow_control_96")
+                        all_entities[ent_name] = ent_props
+                    else:
+                        # For nodes/clusters, format as "node:name" or "cluster:name"
+                        all_entities[f"{key[:-1]}:{ent_name}"] = ent_props
         
         # Legacy views (kept for backward compatibility, usually empty now)
         views = frame.get('views', {})
