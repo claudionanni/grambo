@@ -297,6 +297,14 @@ ls -la grax_output/
 # sst_sessions.json - Structured SST data
 ```
 
+## Running the Tests
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+The pipeline tests need the sample logs in `cl407/` and `unittest/`, which are not part of the repository; they are skipped when the logs are absent.
+
 ## Documentation
 
 - **[CHANGELOG.md](CHANGELOG.md)**: Version history and changes

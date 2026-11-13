@@ -1,0 +1,113 @@
+{
+  "sst": {
+    "total_sessions": 7,
+    "sessions": [
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:30:40",
+        "end": "2025-09-22 22:30:51",
+        "duration_seconds": 11.0,
+        "joiner": "NODE_21407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 6
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:33:28",
+        "end": "2025-09-22 22:33:39",
+        "duration_seconds": 11.0,
+        "joiner": "NODE_21407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 6
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:40:01",
+        "end": "2025-09-22 22:40:21",
+        "duration_seconds": 20.0,
+        "joiner": "NODE_21407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 7
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-25 17:22:20",
+        "end": "2025-09-25 17:23:02",
+        "duration_seconds": 42.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 7
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-25 18:03:48",
+        "end": "2025-09-25 18:03:53",
+        "duration_seconds": 5.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_21407",
+        "method": "mariabackup",
+        "events": 7
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-25 18:05:41",
+        "end": "2025-09-25 18:05:43",
+        "duration_seconds": 2.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_21407",
+        "method": "mariabackup",
+        "events": 6
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-25 18:07:25",
+        "end": "2025-09-25 18:07:29",
+        "duration_seconds": 4.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_21407",
+        "method": "mariabackup",
+        "events": 7
+      }
+    ]
+  },
+  "entities": {
+    "total": 714,
+    "by_type": {
+      "cluster": 3,
+      "error": 216,
+      "flow_control": 77,
+      "ist": 13,
+      "node": 3,
+      "node_state": 104,
+      "quorum": 27,
+      "sst": 68,
+      "view": 109,
+      "wsrep_view": 94
+    }
+  },
+  "frames": {
+    "total": 605,
+    "first_timestamp": null,
+    "last_timestamp": "2025-09-25T18:09:51",
+    "by_event_type": {
+      "cluster": 3,
+      "error": 216,
+      "flow_control": 77,
+      "ist": 13,
+      "node": 3,
+      "node_state": 104,
+      "quorum": 27,
+      "sst": 68,
+      "wsrep_view": 94
+    },
+    "final_node_states": {
+      "NODE_11407": "SYNCED",
+      "NODE_21407": "SYNCED",
+      "NODE_31407": "SYNCED"
+    }
+  }
+}

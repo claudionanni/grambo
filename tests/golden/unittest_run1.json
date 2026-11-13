@@ -1,0 +1,93 @@
+{
+  "sst": {
+    "total_sessions": 5,
+    "sessions": [
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:30:40",
+        "end": "2025-09-22 22:30:51",
+        "duration_seconds": 11.0,
+        "joiner": "NODE_21407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 6
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:33:28",
+        "end": "2025-09-22 22:33:39",
+        "duration_seconds": 11.0,
+        "joiner": "NODE_21407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 6
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:40:01",
+        "end": "2025-09-22 22:40:21",
+        "duration_seconds": 20.0,
+        "joiner": "NODE_21407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 7
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-23 17:56:51",
+        "end": "2025-09-23 17:57:12",
+        "duration_seconds": 21.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "events": 7
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-25 13:54:32",
+        "end": "2025-09-25 13:54:36",
+        "duration_seconds": 4.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_21407",
+        "method": "mariabackup",
+        "events": 7
+      }
+    ]
+  },
+  "entities": {
+    "total": 618,
+    "by_type": {
+      "cluster": 3,
+      "error": 221,
+      "flow_control": 58,
+      "ist": 7,
+      "node": 3,
+      "node_state": 79,
+      "quorum": 28,
+      "sst": 44,
+      "view": 96,
+      "wsrep_view": 79
+    }
+  },
+  "frames": {
+    "total": 522,
+    "first_timestamp": null,
+    "last_timestamp": "2025-09-25T13:58:55",
+    "by_event_type": {
+      "cluster": 3,
+      "error": 221,
+      "flow_control": 58,
+      "ist": 7,
+      "node": 3,
+      "node_state": 79,
+      "quorum": 28,
+      "sst": 44,
+      "wsrep_view": 79
+    },
+    "final_node_states": {
+      "NODE_11407": "SYNCED",
+      "NODE_21407": "SYNCED",
+      "NODE_31407": "SYNCED"
+    }
+  }
+}
