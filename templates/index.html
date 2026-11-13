@@ -310,6 +310,19 @@
         .accent-view {
             color: #f97316;
         }
+        .log-status-note, .change-note {
+            margin: 0.4em 0 0.6em;
+            padding: 0.5em 0.7em;
+            border-left: 3px solid #f59e0b;
+            background: #fffbeb;
+            color: #92400e;
+            font-size: 0.85em;
+            border-radius: 4px;
+        }
+        .change-arrow {
+            color: #94a3b8;
+            padding: 0 0.15em;
+        }
         .empty-state {
             padding: 0.6em 0;
             color: #94a3b8;
@@ -1178,6 +1191,15 @@
             
             <!-- NODE STATUS -->
             <div class="card-section-header">Node Status</div>
+
+            <div class="card" data-card="changes" draggable="true">
+                <div class="card-header">
+                    Changes in this frame
+                    <span class="hint">drag to reposition</span>
+                    <a href="/docs#changes-in-this-frame" target="_blank" rel="noopener" class="help-icon" title="View documentation">ℹ️</a>
+                </div>
+                <div class="card-body" id="changes-section"></div>
+            </div>
             
             <div class="card" data-card="nodes" draggable="true">
                 <div class="card-header">
@@ -1251,6 +1273,76 @@
                 return `{${keys.join(', ')}}`;
             }
             return String(value);
+        }
+
+        // One state transfer as text: "joiner ← NODE_1 · SST+IST · COMPLETED"
+        function formatTransfer(t) {
+            if (!t || typeof t !== 'object') return '';
+            const arrow = t.role === 'donor' ? '→' : '←';
+            const parts = [`${t.role || 'transfer'} ${arrow} ${t.peer || 'unknown'}`];
+            parts.push(t.type || 'type not known yet');
+            if (t.status) parts.push(t.status.replace('_', ' '));
+            return parts.join(' · ');
+        }
+
+        const CHANGE_LABELS = {
+            'to_state': 'state',
+            'node_uuid': 'node UUID',
+            'component': 'component',
+            'member_count': 'component size',
+            'flow_control': 'flow control',
+            'log_status': 'log',
+            'state_transfer': 'state transfer',
+            'wsrep_view.view_id': 'view id',
+            'wsrep_view.status': 'view status',
+            'wsrep_view.members': 'view members',
+            'wsrep_view.own_index': 'own index',
+        };
+
+        function formatChangeValue(variable, value) {
+            if (value === null || value === undefined || value === '') return '—';
+            if (variable === 'state_transfer') return formatTransfer(value);
+            if (variable === 'flow_control' && Array.isArray(value)) return `[${value.join(', ')}]`;
+            if (variable === 'node_uuid') {
+                const parts = String(value).split('-');
+                return parts.length === 5 ? `${parts[0]}-${parts[3]}` : String(value);
+            }
+            return formatEntityValue(value);
+        }
+
+        // The frame's state changes, grouped per node. Steps of one variable
+        // within the frame are chained: A → B → C.
+        function renderFrameChanges(changes, eventCount) {
+            const div = document.getElementById('changes-section');
+            if (!div) return;
+            if (!changes || changes.length === 0) {
+                div.innerHTML = '<div class="empty-state">First frame: initial state</div>';
+                return;
+            }
+            const perNode = new Map();
+            changes.forEach(change => {
+                const parts = String(change.variable).split(':');
+                const scope = parts[0] === 'node' ? parts[1] : parts.slice(0, 2).join(' ');
+                const variable = parts[0] === 'node' ? parts.slice(2).join(':') : 'present';
+                if (!perNode.has(scope)) perNode.set(scope, new Map());
+                const vars = perNode.get(scope);
+                if (!vars.has(variable)) vars.set(variable, [change.from]);
+                vars.get(variable).push(change.to);
+            });
+            let html = '';
+            if (perNode.size > 1) {
+                html += `<div class="change-note">Changes on different nodes within the same second: their relative order is not known.</div>`;
+            }
+            perNode.forEach((vars, scope) => {
+                html += `<div class="entity-block-group"><div class="entity-subtitle">${escapeHtml(scope)}</div>`;
+                vars.forEach((steps, variable) => {
+                    const label = CHANGE_LABELS[variable] || variable;
+                    const chain = steps.map(v => escapeHtml(formatChangeValue(variable, v))).join(' <span class="change-arrow">→</span> ');
+                    html += `<div class="entity-block"><span class="entity-label accent-node">${escapeHtml(label)}:</span> <span class="entity-value">${chain}</span></div>`;
+                });
+                html += '</div>';
+            });
+            div.innerHTML = html;
         }
 
         const timelineHotspotDataElement = document.getElementById('timeline-hotspot-data');
@@ -2569,6 +2661,7 @@
                     }
                     
                     displayHotspotInfo(data.hotspots);
+                    renderFrameChanges(data.changes, data.event_count);
                     
                     // Auto-reload current log with new timestamp (after frame is fully processed)
                     detailInspector.reloadCurrentLog();
@@ -2795,7 +2888,7 @@
                     nodesDiv.innerHTML = '';
                     const nodeEntities = Object.entries(entities).filter(([key]) => key.startsWith('node:'));
                     const nodeFields = [
-                        'node_name', 'from_state', 'to_state', 'node_uuid', 'mariadb_version',
+                        'node_name', 'from_state', 'to_state', 'component', 'member_count', 'node_uuid', 'mariadb_version',
                         'galera_version', 'wsrep_version', 'node_address', 'timestamp'
                     ];
                     const gcommFields = [
@@ -2817,8 +2910,20 @@
                             let block = '<div class="entity-block-group">';
                             const title = props.node_name || entKey.replace('node:', '');
                             block += `<div class="entity-subtitle">${escapeHtml(title)}</div>`;
+                            // Outside the node's own log its state is only what was last known
+                            if (props.log_status === 'ENDED') {
+                                const since = (props.log_ended_at || '').replace('T', ' ');
+                                block += `<div class="log-status-note">Log ended ${escapeHtml(since)}. Values below are the last known state, not the current one.</div>`;
+                            } else if (props.log_status === 'NO_LOG') {
+                                block += `<div class="log-status-note">No log from this node covers this moment. Values below are what its peers logged about it.</div>`;
+                            }
                             const metrics = renderPropertyList(props, nodeFields, 'accent-node');
                             block += metrics || `<div class="empty-state">No node metrics</div>`;
+                            if (props.state_transfer) {
+                                let transferText = formatTransfer(props.state_transfer);
+                                if (props.state_transfer.reason) transferText += ` (${props.state_transfer.reason})`;
+                                block += `<div class="entity-block"><span class="entity-label accent-node">state transfer:</span> <span class="entity-value">${escapeHtml(transferText)}</span></div>`;
+                            }
                             const history = Array.isArray(props.uuid_history)
                                 ? props.uuid_history.filter(item => item !== null && item !== undefined && item !== '')
                                 : [];
@@ -3064,7 +3169,17 @@
             });
 
             const arrowPairs = [];
-            if (donors.length && joiners.length) {
+            // The joiner's state names its donor; the state heuristic below is
+            // only used for frames without that information.
+            nodePositions.forEach(joiner => {
+                const transfer = joiner.props.state_transfer;
+                if (!transfer || transfer.role !== 'joiner' || transfer.status !== 'IN_PROGRESS') return;
+                const donor = nodePositions.find(node => node.name === transfer.peer);
+                if (donor) arrowPairs.push({ donor, joiner, type: transfer.type });
+            });
+            const anyTransferState = nodePositions.some(node => node.props.state_transfer !== undefined
+                || node.props.log_status !== undefined);
+            if (!anyTransferState && donors.length && joiners.length) {
                 joiners.forEach((joiner, idx) => {
                     const donor = donors[idx % donors.length];
                     if (donor.ent !== joiner.ent) {
@@ -3106,6 +3221,12 @@
                 circle.setAttribute('fill', color);
                 circle.setAttribute('stroke', '#333');
                 circle.setAttribute('stroke-width', 2);
+                const stale = props.log_status === 'ENDED' || props.log_status === 'NO_LOG';
+                if (stale) {
+                    // Last known state only: this node's log does not cover the frame
+                    circle.setAttribute('stroke-dasharray', '5 4');
+                    circle.setAttribute('fill-opacity', '0.35');
+                }
                 circle.addEventListener('mouseenter', function(e) {
                     const tooltip = document.createElement('div');
                     tooltip.id = 'node-tooltip';
@@ -3119,7 +3240,7 @@
                     tooltip.style.fontSize = '12px';
                     tooltip.style.pointerEvents = 'none';
                     tooltip.style.zIndex = 1000;
-                    tooltip.textContent = name;
+                    tooltip.textContent = stale ? `${name} (last known state, no log at this time)` : name;
                     document.body.appendChild(tooltip);
                 });
                 circle.addEventListener('mouseleave', function() {
@@ -3152,8 +3273,9 @@
                             }
                         });
                     });
-                    const pairLabels = arrowPairs.map(({ donor, joiner }) => `${donor.name} → ${joiner.name}`);
-                    let message = `SST in progress: ${pairLabels.join(', ')}`;
+                    const pairLabels = arrowPairs.map(({ donor, joiner, type }) =>
+                        `${donor.name} → ${joiner.name}${type ? ' (' + type + ')' : ''}`);
+                    let message = `State transfer in progress: ${pairLabels.join(', ')}`;
                     if (methods.size) {
                         message += ` (method: ${Array.from(methods).join(', ')})`;
                     }

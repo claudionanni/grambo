@@ -137,9 +137,27 @@ the per-node value is in the Nodes card (`component`, `member_count`).
 
 ---
 
+## Changes in this frame
+
+**Purpose:** What changed in the cluster's state between the previous frame and this one.
+
+A frame is one second in which at least one state variable of at least one node changed. The card lists the changes per node. When a variable changed more than once within the second, the steps are shown as a chain, in the order the node logged them: `state: OPEN → PRIMARY → JOINER → JOINED → SYNCED`.
+
+**Important Notes:**
+- Log timestamps have one-second resolution and node clocks are not synchronised. The order of steps **within one node** is reliable; the order **between nodes** within the same frame is not known, and the card says so when a frame has changes on more than one node.
+- Messages that change no state variable (errors, warnings, access denied, transfer progress) never create a frame.
+
+**State variables:** Galera state, node UUID, component (PRIMARY / NON_PRIMARY), component size, flow-control interval, wsrep view (id, status, members, own index), state transfer, log coverage.
+
+---
+
 ## Nodes
 
 **Purpose:** Detailed per-node state information and lifecycle tracking.
+
+**State transfer:** while a node is donor or joiner the card shows the role, the peer, the type (SST, IST or SST+IST, as far as the node's own log has shown it) and the status (IN PROGRESS, COMPLETED, FAILED, or INTERRUPTED when the node restarted before finishing). It disappears when the node is SYNCED again.
+
+**Log coverage:** every value comes from the node's own log. After the node's log has ended the card says so and the values are the last known ones, not the current state. Before the log starts, the values are what one peer logged about the node.
 
 **Key Features:**
 - Node name and UUID

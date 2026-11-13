@@ -119,10 +119,15 @@ Each pattern carries:
 
 Reconstructs cluster state evolution:
 - **State machine:** The cluster state is a set of variables per node: Galera
-  state, node UUID, component status and size, flow-control interval, and the
-  node's wsrep view
-- **Frame concept:** A snapshot of that state. A new frame is emitted only when
-  at least one variable changes, and it lists what changed (`changes`)
+  state, node UUID, component status and size, flow-control interval, the
+  node's wsrep view, its state transfer (role, peer, type, status) and whether
+  its log covers the moment
+- **Frame concept:** A snapshot of that state at the end of a second in which
+  at least one variable changed, listing every change (`changes`). Changes are
+  grouped per second because the order of events on different nodes within a
+  second cannot be known
+- **Own-log rule:** A node's variables come from its own log; peers are used
+  only while the node has no log covering that moment
 - **Non-state events:** Errors, warnings, transfer progress and repeated
   messages change no variable and therefore create no frame
 - **State propagation:** Carries forward unchanged state

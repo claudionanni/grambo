@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   emitted only when one of them changes, and each frame lists what changed in
   a new `changes` field. Errors, warnings and other events that change no
   variable no longer create frames.
+- **One frame per second.** All state changes that carry the same timestamp
+  are one frame. Log timestamps have one-second resolution and node clocks are
+  not synchronised, so the order of changes on different nodes within a second
+  was arbitrary. The frame shows the state at the end of the second; `changes`
+  keeps every step in log order. `graf3 --granularity event` restores one
+  frame per change.
+- **A node's state comes from its own log.** What peers log about a node
+  (`Member X synced with group`, donor selection, transfer result) is used
+  only while that node has no log covering the moment.
 - **Quorum comes from gcs.** Component status is taken from
   `New COMPONENT: primary = yes|no ... memb_num = N` and the `Quorum results:`
   block, per node. The old `quorum_lost` / `quorum_regained` patterns are gone.
@@ -21,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   most the 10 most recent UUIDs of a node are repeated in each frame.
 
 ### Added
+- **State transfer is a state variable.** Each node carries `state_transfer`
+  (role, peer, type SST / IST / SST+IST, status IN_PROGRESS / COMPLETED /
+  FAILED / INTERRUPTED) from donor selection until it is SYNCED again. The
+  cluster graph draws its donor → joiner arrow from it.
+- **Log coverage is a state variable.** `log_status` is NO_LOG before a node's
+  log starts, ACTIVE while it runs and ENDED after its last line; from then on
+  the UI marks the node's values as last known.
+- "Changes in this frame" card in the UI.
+- Patterns for `State transfer from X complete` (joiner side) and
+  `async IST sender starting to serve` (donor side).
 - Patterns for `SST received`, `SST sent`, `SST sending failed`,
   `State transfer to X failed/complete`, the IST range, `IST received`,
   `Member N.N (name) synced with group`, and `WSREP_SST: [ERROR]` script

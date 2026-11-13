@@ -2,9 +2,9 @@
 """
 GRAF - GRAP Frames Builder
 
-Builds per-event cluster "frames" from GRAP JSON output. Each frame is a
-snapshot of the cluster state immediately after applying one event, suitable
-for timeline visualization.
+Builds cluster "frames" from GRAP JSON output. The cluster is a state machine;
+a frame is a snapshot of every node's state variables at the end of a second
+in which at least one of them changed, with the list of changes.
 
 Usage examples:
   # Pipe GRAP output directly
@@ -465,14 +465,28 @@ def reduce_cluster(world: WorldState, e: Dict[str, Any]):
 #   member_count    component size       same two messages
 #   flow_control    [lower, upper]       "Flow-control interval: [l, u]"
 #   wsrep_view      id, status, members  the "View:" block
-NODE_STATE_VARIABLES = ("to_state", "node_uuid", "component", "member_count", "flow_control")
+#   state_transfer  role, peer, type,    "Member X requested state transfer ...
+#                   status               Selected Y as donor", "State transfer
+#                                        to X complete|failed", "SST received",
+#                                        "SST sent", "Receiving IST"
+#   log_status      NO_LOG/ACTIVE/ENDED  first and last timestamp of the node's
+#                                        log file(s)
+#
+# Every variable is what the node itself logged. Messages that the whole group
+# sees (donor selection, transfer result) are taken from the logs of the nodes
+# involved, so a peer with a skewed clock cannot move them. Once a node's log
+# has ended its variables are only "last known"; log_status says so.
+NODE_STATE_VARIABLES = ("to_state", "node_uuid", "component", "member_count", "flow_control",
+                        "log_status")
 VIEW_STATE_VARIABLES = ("view_id", "status", "members", "own_index")
+TRANSFER_STATE_VARIABLES = ("role", "peer", "type", "status")
 
 # How many of a node's most recent UUIDs are repeated in each frame
 UUID_HISTORY_IN_FRAME = 10
 
 # Entity types that can change the state above. Everything else is skipped.
-STATE_ENTITY_TYPES = {"node", "cluster", "node_state", "wsrep_view", "quorum", "flow_control"}
+STATE_ENTITY_TYPES = {"node", "cluster", "node_state", "wsrep_view", "quorum", "flow_control",
+                      "sst", "ist", "log_coverage"}
 
 
 def state_signature(frame_nodes: Dict[str, Any], frame_node_views: Dict[str, Any],
@@ -482,6 +496,9 @@ def state_signature(frame_nodes: Dict[str, Any], frame_node_views: Dict[str, Any
     for name, node in frame_nodes.items():
         for var in NODE_STATE_VARIABLES:
             sig[f"node:{name}:{var}"] = node.get(var)
+        transfer = node.get("state_transfer")
+        sig[f"node:{name}:state_transfer"] = (
+            {var: transfer.get(var) for var in TRANSFER_STATE_VARIABLES} if transfer else None)
     for name, view in frame_node_views.items():
         for var in VIEW_STATE_VARIABLES:
             sig[f"node:{name}:wsrep_view.{var}"] = view.get(var)
@@ -489,9 +506,64 @@ def state_signature(frame_nodes: Dict[str, Any], frame_node_views: Dict[str, Any
         sig[f"cluster:{key}"] = True
     return sig
 
-def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
+
+def group_frames_by_second(frames: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge all frames that share a timestamp into one.
+
+    Log timestamps have one-second resolution and node clocks are not
+    synchronised, so the order of changes on different nodes within a second
+    cannot be known. The merged frame shows the state at the end of the second;
+    its `changes` list keeps every individual step, in log order per node.
+    """
+    grouped: List[Dict[str, Any]] = []
+    for frame in frames:
+        ts = frame["event"]["timestamp"]
+        if grouped and grouped[-1]["event"]["timestamp"] == ts:
+            prev = grouped[-1]
+            frame["changes"] = prev["changes"] + frame["changes"]
+            frame["event_count"] = prev["event_count"] + 1
+            if prev.get("entities"):
+                frame["entities"] = {**prev["entities"], **(frame.get("entities") or {})}
+            grouped[-1] = frame
+        else:
+            frame["event_count"] = 1
+            grouped.append(frame)
+    for index, frame in enumerate(grouped):
+        frame["index"] = index
+    return grouped
+
+
+def build_frames(grap_json: Dict[str, Any], granularity: str = "second") -> List[Dict[str, Any]]:
     entities = grap_json.get("entities") or []
     entities = sort_entities(entities)
+
+    # Which node wrote which log file, and when the last log ends. Without
+    # coverage information (older grap output) these stay empty and every
+    # observation is accepted from every log.
+    source_node: Dict[str, str] = {}
+    open_logs: Dict[str, int] = {}
+    coverage_end: Optional[datetime] = None
+    for e in entities:
+        if e.get("entity_type") == "log_coverage" and e.get("node_name"):
+            source_node[e.get("log_source")] = e["node_name"]
+            open_logs.setdefault(e["node_name"], 0)
+            if e.get("event_type") == "log_end":
+                end = parse_iso(e.get("timestamp"))
+                if end and (coverage_end is None or end > coverage_end):
+                    coverage_end = end
+
+    def observed_by(e: Dict[str, Any], node: str) -> bool:
+        """True if entity `e` may update the state of `node`: it comes from that
+        node's own log. While the node has no log covering the moment, what its
+        peers logged about it is all there is; one of them (the first by name
+        whose log is running) is then the single witness, so that the same
+        group message is not applied once per peer."""
+        writer = source_node.get(e.get("log_source"))
+        if writer is None or writer == node:
+            return True
+        if open_logs.get(node):
+            return False
+        return writer == min(n for n, count in open_logs.items() if count)
 
 
     # --- State machine: track latest state for each entity property ---
@@ -517,6 +589,12 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         eid = e.get("entity_id")
         ts = parse_iso(e.get("timestamp"))
         timestamps.append(ts)
+
+        # What a peer logged about a node ("Member X synced with group") is
+        # ignored while that node's own log is running: the node says the same
+        # itself, and the peer's copy would arrive in arbitrary order.
+        if et == "node_state" and e.get("node_name") and not observed_by(e, e["node_name"]):
+            continue
 
         # --- Track immutable entities ---
         if et == "node":
@@ -561,6 +639,86 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         if et == "flow_control" and e.get("node_name"):
             node_dynamic.setdefault(e["node_name"], {})["flow_control"] = [
                 e.get("lower_limit"), e.get("upper_limit")]
+
+        # --- Log coverage: is the node's state observed, or only last known? ---
+        if et == "log_coverage" and e.get("node_name"):
+            name = e["node_name"]
+            dyn = node_dynamic.setdefault(name, {})
+            if e.get("event_type") == "log_start":
+                open_logs[name] += 1
+                dyn["log_status"] = "ACTIVE"
+                dyn.pop("log_ended_at", None)
+            elif ts is not None and ts < coverage_end:
+                # The end of the last log is the end of the analysis, not a
+                # change of state, so it is not marked.
+                open_logs[name] = max(0, open_logs[name] - 1)
+                if open_logs[name] == 0:
+                    dyn["log_status"] = "ENDED"
+                    dyn["log_ended_at"] = to_iso_string(ts)
+
+        # --- State transfers (SST/IST): role, peer, type and outcome per node ---
+        if et in ("sst", "ist"):
+            def set_transfer(name, fresh=False, add_type=None, **fields):
+                dyn = node_dynamic.setdefault(name, {})
+                # Only the donor selection opens a transfer; anything else
+                # about a transfer that is not open is a late duplicate.
+                if not fresh and not dyn.get("state_transfer"):
+                    return
+                # Always a new dict: earlier frames keep a reference to the old one
+                cur = {} if fresh else dict(dyn["state_transfer"])
+                cur.update({k: v for k, v in fields.items() if v is not None})
+                if add_type:
+                    kinds = set(filter(None, (cur.get("type") or "").split("+"))) | {add_type}
+                    cur["type"] = "+".join(k for k in ("SST", "IST") if k in kinds)
+                dyn["state_transfer"] = cur
+
+            pattern = e.get("pattern_name")
+            donor, joiner = e.get("donor_name"), e.get("joiner_name")
+            local = e.get("node_name")
+            if pattern == "sst_donor_selected" and donor and joiner:
+                for name, role, peer in ((donor, "donor", joiner), (joiner, "joiner", donor)):
+                    if observed_by(e, name):
+                        set_transfer(name, fresh=True, role=role, peer=peer,
+                                     status="IN_PROGRESS", started=to_iso_string(ts))
+            elif pattern == "sst_transfer_complete" and donor and joiner:
+                # "State transfer to X complete": the donor has done its part
+                if observed_by(e, donor):
+                    set_transfer(donor, role="donor", peer=joiner, status="COMPLETED",
+                                 ended=to_iso_string(ts))
+            elif pattern == "sst_transfer_joined" and donor and joiner:
+                # "State transfer from Y complete": the joiner has the state
+                if observed_by(e, joiner):
+                    set_transfer(joiner, role="joiner", status="COMPLETED",
+                                 peer=None if " " in donor else donor,
+                                 ended=to_iso_string(ts))
+            elif pattern == "sst_transfer_failed" and donor and joiner:
+                for name, role, peer in ((donor, "donor", joiner), (joiner, "joiner", donor)):
+                    if observed_by(e, name):
+                        set_transfer(name, role=role, peer=peer, status="FAILED",
+                                     ended=to_iso_string(ts), reason=e.get("failure_reason"))
+            elif pattern == "sst_sending_failed" and local:
+                set_transfer(local, role="donor", status="FAILED", ended=to_iso_string(ts),
+                             reason=f"SST sending failed: {e.get('error_code')}")
+            elif pattern == "sst_sent" and local:
+                set_transfer(local, role="donor", add_type="SST")
+            elif pattern == "sst_received" and local:
+                set_transfer(local, role="joiner", add_type="SST")
+            elif pattern == "ist_receiving" and local:
+                set_transfer(local, role="joiner", add_type="IST")
+            elif pattern == "ist_sending" and local:
+                set_transfer(local, role="donor", add_type="IST")
+
+        # A node that is SYNCED again has no transfer; one that starts over
+        # (OPEN) while a transfer was running never finished it.
+        if et == "node_state" and e.get("node_name") in node_dynamic:
+            dyn = node_dynamic[e["node_name"]]
+            new_state = str(e.get("to_state") or "").upper()
+            if new_state == "SYNCED":
+                dyn.pop("state_transfer", None)
+            elif (new_state == "OPEN" and observed_by(e, e["node_name"])
+                  and (dyn.get("state_transfer") or {}).get("status") == "IN_PROGRESS"):
+                dyn["state_transfer"] = {**dyn["state_transfer"], "status": "INTERRUPTED",
+                                         "ended": to_iso_string(ts)}
 
         # --- Update state machine for time-varying entities ---
         if et not in state_machine:
@@ -722,6 +880,8 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 #     print(f"DEBUG: Assigning UUID {time_aware_uuid} to node {node_key} at {to_iso_string(ts)}")
             node_state = filter_props(node_state)
             node_state.update(node_dynamic.get(node_key, {}))
+            if open_logs and "log_status" not in node_state:
+                node_state["log_status"] = "NO_LOG"
             # Overlay latest node view snapshot if available
             nv = state_machine.get("node_view", {}).get(node_key)
             if not nv and node_state.get("node_uuid"):
@@ -985,6 +1145,8 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             frame["hotspots"] = hotspots
         frames.append(frame)
 
+    if granularity == "second":
+        frames = group_frames_by_second(frames)
     return frames
 
 
@@ -1050,10 +1212,14 @@ def _read_multiple_inputs(paths: List[str]) -> Dict[str, Any]:
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="Build per-event cluster frames from GRAP JSON")
+    p = argparse.ArgumentParser(description="Build cluster state frames from GRAP JSON")
     p.add_argument("inputs", nargs="*", help="One or more GRAP JSON files (use '-' for stdin)")
     p.add_argument("--output", "-o", help="Frames JSON output file (defaults to stdout)")
     p.add_argument("--ndjson", action="store_true", help="Emit NDJSON (one frame per line)")
+    p.add_argument("--granularity", choices=["second", "event"], default="second",
+                   help="second (default): one frame per second in which the state changed, "
+                        "since the order of events on different nodes within a second is "
+                        "unknown. event: one frame per individual state change.")
     args = p.parse_args()
 
     # Input handling:
@@ -1077,7 +1243,7 @@ def main():
         print(str(e), file=sys.stderr)
         sys.exit(2)
 
-    frames = build_frames(grap_json)
+    frames = build_frames(grap_json, args.granularity)
     
     # Re-index frames to ensure sequential ordering by (timestamp, original_entity_index)
     # This preserves chronological order while maintaining deterministic frame indices

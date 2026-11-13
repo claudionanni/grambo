@@ -371,6 +371,28 @@ class EntityExtractor:
             confidence=0.97
         ))
 
+        # Any member: "<idx> (<joiner>): State transfer from <idx> (<donor>) complete."
+        # The joiner's own completion; the "to ... complete" line below only
+        # means the donor has finished its part.
+        patterns.append(Pattern(
+            pattern_id="sst_transfer_joined",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\):\s+State\s+transfer\s+from\s+-?\d+\.-?\d+\s+\(([^)]+)\)\s+complete',
+            entity_type="sst",
+            priority=100,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "joiner_name",
+                3: "donor_name"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "JOINED",
+                "event_type": "joined"
+            },
+            confidence=0.97
+        ))
+
         # Any member: "<idx> (<donor>): State transfer to <idx> (<joiner>) complete."
         patterns.append(Pattern(
             pattern_id="sst_transfer_complete",
@@ -518,6 +540,27 @@ class EntityExtractor:
             confidence=0.98
         ))
         
+        # Donor side: "async IST sender starting to serve <addr> sending A-B"
+        patterns.append(Pattern(
+            pattern_id="ist_sending",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+async IST sender starting to serve\s+(\S+)\s+sending\s+(\d+)-(\d+)',
+            entity_type="ist",
+            priority=105,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "joiner_address",
+                3: "first_seqno",
+                4: "last_seqno"
+            },
+            computed_fields={
+                "transfer_type": "IST",
+                "status": "SENDING",
+                "role": "donor"
+            },
+            confidence=0.98
+        ))
+
         patterns.append(Pattern(
             pattern_id="ist_progress",
             regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*Receiving IST\.+\s*([\d.]+)%\s*\((\d+)/(\d+)\s+events\)',
@@ -729,6 +772,28 @@ class EntityExtractor:
 
             # Finalize blocks still open at the end of the file
             self._flush_blocks()
+
+            # What this file covers in time. Outside that window the node's
+            # state is not observed, only last known.
+            stamps = [l[:19] for l in lines if _TS_START.match(l)]
+            if stamps and name:
+                for event, ts, order, line_no in (
+                        ('log_start', min(stamps), -1, 1),
+                        ('log_end', max(stamps), 10 ** 9, len(lines))):
+                    self.temporal_entities.append({
+                        'entity_type': 'log_coverage',
+                        'entity_id': f'{event}_{len(self.temporal_entities)}',
+                        'event_type': event,
+                        'node_name': name,
+                        'timestamp': ts,
+                        'timestamp_index': order,
+                        'line_number': line_no,
+                        'log_source': log_source,
+                        'raw_line': '',
+                        'pattern_name': 'log_coverage',
+                        'extraction_method': 'file_bounds',
+                        'confidence': 1.0,
+                    })
         
         # Sort temporal entities chronologically (handle None timestamps)
         self.temporal_entities.sort(key=lambda e: (

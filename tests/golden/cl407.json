@@ -105,40 +105,47 @@
     ]
   },
   "entities": {
-    "total": 1892,
+    "total": 1940,
     "by_type": {
       "cluster": 4,
       "error": 700,
       "flow_control": 171,
-      "ist": 41,
+      "ist": 56,
+      "log_coverage": 6,
       "node": 3,
       "node_state": 248,
       "quorum": 247,
-      "sst": 132,
+      "sst": 159,
       "view": 173,
       "wsrep_view": 173
     }
   },
   "frames": {
-    "total": 594,
+    "total": 146,
     "first_timestamp": "2025-09-22T20:41:31",
     "last_timestamp": "2025-10-03T10:58:48",
     "by_event_type": {
-      "cluster": 4,
-      "flow_control": 135,
-      "node_state": 188,
-      "quorum": 126,
-      "wsrep_view": 141
+      "cluster": 1,
+      "flow_control": 2,
+      "ist": 9,
+      "log_coverage": 3,
+      "node_state": 42,
+      "quorum": 8,
+      "sst": 3,
+      "wsrep_view": 78
     },
     "changes_by_variable": {
       "cluster_89c68fa5": 1,
       "cluster_9b7675e6": 1,
       "cluster_a572a681": 1,
+      "cluster_d9c70dcb": 1,
       "component": 67,
       "flow_control": 135,
+      "log_status": 3,
       "member_count": 126,
       "node_uuid": 16,
-      "to_state": 188,
+      "state_transfer": 150,
+      "to_state": 181,
       "wsrep_view.members": 138,
       "wsrep_view.own_index": 57,
       "wsrep_view.status": 70,

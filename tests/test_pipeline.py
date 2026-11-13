@@ -192,6 +192,7 @@ NODE_B_LOG = """\
 2025-05-13  1:00:08 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
 2025-05-13  1:00:08 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 1, memb_num = 2
 2025-05-13  1:00:08 0 [Note] WSREP: Shifting OPEN -> PRIMARY (TO: 5)
+2025-05-13  1:00:09 0 [Note] WSREP: Member 1.0 (node-b) requested state transfer from '*any*'. Selected 0.0 (node-a)(SYNCED) as donor.
 2025-05-13  1:00:09 0 [Note] WSREP: Shifting PRIMARY -> JOINER (TO: 5)
 2025-05-13  1:00:30 2 [Note] WSREP: Server node-b synced with group
 """
@@ -209,7 +210,9 @@ class SyntheticLogTest(unittest.TestCase):
         extractor = load_tool("grap3").EntityExtractor()
         cls.grap = extractor.process_files([a, b])
         cls.entities = cls.grap["entities"]
-        cls.frames = load_tool("graf3").build_frames(cls.grap)
+        graf = load_tool("graf3")
+        cls.frames = graf.build_frames(cls.grap)
+        cls.event_frames = graf.build_frames(cls.grap, granularity="event")
 
     @classmethod
     def tearDownClass(cls):
@@ -270,7 +273,8 @@ class SyntheticLogTest(unittest.TestCase):
 
     def test_non_state_events_do_not_create_frames(self):
         types = {f["event"]["entity_type"] for f in self.frames}
-        self.assertEqual(types - {"node_state", "quorum", "flow_control", "wsrep_view", "cluster"}, set())
+        self.assertEqual(types - {"node_state", "quorum", "flow_control", "wsrep_view", "cluster",
+                                  "sst", "ist", "log_coverage"}, set())
         # "Access denied", the WSREP warning and the repeated [16, 16]
         # flow-control line at 01:00:06 change nothing
         stamps = [f["event"]["timestamp"] for f in self.frames]
@@ -292,6 +296,51 @@ class SyntheticLogTest(unittest.TestCase):
         self.assertIn(("node:node-a:to_state", "SYNCED", "DONOR/DESYNCED"), changes)
         self.assertIn(("node:node-a:component", "PRIMARY", "NON_PRIMARY"), changes)
         self.assertIn(("node:node-a:flow_control", [16, 16], [23, 23]), changes)
+
+    def frame_at(self, stamp):
+        return next(f for f in self.frames if f["event"]["timestamp"] == stamp)
+
+    def test_one_frame_per_second(self):
+        stamps = [f["event"]["timestamp"] for f in self.frames]
+        self.assertEqual(len(stamps), len(set(stamps)))
+        self.assertEqual([f["index"] for f in self.frames], list(range(len(self.frames))))
+        # --granularity event keeps one frame per change
+        self.assertGreater(len(self.event_frames), len(self.frames))
+        self.assertEqual(sum(f["event_count"] for f in self.frames), len(self.event_frames))
+
+    def test_steps_within_a_second_are_kept_in_order(self):
+        # node-a goes OPEN -> JOINED -> SYNCED within 01:00:02
+        frame = self.frame_at("2025-05-13T01:00:02")
+        steps = [(c["from"], c["to"]) for c in frame["changes"]
+                 if c["variable"] == "node:node-a:to_state"]
+        self.assertEqual(steps, [("OPEN", "JOINED"), ("JOINED", "SYNCED")])
+        self.assertEqual(frame["nodes"]["node-a"]["to_state"], "SYNCED")
+        # 01:00:08 has changes on both nodes in one frame
+        nodes = {c["variable"].split(":")[1] for c in self.frame_at("2025-05-13T01:00:08")["changes"]}
+        self.assertEqual(nodes, {"node-a", "node-b"})
+
+    def test_state_outside_a_nodes_log_is_marked(self):
+        # node-b's log starts at 01:00:08; node-a's ends at 01:00:20, before node-b's
+        self.assertEqual(self.frames[0]["nodes"]["node-b"]["log_status"], "NO_LOG")
+        self.assertEqual(self.frame_at("2025-05-13T01:00:08")["nodes"]["node-b"]["log_status"], "ACTIVE")
+        last = self.frames[-1]["nodes"]
+        self.assertEqual((last["node-a"]["log_status"], last["node-a"]["log_ended_at"]),
+                         ("ENDED", "2025-05-13T01:00:20"))
+        # the end of the last log is the end of the analysis, not a state change
+        self.assertEqual(last["node-b"]["log_status"], "ACTIVE")
+
+    def test_state_transfer_is_a_state_variable(self):
+        def transfer(stamp, node):
+            t = self.frame_at(stamp)["nodes"][node].get("state_transfer")
+            return t and (t["role"], t["peer"], t["status"])
+        self.assertEqual(transfer("2025-05-13T01:00:09", "node-a"), ("donor", "node-b", "IN_PROGRESS"))
+        self.assertEqual(transfer("2025-05-13T01:00:09", "node-b"), ("joiner", "node-a", "IN_PROGRESS"))
+        failed = self.frame_at("2025-05-13T01:00:11")["nodes"]["node-a"]["state_transfer"]
+        self.assertEqual((failed["status"], failed["reason"]), ("FAILED", "Invalid argument"))
+        # cleared once the donor is SYNCED again
+        self.assertIsNone(transfer("2025-05-13T01:00:12", "node-a"))
+        # node-b never logged the failure: its own view of the transfer stays open
+        self.assertEqual(transfer("2025-05-13T01:00:20", "node-b"), ("joiner", "node-a", "IN_PROGRESS"))
 
 
 class GrafDeterminismTest(unittest.TestCase):

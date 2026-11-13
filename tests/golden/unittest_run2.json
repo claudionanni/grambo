@@ -75,39 +75,45 @@
     ]
   },
   "entities": {
-    "total": 1077,
+    "total": 1120,
     "by_type": {
       "cluster": 3,
       "error": 301,
       "flow_control": 95,
-      "ist": 24,
+      "ist": 37,
+      "log_coverage": 6,
       "node": 3,
       "node_state": 174,
       "quorum": 156,
-      "sst": 118,
+      "sst": 142,
       "view": 109,
       "wsrep_view": 94
     }
   },
   "frames": {
-    "total": 361,
+    "total": 83,
     "first_timestamp": "2025-09-22T20:41:31",
     "last_timestamp": "2025-09-25T18:09:51",
     "by_event_type": {
-      "cluster": 3,
-      "flow_control": 80,
-      "node_state": 121,
-      "quorum": 73,
-      "wsrep_view": 84
+      "cluster": 1,
+      "ist": 2,
+      "log_coverage": 2,
+      "node_state": 31,
+      "quorum": 6,
+      "sst": 3,
+      "wsrep_view": 38
     },
     "changes_by_variable": {
       "cluster_89c68fa5": 1,
       "cluster_a572a681": 1,
+      "cluster_d9c70dcb": 1,
       "component": 29,
       "flow_control": 80,
+      "log_status": 2,
       "member_count": 73,
       "node_uuid": 13,
-      "to_state": 121,
+      "state_transfer": 108,
+      "to_state": 117,
       "wsrep_view.members": 81,
       "wsrep_view.own_index": 38,
       "wsrep_view.status": 32,

@@ -303,6 +303,8 @@ def get_frame(idx):
             'entities': all_entities,
             'timestamp': frame_ts,
             'hotspots': frame.get('hotspots'),
+            'changes': frame.get('changes') or [],
+            'event_count': frame.get('event_count'),
             'log_files': SOURCE_LOG_FILES
         })
     return jsonify({'error': 'Frame out of range'}), 404
