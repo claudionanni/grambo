@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -48,8 +49,9 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "logs",
-        nargs=argparse.ONE_OR_MORE,
-        help="One or more Galera log files to process"
+        nargs="*",
+        help="One or more Galera log files to process. With no files (or '-') "
+             "the log is read from stdin, e.g. ./gralc -f 1 error.log | ./grax3",
     )
     parser.add_argument(
         "--output-dir",
@@ -108,6 +110,21 @@ def main(argv: List[str] | None = None) -> int:
     sst_json_path = output_dir / "sst_sessions.json"  # Add SST JSON output
     grap_path = output_dir / args.grap_output_name
     frames_path = output_dir / args.frames_output_name
+
+    # The downstream tools (and the grav3 log-context viewer) need real files,
+    # so piped input is saved into the output directory first.
+    if not args.logs or args.logs == ["-"]:
+        if sys.stdin.isatty():
+            parser.error("no log files given and nothing piped on stdin")
+        stdin_path = output_dir / "stdin.log"
+        with stdin_path.open("wb") as stdin_file:
+            shutil.copyfileobj(sys.stdin.buffer, stdin_file)
+        if stdin_path.stat().st_size == 0:
+            parser.error("no log files given and stdin was empty")
+        print(f"[grax] stdin saved to {stdin_path}")
+        args.logs = [str(stdin_path)]
+    elif "-" in args.logs:
+        parser.error("'-' (stdin) cannot be combined with log files")
 
     def select_python(explicit: Optional[str]) -> str:
         if explicit:

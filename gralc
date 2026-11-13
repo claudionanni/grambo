@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""
+GRALC - Grambo Log Canonicalizer
+
+Translates various non-standard Galera log formats to the canonical format
+expected by Grambo tools.
+
+Canonical format:
+    2025-09-22 20:46:30 0 [Note] WSREP: Shifting SYNCED -> CLOSED (TO: 2)
+
+Usage:
+    # Show supported formats
+    ./gralc
+
+    # Convert a log file
+    ./gralc --format=1 source.log > canonical.log
+    ./gralc -f 1 source.log > canonical.log
+
+    # Pipe through
+    cat source.log | ./gralc --format=1 > canonical.log
+"""
+
+import sys
+import re
+import argparse
+from typing import Optional, Callable, List, Tuple
+from datetime import datetime
+
+
+# Format definitions
+FORMATS = [
+    {
+        "id": 1,
+        "name": "MySQL 8.0 with Error Codes (ISO8601 timestamp)",
+        "description": "MySQL 8.0 style logs with [MY-XXXXXX] error codes and ISO8601 timestamps",
+        "example": "2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] [WSREP] P: Shifting SYNCED -> OPEN (TO: 10344464)",
+        "pattern": r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:\d{2})\s+(\d+)\s+\[(System|Note|Warning|ERROR)\]\s+\[MY-\d+\]\s+\[([^\]]+)\]\s+(.*)$',
+    },
+    {
+        "id": 2,
+        "name": "MySQL 8.0 without WSREP prefix",
+        "description": "MySQL 8.0 style with ISO8601 timestamps, missing [WSREP] tag but WSREP content",
+        "example": "2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] P: Shifting SYNCED -> OPEN (TO: 10344464)",
+        "pattern": r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:\d{2})\s+(\d+)\s+\[(System|Note|Warning|ERROR)\]\s+\[MY-\d+\]\s+(.*)$',
+    },
+    {
+        "id": 3,
+        "name": "MariaDB style (no error codes)",
+        "description": "MariaDB style logs with space-separated date/time and no error codes",
+        "example": "2025-09-22 20:46:30 0 [Warning] WSREP: Failed to prepare for incremental state transfer",
+        "pattern": r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+\[(Note|Warning|ERROR)\]\s+([^:]+):\s+(.*)$',
+    },
+]
+
+
+def parse_iso8601_timestamp(ts: str) -> str:
+    """Convert ISO8601 timestamp to canonical format (YYYY-MM-DD HH:MM:SS)."""
+    try:
+        # Handle various ISO8601 formats with timezone
+        # Example: 2025-09-09T07:41:41.832615+02:00
+        dt = datetime.fromisoformat(ts)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        # Fallback: try simple conversion
+        try:
+            # Remove timezone and microseconds, replace T with space
+            ts_simple = ts.split('.')[0].replace('T', ' ')
+            return ts_simple
+        except Exception:
+            return ts
+
+
+def convert_format_1(match: re.Match) -> str:
+    """Convert MySQL 8.0 with error codes format to canonical."""
+    timestamp, thread_id, level, component, message = match.groups()
+    
+    # Convert timestamp from ISO8601 to canonical
+    canonical_ts = parse_iso8601_timestamp(timestamp)
+    
+    # Map System to Note for consistency
+    if level == "System":
+        level = "Note"
+    
+    # Clean up the message - remove "P: " or "L: " prefix if present
+    message = message.strip()
+    if message.startswith("P: "):
+        message = message[3:]
+    elif message.startswith("L: "):
+        message = message[3:]
+    
+    # Format: YYYY-MM-DD HH:MM:SS thread_id [Level] COMPONENT: message
+    return f"{canonical_ts} {thread_id} [{level}] {component}: {message}"
+
+
+def convert_format_2(match: re.Match) -> str:
+    """Convert MySQL 8.0 without WSREP prefix format to canonical."""
+    timestamp, thread_id, level, message = match.groups()
+    
+    # Convert timestamp from ISO8601 to canonical
+    canonical_ts = parse_iso8601_timestamp(timestamp)
+    
+    # Map System to Note for consistency
+    if level == "System":
+        level = "Note"
+    
+    # Clean up the message - remove "P: " or "L: " prefix if present
+    message = message.strip()
+    if message.startswith("P: "):
+        message = message[3:]
+    elif message.startswith("L: "):
+        message = message[3:]
+    
+    # Assume WSREP for Galera-related content
+    return f"{canonical_ts} {thread_id} [{level}] WSREP: {message}"
+
+
+def convert_format_3(match: re.Match) -> str:
+    """Convert MariaDB style format to canonical (already canonical!)."""
+    timestamp, thread_id, level, component, message = match.groups()
+    # This is already in canonical format, just return as-is
+    return f"{timestamp} {thread_id} [{level}] {component}: {message}"
+
+
+# Map format IDs to their converter functions
+CONVERTERS: dict[int, Callable[[re.Match], str]] = {
+    1: convert_format_1,
+    2: convert_format_2,
+    3: convert_format_3,
+}
+
+
+def show_formats():
+    """Display all supported log formats."""
+    print("GRALC - Grambo Log Canonicalizer")
+    print("=" * 70)
+    print("\nSupported log formats:\n")
+    
+    for fmt in FORMATS:
+        print(f"Format {fmt['id']}: {fmt['name']}")
+        print(f"  Description: {fmt['description']}")
+        print(f"  Example:")
+        print(f"    {fmt['example']}")
+        print()
+    
+    print("Canonical format (target):")
+    print("  2025-09-22 20:46:30 0 [Note] WSREP: Shifting SYNCED -> CLOSED (TO: 2)")
+    print()
+    print("Usage:")
+    print("  ./gralc --format=1 source.log > canonical.log")
+    print("  cat source.log | ./gralc -f 2 > canonical.log")
+    print()
+
+
+def canonicalize_line(line: str, format_id: int) -> str:
+    """
+    Convert a single log line to canonical format.
+    Returns the original line if it doesn't match the pattern.
+    """
+    if format_id not in CONVERTERS:
+        return line
+    
+    fmt = FORMATS[format_id - 1]  # format_id is 1-based
+    pattern = re.compile(fmt['pattern'])
+    
+    match = pattern.match(line)
+    if not match:
+        # Line doesn't match pattern, return as-is
+        return line
+    
+    converter = CONVERTERS[format_id]
+    return converter(match)
+
+
+def process_stream(input_stream, output_stream, format_id: int):
+    """Process log lines from input to output stream."""
+    lines_processed = 0
+    lines_converted = 0
+    
+    for line in input_stream:
+        line = line.rstrip('\n\r')
+        if not line:
+            output_stream.write('\n')
+            continue
+        
+        lines_processed += 1
+        canonical_line = canonicalize_line(line, format_id)
+        
+        # Check if conversion happened
+        if canonical_line != line:
+            lines_converted += 1
+        
+        output_stream.write(canonical_line + '\n')
+    
+    # Report statistics to stderr
+    print(f"[gralc] Processed {lines_processed} lines, converted {lines_converted}", file=sys.stderr)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Canonicalize Galera log files to standard Grambo format",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Show supported formats
+  ./gralc
+
+  # Convert a log file
+  ./gralc --format=1 mysql8-error.log > canonical.log
+  
+  # Pipe through
+  cat source.log | ./gralc -f 1 > canonical.log
+        """
+    )
+    
+    parser.add_argument(
+        '-f', '--format',
+        type=int,
+        metavar='N',
+        help=f"Format ID to use for conversion (1-{len(FORMATS)})"
+    )
+    
+    parser.add_argument(
+        'input_file',
+        nargs='?',
+        help="Input log file (reads from stdin if not provided)"
+    )
+    
+    args = parser.parse_args()
+    
+    # If no format specified, show formats and exit
+    if args.format is None:
+        show_formats()
+        return 0
+    
+    # Validate format ID
+    if args.format < 1 or args.format > len(FORMATS):
+        print(f"Error: Invalid format ID {args.format}. Valid range: 1-{len(FORMATS)}", file=sys.stderr)
+        return 1
+    
+    # Determine input source
+    if args.input_file:
+        try:
+            with open(args.input_file, 'r', encoding='utf-8', errors='replace') as f:
+                process_stream(f, sys.stdout, args.format)
+        except FileNotFoundError:
+            print(f"Error: File not found: {args.input_file}", file=sys.stderr)
+            return 1
+        except Exception as e:
+            print(f"Error reading file: {e}", file=sys.stderr)
+            return 1
+    else:
+        # Read from stdin
+        process_stream(sys.stdin, sys.stdout, args.format)
+    
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

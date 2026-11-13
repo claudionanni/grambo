@@ -87,6 +87,7 @@ Plus an interactive web UI with:
 | Tool | Purpose | Output |
 |------|---------|--------|
 | `grax3` | **One-command pipeline** | Runs all tools + launches UI |
+| `gralc` | **Log canonicalizer** | Converts non-standard logs to canonical format |
 | `graa3` | SST/IST session analysis | `graa3_sst.txt` |
 | `grap3` | Entity extraction | `grap_output.json` |
 | `graf3` | Frame generation | `graf_frames.ndjson` |
@@ -107,6 +108,31 @@ Plus an interactive web UI with:
 # Launch visualizer
 ./grav3 --frames=graf_frames.ndjson --sst-report=graa3_sst.txt
 ```
+
+### Log Format Conversion
+
+If your Galera logs are not in the canonical format, use `gralc` to convert them first:
+
+```bash
+# Show supported log formats
+./gralc
+
+# Convert MySQL 8.0 logs (ISO8601 timestamps with [MY-XXXXXX] codes)
+./gralc --format=1 mysql8-error.log > canonical.log
+
+# Convert and analyze in one pipeline
+./gralc -f 1 mysql8-error.log | ./grax3
+```
+
+**Canonical format expected by Grambo:**
+```
+2025-09-22 20:46:30 0 [Note] WSREP: Shifting SYNCED -> CLOSED (TO: 2)
+```
+
+**Supported non-canonical formats:**
+1. MySQL 8.0 with error codes: `2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] [WSREP] P: ...`
+2. MySQL 8.0 without WSREP prefix: `2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] P: ...`
+3. MariaDB style (already canonical): `2025-09-22 20:46:30 0 [Warning] WSREP: ...`
 
 ### Multi-Node Analysis
 

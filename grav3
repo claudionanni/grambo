@@ -417,6 +417,10 @@ def load_frames_from_file(path):
         f.seek(0)  # Reset to beginning
         content = f.read()
         
+        # Handle empty file
+        if not content.strip():
+            return []
+        
         # If first line is a complete JSON object and content has newlines, it's NDJSON
         if first_line.startswith('{') and '\n' in content.strip():
             try:
