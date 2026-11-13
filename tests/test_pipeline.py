@@ -79,6 +79,8 @@ def summarize(out_dir):
                     "joiner": s.get("joiner_node"),
                     "donor": s.get("donor_node"),
                     "method": s.get("transfer_method"),
+                    "type": s.get("transfer_type"),
+                    "error": s.get("error_message"),
                     "events": len(s.get("events", [])),
                 }
                 for s in sst.get("sessions", [])
@@ -341,6 +343,119 @@ class SyntheticLogTest(unittest.TestCase):
         self.assertIsNone(transfer("2025-05-13T01:00:12", "node-a"))
         # node-b never logged the failure: its own view of the transfer stays open
         self.assertEqual(transfer("2025-05-13T01:00:20", "node-b"), ("joiner", "node-a", "IN_PROGRESS"))
+
+
+# One joiner log with four attempts, and the donor's log covering an earlier
+# transfer to a node (node-z) whose own log is not available.
+JOINER_LOG = """\
+2025-05-13  1:00:00 2 [Note] WSREP: State transfer required: 
+2025-05-13  1:00:00 0 [Note] WSREP: Running: 'wsrep_sst_mariabackup --role 'joiner' --address '10.0.0.2:4444''
+WSREP_SST: [ERROR] mariadb-backup binary not found in path (20250513 01:00:00.917)
+2025-05-13  1:00:00 2 [ERROR] WSREP: Failed to prepare for 'mariabackup' SST. Unrecoverable.
+2025-05-13  1:00:01 0 [Note] WSREP: Shifting PRIMARY -> OPEN (TO: 10)
+2025-05-13  1:00:01 0 [Note] WSREP: Shifting OPEN -> CLOSED (TO: 10)
+2025-05-13  1:01:00 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-05-13  1:01:00 2 [Note] WSREP: State transfer required: 
+2025-05-13  1:01:00 0 [Note] WSREP: Member 1.0 (node-j) requested state transfer from '*any*'. Selected 0.0 (node-d)(SYNCED) as donor.
+2025-05-13  1:01:00 0 [Note] WSREP: Shifting PRIMARY -> JOINER (TO: 20)
+2025-05-13  1:01:05 0 [Warning] WSREP: 0.0 (node-d): State transfer to 1.0 (node-j) failed: Invalid argument
+2025-05-13  1:01:06 3 [Note] WSREP: SST received: 00000000-0000-0000-0000-000000000000:-1
+2025-05-13  1:01:06 3 [Note] WSREP: SST succeeded for position 00000000-0000-0000-0000-000000000000:-1
+2025-05-13  1:01:06 2 [ERROR] WSREP: Application state transfer failed. This is unrecoverable condition, restart required.
+2025-05-13  1:01:07 0 [Note] WSREP: Shifting JOINER -> CLOSED (TO: 20)
+2025-05-13  1:02:00 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-05-13  1:02:00 2 [Note] WSREP: State transfer required: 
+2025-05-13  1:02:00 0 [Note] WSREP: Member 1.0 (node-j) requested state transfer from '*any*'. Selected 0.0 (node-d)(SYNCED) as donor.
+2025-05-13  1:02:00 0 [Note] WSREP: Shifting PRIMARY -> JOINER (TO: 30)
+2025-05-13  1:02:00 0 [Note] WSREP: 0.0 (node-d): State transfer to 1.0 (node-j) complete.
+2025-05-13  1:02:01 2 [Note] WSREP: Receiving IST: 5 writesets, seqnos 26-30
+2025-05-13  1:02:02 2 [Note] WSREP: IST received: 11111111-2222-3333-4444-555555555555:30
+2025-05-13  1:02:02 0 [Note] WSREP: 1.0 (node-j): State transfer from 0.0 (node-d) complete.
+2025-05-13  1:02:02 0 [Note] WSREP: Shifting JOINER -> JOINED (TO: 30)
+2025-05-13  1:02:03 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 30)
+2025-05-13  1:02:03 2 [Note] WSREP: Server node-j synced with group
+2025-05-13  1:03:00 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-05-13  1:03:00 2 [Note] WSREP: State transfer required: 
+2025-05-13  1:03:00 0 [Note] WSREP: Member 1.0 (node-j) requested state transfer from '*any*'. Selected 0.0 (node-d)(SYNCED) as donor.
+2025-05-13  1:03:09 3 [Note] WSREP: SST received: 11111111-2222-3333-4444-555555555555:40
+2025-05-13  1:03:09 3 [Note] WSREP: SST succeeded for position 11111111-2222-3333-4444-555555555555:40
+"""
+
+DONOR_LOG = """\
+2025-05-13  0:50:00 0 [Note] WSREP: Member 2.0 (node-z) requested state transfer from '*any*'. Selected 0.0 (node-d)(SYNCED) as donor.
+2025-05-13  0:50:00 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 5)
+2025-05-13  0:50:04 0 [Note] WSREP: SST sent: 11111111-2222-3333-4444-555555555555:5
+2025-05-13  0:50:04 0 [Note] WSREP: 0.0 (node-d): State transfer to 2.0 (node-z) complete.
+2025-05-13  0:50:05 2 [Note] WSREP: Server node-d synced with group
+2025-05-13  0:50:09 0 [Note] WSREP: 2.0 (node-z): State transfer from 0.0 (node-d) complete.
+2025-05-13  1:01:00 0 [Note] WSREP: Member 1.0 (node-j) requested state transfer from '*any*'. Selected 0.0 (node-d)(SYNCED) as donor.
+WSREP_SST: [ERROR] mariadb_backup_checkpoints missing, failed mariadb-backup/SST on donor (20250513 01:01:04.100)
+2025-05-13  1:01:05 0 [Note] WSREP: SST sending failed: -22
+2025-05-13  1:01:05 0 [Warning] WSREP: 0.0 (node-d): State transfer to 1.0 (node-j) failed: Invalid argument
+2025-05-13  1:03:10 0 [Note] WSREP: Shifting SYNCED -> SYNCED (TO: 40)
+"""
+
+
+class TransferSessionTest(unittest.TestCase):
+    """graa3's classification of state transfer sessions."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        joiner, donor = Path(cls.tmp.name) / "j.log", Path(cls.tmp.name) / "d.log"
+        joiner.write_text(JOINER_LOG)
+        donor.write_text(DONOR_LOG)
+        graa = load_tool("graa3")
+        cls.sessions = graa.build_transfer_sessions([str(joiner), str(donor)])
+        cls.joiner_only = graa.build_transfer_sessions([str(joiner)])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def session_at(self, start):
+        return next(s for s in self.sessions if s.request_time == start)
+
+    def test_one_session_per_attempt(self):
+        self.assertEqual([(s.request_time[11:], s.joiner, s.status) for s in self.sessions], [
+            ("00:50:00", "node-z", "COMPLETED"),
+            ("01:00:00", "node-j", "FAILED"),
+            ("01:01:00", "node-j", "FAILED"),
+            ("01:02:00", "node-j", "COMPLETED"),
+            ("01:03:00", "node-j", "INCOMPLETE"),
+        ])
+
+    def test_failure_before_a_donor_is_selected(self):
+        s = self.session_at("2025-05-13 01:00:00")
+        self.assertIsNone(s.donor)
+        self.assertIn("Failed to prepare", s.error_message)
+        self.assertIn("mariadb-backup binary not found in path", s.error_message)
+
+    def test_sst_succeeded_with_seqno_minus_one_is_a_failure(self):
+        s = self.session_at("2025-05-13 01:01:00")
+        self.assertEqual((s.status, s.donor, s.completion_time, s.transfer_type),
+                         ("FAILED", "node-d", "2025-05-13 01:01:05", None))
+        # the reason comes from the donor's log
+        self.assertEqual(s.error_message,
+                         "Invalid argument (mariadb_backup_checkpoints missing, "
+                         "failed mariadb-backup/SST on donor)")
+        self.assertTrue(any("SST sending failed" in line for _, line in s.events))
+
+    def test_ist_only_transfer_is_completed(self):
+        s = self.session_at("2025-05-13 01:02:00")
+        self.assertEqual((s.status, s.transfer_type, s.duration_seconds), ("COMPLETED", "IST", 2.0))
+
+    def test_log_ending_mid_transfer_is_incomplete(self):
+        # "SST succeeded" alone is not the end: the joiner has not joined yet
+        s = self.session_at("2025-05-13 01:03:00")
+        self.assertEqual((s.status, s.transfer_type), ("INCOMPLETE", "SST"))
+
+    def test_joiner_without_a_log_is_taken_from_the_donor(self):
+        s = self.session_at("2025-05-13 00:50:00")
+        self.assertEqual((s.donor, s.transfer_type, s.completion_time),
+                         ("node-d", "SST", "2025-05-13 00:50:09"))
+        # ...and a joiner with a log is not duplicated from its peers
+        self.assertEqual(len(self.joiner_only), 4)
 
 
 class GrafDeterminismTest(unittest.TestCase):

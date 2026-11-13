@@ -850,9 +850,13 @@
             background: #ef4444;
             color: white;
         }
-        .sst-session-status.ongoing {
+        .sst-session-status.ongoing, .sst-session-status.incomplete {
             background: #f59e0b;
             color: white;
+        }
+        .sst-session-error {
+            margin-top: 0.3em;
+            color: #b91c1c;
         }
         .sst-session-details {
             font-size: 0.85rem;
@@ -2576,11 +2580,13 @@
                             <div class="sst-session-status ${statusClass}">${session.status}</div>
                         </div>
                         <div class="sst-session-flow">
-                            ${session.donor_node} → ${session.joiner_node}
+                            ${escapeHtml(session.donor_node || 'no donor selected')} → ${escapeHtml(session.joiner_node || 'unknown')}
                         </div>
                         <div class="sst-session-details">
-                            Duration: ${duration} | Method: ${session.transfer_method}
+                            Type: ${escapeHtml(session.transfer_type || 'not known')} | Duration: ${duration} | Method: ${escapeHtml(session.transfer_method || 'not logged')}
                             <br>Timeline: ${session.time_range.start} → ${session.time_range.end}
+                            ${session.status === 'INCOMPLETE' ? '<br>No result was logged: the node restarted or the log ended first.' : ''}
+                            ${session.error_message ? `<div class="sst-session-error">${escapeHtml(session.error_message)}</div>` : ''}
                         </div>
                         <div class="sst-session-events">
                             ${eventsHtml}

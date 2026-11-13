@@ -1,26 +1,30 @@
 {
   "sst": {
-    "total_sessions": 7,
+    "total_sessions": 13,
     "sessions": [
       {
-        "status": "COMPLETED",
+        "status": "FAILED",
         "start": "2025-09-22 22:30:40",
         "end": "2025-09-22 22:30:51",
         "duration_seconds": 11.0,
         "joiner": "NODE_21407",
         "donor": "NODE_11407",
         "method": "mariabackup",
-        "events": 6
+        "type": null,
+        "error": "Invalid argument (mariadb_backup_checkpoints missing, failed mariadb-backup/SST on donor)",
+        "events": 26
       },
       {
-        "status": "COMPLETED",
+        "status": "FAILED",
         "start": "2025-09-22 22:33:28",
         "end": "2025-09-22 22:33:39",
         "duration_seconds": 11.0,
         "joiner": "NODE_21407",
         "donor": "NODE_11407",
         "method": "mariabackup",
-        "events": 6
+        "type": null,
+        "error": "Invalid argument (mariadb_backup_checkpoints missing, failed mariadb-backup/SST on donor)",
+        "events": 26
       },
       {
         "status": "COMPLETED",
@@ -30,7 +34,81 @@
         "joiner": "NODE_21407",
         "donor": "NODE_11407",
         "method": "mariabackup",
-        "events": 7
+        "type": "SST+IST",
+        "error": null,
+        "events": 19
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-22 22:41:35",
+        "end": "2025-09-22 22:41:56",
+        "duration_seconds": 21.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "type": "SST",
+        "error": null,
+        "events": 9
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-23 10:33:41",
+        "end": "2025-09-23 10:34:04",
+        "duration_seconds": 23.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "type": "SST",
+        "error": null,
+        "events": 9
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-23 10:35:11",
+        "end": "2025-09-23 10:35:28",
+        "duration_seconds": 17.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "type": "SST",
+        "error": null,
+        "events": 9
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-23 17:56:51",
+        "end": "2025-09-23 17:57:12",
+        "duration_seconds": 21.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "type": "SST",
+        "error": null,
+        "events": 9
+      },
+      {
+        "status": "COMPLETED",
+        "start": "2025-09-25 13:54:32",
+        "end": "2025-09-25 13:54:56",
+        "duration_seconds": 24.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_21407",
+        "method": "mariabackup",
+        "type": "SST",
+        "error": null,
+        "events": 8
+      },
+      {
+        "status": "FAILED",
+        "start": "2025-09-25 17:17:36",
+        "end": "2025-09-25 17:19:53",
+        "duration_seconds": 137.0,
+        "joiner": "NODE_31407",
+        "donor": "NODE_11407",
+        "method": "mariabackup",
+        "type": null,
+        "error": "Invalid argument (mariadb-backup finished with error: 1. Check syslog or '/var/opt/data/myharem/instances/mariadb-11.4.7-linux-systemd-x86_64.11407/data/mariabackup.backup.log' for details)",
+        "events": 13
       },
       {
         "status": "COMPLETED",
@@ -40,17 +118,21 @@
         "joiner": "NODE_31407",
         "donor": "NODE_11407",
         "method": "mariabackup",
-        "events": 7
+        "type": "SST",
+        "error": null,
+        "events": 18
       },
       {
         "status": "COMPLETED",
         "start": "2025-09-25 18:03:48",
-        "end": "2025-09-25 18:03:53",
-        "duration_seconds": 5.0,
+        "end": "2025-09-25 18:04:00",
+        "duration_seconds": 12.0,
         "joiner": "NODE_31407",
         "donor": "NODE_21407",
         "method": "mariabackup",
-        "events": 7
+        "type": "SST+IST",
+        "error": null,
+        "events": 18
       },
       {
         "status": "COMPLETED",
@@ -60,17 +142,21 @@
         "joiner": "NODE_31407",
         "donor": "NODE_21407",
         "method": "mariabackup",
-        "events": 6
+        "type": "SST+IST",
+        "error": null,
+        "events": 18
       },
       {
         "status": "COMPLETED",
         "start": "2025-09-25 18:07:25",
-        "end": "2025-09-25 18:07:29",
-        "duration_seconds": 4.0,
+        "end": "2025-09-25 18:08:14",
+        "duration_seconds": 49.0,
         "joiner": "NODE_31407",
         "donor": "NODE_21407",
         "method": "mariabackup",
-        "events": 7
+        "type": "SST+IST",
+        "error": null,
+        "events": 18
       }
     ]
   },

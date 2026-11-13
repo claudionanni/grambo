@@ -39,7 +39,17 @@ This affects all cards displaying node-level information.
 - Shows donor → joiner relationship for active transfers
 - Duration, method, and timeline information
 - Event progression within each session
-- Status indicators (COMPLETED, ONGOING, FAILED)
+- Transfer type: SST, IST or SST+IST, as far as the logs show it
+- For failed sessions, the reason, including the SST script's own error from the joiner or the donor
+
+**Status:**
+- **COMPLETED**: the joiner logged `State transfer from <donor> complete` or `Shifting JOINER -> JOINED`
+- **FAILED**: a failure was logged, for example `State transfer to <joiner> failed`, `Application state transfer failed` or `Failed to prepare for '<method>' SST`
+- **INCOMPLETE**: neither was logged before the node restarted or its log ended
+
+`SST succeeded for position <uuid>:-1` is a failed transfer, despite its wording: Galera logs that line with seqno -1 when no state was received.
+
+A session is read from the joiner's own log. If that log does not cover the transfer, the session is rebuilt from what one peer (the donor when possible) logged about it, and has less detail.
 
 **Important Notes:**
 - **SST resets the joiner's error log** - historical data is lost on the joiner

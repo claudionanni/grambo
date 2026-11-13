@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   errors.
 
 ### Fixed
+- **State transfer sessions were misclassified** by `graa3`. With several
+  logs, a failed transfer was never reported as FAILED;
+  `SST succeeded for position <uuid>:-1`, which Galera logs for a failed
+  transfer, counted as COMPLETED; an IST-only transfer was INCOMPLETE; and
+  events of all nodes were fed into one session at a time. Sessions are now
+  read per joiner from its own log, end on the joiner's actual result, carry
+  the transfer type and the failure reason, and transfers to a node whose log
+  is missing are rebuilt from a peer's log.
 - **Lines logged between 00:00 and 09:59 were ignored** by every pattern,
   because MariaDB pads the hour with a space. About 15% of all lines.
 - **Events were attributed to the wrong node.** The node name was taken from
