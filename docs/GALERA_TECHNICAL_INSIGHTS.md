@@ -242,7 +242,6 @@ Common SST error patterns and meanings:
 - **Alexey Yurchenko**: Sequence number system and GTID integration
 
 ### Implementation Documents
-- `ENHANCED_GRAP_IMPLEMENTATION.md`: Current GRAP architecture
 - `IST_WORKFLOW.txt`: IST state transition reference
 - `ENTITY_IMPLEMENTATION_ROADMAP.md`: Development priorities
 

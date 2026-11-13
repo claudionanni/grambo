@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flow control health status refinement based on actual cluster impact
 - Additional temporal entity types for comprehensive cluster analysis
 
+## [3.0.0-alpha.2] - 2026-11-13
+
+### Added
+- **gralc**: log canonicalizer that converts MySQL 8.0-style Galera logs to the
+  format expected by the v3 tools. The format is detected line by line, so no
+  format ID is needed; `--format=N` forces a single format. See `GRALC.md`.
+- **grax3 reads stdin**: `./gralc error.log | ./grax3` now works. Piped input
+  is saved to `<output-dir>/stdin.log`.
+- **Regression tests** in `tests/`, run with
+  `python -m unittest discover -s tests`.
+
+### Changed
+- `grav3` no longer runs Flask in debug mode by default; pass `--debug` to
+  enable it (local use only).
+- `graf3` output is byte-identical between runs on the same input.
+
+### Fixed
+- `grav3` crashed when the frames file was empty.
+
+### Removed
+- Unused v2 code (`lib/`, `patterns/`, `schema/`), which the v3 tools never
+  loaded.
+- Obsolete development status reports from `docs/`, and editor/assistant
+  configuration that referred to files that no longer exist.
+
 ## [3.0.0-alpha.1] - 2025-01-06
 
 ### Added
@@ -108,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Issues**: https://github.com/claudionanni/grambo/issues
 - **Releases**: https://github.com/claudionanni/grambo/releases
 
-[Unreleased]: https://github.com/claudionanni/grambo/compare/v3.0.0-alpha.1...HEAD
+[Unreleased]: https://github.com/claudionanni/grambo/compare/v3.0.0-alpha.2...HEAD
+[3.0.0-alpha.2]: https://github.com/claudionanni/grambo/releases/tag/v3.0.0-alpha.2
 [3.0.0-alpha.1]: https://github.com/claudionanni/grambo/releases/tag/v3.0.0-alpha.1
 [2.0.0]: https://github.com/claudionanni/grambo/tree/v2-rewrite
 [1.0.0]: https://github.com/claudionanni/grambo/tree/master

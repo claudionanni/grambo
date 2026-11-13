@@ -184,7 +184,9 @@ Characteristics:
 
 #### Pattern Structure
 
-Patterns are defined in YAML for maintainability:
+Each pattern pairs a regex with the entity it produces and its metadata. In the
+current v3 tools the patterns are defined directly in `grap3`; the YAML below
+illustrates the structure, it is not a file the tools load:
 
 ```yaml
 patterns:
