@@ -62,11 +62,24 @@ galera-*/
 test_output/
 temp_results/
 
-# Test and sample data directories
-tests/
+# Sample and customer log directories (never commit)
 unittest/
 cl407/
 jfd/
+full/
+Rogers/
+ks/
+smea/
+smealogs/
+221218/
+221218_canonical/
+*.err
+
+# Pipeline output
+grax_output/
+
+# Nested working clone
+/grambo/
 
 # Temporary stuff directory (not to be committed)
 stuff/
