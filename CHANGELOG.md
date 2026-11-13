@@ -7,9 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Frames are state changes.** `graf3` now models the cluster as a state
+  machine with a defined set of variables per node (Galera state, node UUID,
+  component status and size, flow-control interval, wsrep view). A frame is
+  emitted only when one of them changes, and each frame lists what changed in
+  a new `changes` field. Errors, warnings and other events that change no
+  variable no longer create frames.
+- **Quorum comes from gcs.** Component status is taken from
+  `New COMPONENT: primary = yes|no ... memb_num = N` and the `Quorum results:`
+  block, per node. The old `quorum_lost` / `quorum_regained` patterns are gone.
+- `graf3` is much faster on large inputs and frame files are much smaller; at
+  most the 10 most recent UUIDs of a node are repeated in each frame.
+
+### Added
+- Patterns for `SST received`, `SST sent`, `SST sending failed`,
+  `State transfer to X failed/complete`, the IST range, `IST received`,
+  `Member N.N (name) synced with group`, and `WSREP_SST: [ERROR]` script
+  errors.
+
+### Fixed
+- **Lines logged between 00:00 and 09:59 were ignored** by every pattern,
+  because MariaDB pads the hour with a space. About 15% of all lines.
+- **Events were attributed to the wrong node.** The node name was taken from
+  the first "synced with group" line and carried over from the previous file,
+  so the start of each log belonged to another node or to none.
+- A view header without its body no longer swallows the lines that follow.
+- `mysqld_safe ... --disable-log-error` is no longer reported as an error.
+
+### Removed
+- Patterns that never matched any real log: `sst_completed`, `ist_started`,
+  `ist_completed`, `cluster_uuid`, `view_members_line`, `member_state_in_view`.
+
 ### In Progress
 - Flow control health status refinement based on actual cluster impact
-- Additional temporal entity types for comprehensive cluster analysis
+- Connectivity events (connection refused, timeouts, suspected nodes)
 
 ## [3.0.0-alpha.2] - 2026-11-13
 

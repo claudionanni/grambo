@@ -105,39 +105,61 @@
     ]
   },
   "entities": {
-    "total": 1227,
+    "total": 1892,
     "by_type": {
       "cluster": 4,
-      "error": 431,
-      "flow_control": 128,
-      "ist": 24,
+      "error": 700,
+      "flow_control": 171,
+      "ist": 41,
       "node": 3,
-      "node_state": 158,
-      "quorum": 56,
-      "sst": 77,
+      "node_state": 248,
+      "quorum": 247,
+      "sst": 132,
       "view": 173,
       "wsrep_view": 173
     }
   },
   "frames": {
-    "total": 1054,
-    "first_timestamp": null,
+    "total": 594,
+    "first_timestamp": "2025-09-22T20:41:31",
     "last_timestamp": "2025-10-03T10:58:48",
     "by_event_type": {
       "cluster": 4,
-      "error": 431,
-      "flow_control": 128,
-      "ist": 24,
-      "node": 3,
-      "node_state": 158,
-      "quorum": 56,
-      "sst": 77,
-      "wsrep_view": 173
+      "flow_control": 135,
+      "node_state": 188,
+      "quorum": 126,
+      "wsrep_view": 141
+    },
+    "changes_by_variable": {
+      "cluster_89c68fa5": 1,
+      "cluster_9b7675e6": 1,
+      "cluster_a572a681": 1,
+      "component": 67,
+      "flow_control": 135,
+      "member_count": 126,
+      "node_uuid": 16,
+      "to_state": 188,
+      "wsrep_view.members": 138,
+      "wsrep_view.own_index": 57,
+      "wsrep_view.status": 70,
+      "wsrep_view.view_id": 93
     },
     "final_node_states": {
-      "NODE_11407": "SYNCED",
-      "NODE_21407": "SYNCED",
-      "NODE_31407": "SYNCED"
+      "NODE_11407": [
+        "SYNCED",
+        "PRIMARY",
+        2
+      ],
+      "NODE_21407": [
+        "SYNCED",
+        "PRIMARY",
+        2
+      ],
+      "NODE_31407": [
+        "SYNCED",
+        "PRIMARY",
+        3
+      ]
     }
   }
 }

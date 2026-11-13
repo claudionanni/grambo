@@ -29,6 +29,28 @@ GRAP_VERSION = "v3.0.0-alpha"
 # SIMPLIFIED PATTERN-BASED EXTRACTION
 # ==============================================================================
 
+# MariaDB pads the hour with a space before 10:00 ("2025-05-13  1:56:24") and
+# mysqld_safe uses the short "250513  1:56:24" form. Every line is rewritten to
+# "YYYY-MM-DD HH:MM:SS" on input so that patterns and sorting see one format.
+_TS_LONG = re.compile(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}:\d{2})')
+_TS_SHORT = re.compile(r'^(\d{2})(\d{2})(\d{2})\s+(\d{1,2}):(\d{2}:\d{2})(?=\s)')
+_TS_START = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
+# wsrep_sst_* scripts put their own time at the end: "(20250513 01:56:30.123)"
+_TS_SST_SCRIPT = re.compile(r'\((\d{4})(\d{2})(\d{2})\s+(\d{1,2}):(\d{2}:\d{2})\.\d+\)\s*$')
+
+
+def normalize_timestamp(line: str) -> str:
+    """Rewrite the leading timestamp of a log line to YYYY-MM-DD HH:MM:SS."""
+    m = _TS_LONG.match(line)
+    if m:
+        return f"{m.group(1)} {m.group(2).zfill(2)}:{m.group(3)}{line[m.end():]}"
+    m = _TS_SHORT.match(line)
+    if m:
+        return (f"20{m.group(1)}-{m.group(2)}-{m.group(3)} "
+                f"{m.group(4).zfill(2)}:{m.group(5)}{line[m.end():]}")
+    return line
+
+
 @dataclass
 class Pattern:
     """Simple pattern definition"""
@@ -74,6 +96,12 @@ class EntityExtractor:
         # Multi-line wsrep view parsing state
         self.wsrep_view_buffer = None
         self.wsrep_view_start_line = 0
+
+        # Multi-line "Quorum results:" parsing state
+        self.quorum_buffer = None
+
+        # Last timestamp seen in the current file, for lines that carry none
+        self.last_timestamp = None
         
         # Load patterns
         self.patterns = self._load_patterns()
@@ -130,22 +158,25 @@ class EntityExtractor:
         # REMOVED: ready_for_connections pattern - uses non-canonical INITIALIZING state
         # Only track canonical states from Shifting pattern: CLOSED, OPEN, DONOR/DESYNCED, JOINED, SYNCED, JOINER, PRIMARY
         
+        # Logged by every member when a node reaches SYNCED, e.g.
+        #   WSREP: Member 0.0 (node-1) synced with group.
+        # It is the only state information available for nodes whose own log
+        # is not part of the analysis.
         patterns.append(Pattern(
-            pattern_id="member_state_in_view",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\((?:([a-f0-9-]+),)?\s*(SYNCED|JOINER|JOINED|DONOR)',
+            pattern_id="member_synced",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+Member\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+synced\s+with\s+group',
             entity_type="node_state",
             priority=85,
             context="PEER",
             extract_fields={
                 1: "timestamp",
-                2: "node_name",
-                3: "node_uuid",
-                4: "to_state"
+                2: "node_name"
             },
             computed_fields={
-                "transition_type": "PEER_STATE"
+                "to_state": "SYNCED",
+                "transition_type": "MEMBER_SYNCED"
             },
-            confidence=0.85
+            confidence=0.90
         ))
         
         # ==================================================================
@@ -183,62 +214,36 @@ class EntityExtractor:
             confidence=0.98
         ))
         
-        patterns.append(Pattern(
-            pattern_id="view_members_line",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*Members:\s*(\d+)\s*\(\s*joined:\s*(\d+),\s*left:\s*(\d+),\s*partitioned:\s*(\d+)\s*\)',
-            entity_type="view",
-            priority=90,
-            context="GLOBAL",
-            extract_fields={
-                1: "timestamp",
-                2: "member_count",
-                3: "members_joined",
-                4: "members_left",
-                5: "members_partitioned"
-            },
-            computed_fields={},
-            confidence=0.90
-        ))
         
         # ==================================================================
         # QUORUM EVENT PATTERNS
         # ==================================================================
         
+        # gcs logs one "New COMPONENT" line for every membership change this node
+        # takes part in (gcs_group.cpp, gcs_group_handle_comp_msg). It states
+        # whether the node's component is primary and how many members it has,
+        # before any state exchange. The outcome of the state exchange is the
+        # multi-line "Quorum results:" block, parsed in _parse_quorum_block.
         patterns.append(Pattern(
-            pattern_id="quorum_lost",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*(quorum lost|non-primary\s+view)',
+            pattern_id="component_change",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+(New\s+COMPONENT:\s+primary\s+=\s+(yes|no),\s+bootstrap\s+=\s+(yes|no),\s+my_idx\s+=\s+(-?\d+),\s+memb_num\s+=\s+(\d+))',
             entity_type="quorum",
             priority=100,
-            context="GLOBAL",
+            context="LOCAL",
             extract_fields={
                 1: "timestamp",
-                2: "event_text"
+                2: "event_text",
+                3: "component_primary",
+                4: "bootstrap",
+                5: "my_idx",
+                6: "member_count"
             },
             computed_fields={
-                "event_type": "QUORUM_LOST",
-                "quorum_status": False,
-                "severity": "CRITICAL"
+                "event_type": "COMPONENT"
             },
-            confidence=0.98
+            confidence=0.99
         ))
         
-        patterns.append(Pattern(
-            pattern_id="quorum_regained",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*(declaring quorum|primary view)',
-            entity_type="quorum",
-            priority=100,
-            context="GLOBAL",
-            extract_fields={
-                1: "timestamp",
-                2: "event_text"
-            },
-            computed_fields={
-                "event_type": "QUORUM_REGAINED",
-                "quorum_status": True,
-                "severity": "INFO"
-            },
-            confidence=0.95
-        ))
         
         # ==================================================================
         # STATE TRANSFER PATTERNS
@@ -281,22 +286,109 @@ class EntityExtractor:
             confidence=0.90
         ))
         
+        # Joiner side: the SST script handed the received position back to Galera
+        #   WSREP: SST received: <group uuid>:<seqno>
         patterns.append(Pattern(
-            pattern_id="sst_completed",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*SST\s+complete,\s+seqno:\s*(\d+)',
+            pattern_id="sst_received",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+SST\s+received:\s+([a-f0-9-]+):(-?\d+)',
             entity_type="sst",
             priority=100,
             context="LOCAL",
             extract_fields={
                 1: "timestamp",
-                2: "end_seqno"
+                2: "state_uuid",
+                3: "end_seqno"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "RECEIVED",
+                "event_type": "received",
+                "role": "joiner"
+            },
+            confidence=0.98
+        ))
+
+        # Donor side: WSREP: SST sent: <group uuid>:<seqno>
+        patterns.append(Pattern(
+            pattern_id="sst_sent",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+SST\s+sent:\s+([a-f0-9-]+):(-?\d+)',
+            entity_type="sst",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "state_uuid",
+                3: "end_seqno"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "SENT",
+                "event_type": "sent",
+                "role": "donor"
+            },
+            confidence=0.98
+        ))
+
+        # Donor side failure: WSREP: SST sending failed: -32
+        patterns.append(Pattern(
+            pattern_id="sst_sending_failed",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+SST\s+sending\s+failed:\s+(-?\d+)',
+            entity_type="sst",
+            priority=100,
+            context="LOCAL",
+            extract_fields={
+                1: "timestamp",
+                2: "error_code"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "FAILED",
+                "event_type": "failed",
+                "role": "donor"
+            },
+            confidence=0.98
+        ))
+
+        # Any member: "<idx> (<donor>): State transfer to <idx> (<joiner>) failed: <reason>"
+        # Must outrank warning_wsrep, which would otherwise file it as a generic warning.
+        patterns.append(Pattern(
+            pattern_id="sst_transfer_failed",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\):\s+State\s+transfer\s+to\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+failed:\s*(.*)',
+            entity_type="sst",
+            priority=100,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "donor_name",
+                3: "joiner_name",
+                4: "failure_reason"
+            },
+            computed_fields={
+                "transfer_type": "SST",
+                "status": "FAILED",
+                "event_type": "failed"
+            },
+            confidence=0.97
+        ))
+
+        # Any member: "<idx> (<donor>): State transfer to <idx> (<joiner>) complete."
+        patterns.append(Pattern(
+            pattern_id="sst_transfer_complete",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\):\s+State\s+transfer\s+to\s+\d+\.\d+\s+\(([A-Za-z0-9_.-]+)\)\s+complete',
+            entity_type="sst",
+            priority=100,
+            context="GLOBAL",
+            extract_fields={
+                1: "timestamp",
+                2: "donor_name",
+                3: "joiner_name"
             },
             computed_fields={
                 "transfer_type": "SST",
                 "status": "COMPLETED",
                 "event_type": "complete"
             },
-            confidence=0.98
+            confidence=0.97
         ))
         
         # SST script messages (WSREP_SST)
@@ -368,38 +460,43 @@ class EntityExtractor:
             confidence=0.93
         ))
         
+        # Joiner side: WSREP: ####### IST uuid:<uuid> f: <first>, l: <last>, STRv: 3
         patterns.append(Pattern(
-            pattern_id="ist_started",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*IST.*first:\s*(\d+)',
+            pattern_id="ist_range",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*IST\s+uuid:\s*([a-f0-9-]+)\s+f:\s*(-?\d+),\s*l:\s*(-?\d+)',
             entity_type="ist",
             priority=100,
             context="LOCAL",
             extract_fields={
                 1: "timestamp",
-                2: "first_seqno"
+                2: "state_uuid",
+                3: "first_seqno",
+                4: "last_seqno"
             },
             computed_fields={
                 "transfer_type": "IST",
                 "status": "STARTED"
             },
-            confidence=0.92
+            confidence=0.95
         ))
         
+        # Joiner side: WSREP: IST received: <uuid>:<seqno>
         patterns.append(Pattern(
-            pattern_id="ist_completed",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:.*IST.*(?:complete|received).*last:\s*(\d+)',
+            pattern_id="ist_received",
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*WSREP:\s+IST\s+received:\s+([a-f0-9-]+):(-?\d+)',
             entity_type="ist",
             priority=100,
             context="LOCAL",
             extract_fields={
                 1: "timestamp",
-                2: "last_seqno"
+                2: "state_uuid",
+                3: "last_seqno"
             },
             computed_fields={
                 "transfer_type": "IST",
                 "status": "COMPLETED"
             },
-            confidence=0.95
+            confidence=0.98
         ))
         
         patterns.append(Pattern(
@@ -516,7 +613,7 @@ class EntityExtractor:
         # mysqld_safe errors
         patterns.append(Pattern(
             pattern_id="error_safe_log",
-            regex=r'(\d{6}\s+\d{2}:\d{2}:\d{2})\s+mysqld_safe\s+(.*(?:ERROR|error|FAILED|failed).*)',
+            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+mysqld_safe\s+(.*(?<![-\w])(?:error|failed)(?![-\w]).*)',
             entity_type="error",
             priority=72,
             context="LOCAL",
@@ -530,6 +627,25 @@ class EntityExtractor:
                 "source": "mysqld_safe"
             },
             confidence=0.78
+        ))
+
+        # wsrep_sst_* script errors, e.g.
+        #   WSREP_SST: [ERROR] mariadb-backup finished with error: 1. (20250513 01:56:30.123)
+        patterns.append(Pattern(
+            pattern_id="error_sst_script",
+            regex=r'WSREP_SST:\s+\[ERROR\]\s+(.*?)(?:\s+\(\d{8}\s+\d{2}:\d{2}:\d{2}\.\d+\))?\s*$',
+            entity_type="error",
+            priority=99,
+            context="LOCAL",
+            extract_fields={
+                1: "message"
+            },
+            computed_fields={
+                "severity": "ERROR",
+                "level": "ERROR",
+                "source": "wsrep_sst"
+            },
+            confidence=0.95
         ))
         
         # ==================================================================
@@ -564,19 +680,6 @@ class EntityExtractor:
             confidence=0.99
         ))
         
-        patterns.append(Pattern(
-            pattern_id="cluster_uuid",
-            regex=r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*(?:Cluster\s+state\s+uuid|wsrep_cluster_state_uuid):\s*([a-f0-9-]+)',
-            entity_type="cluster",
-            priority=100,
-            context="GLOBAL",
-            extract_fields={
-                1: "timestamp",
-                2: "cluster_uuid"
-            },
-            computed_fields={},
-            confidence=0.95
-        ))
         
         # ==================================================================
         # FLOW CONTROL PATTERNS
@@ -604,25 +707,28 @@ class EntityExtractor:
     
     def process_files(self, file_paths: List[Path]) -> Dict[str, Any]:
         """Process multiple log files"""
-        all_lines = []
-        
-        # Read all files with source tracking
         for file_path in file_paths:
             with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                for line_num, line in enumerate(f, 1):
-                    all_lines.append((line, line_num, str(file_path)))
-        
-        # Process all lines
-        for line, line_num, log_source in all_lines:
-            self._process_line(line, line_num, log_source)
-        
-        # Finalize any pending view buffer
-        if self.view_buffer:
-            self._parse_view_block()
-        
-        # Finalize any pending wsrep view buffer
-        if self.wsrep_view_buffer:
-            self._parse_wsrep_view_block()
+                lines = [normalize_timestamp(line) for line in f]
+
+            # A log file belongs to exactly one node. Its name is usually only
+            # logged once the node has synced, so find it before processing;
+            # otherwise the startup sequence would be attributed to no node, or
+            # to the node of the previously processed file.
+            self.local_node_name = None
+            self.local_node_uuid = None
+            self.last_timestamp = None
+            name = self._identify_local_node(lines, file_path)
+            if name:
+                self._register_node(name)
+                self.local_node_name = name
+
+            log_source = str(file_path)
+            for line_num, line in enumerate(lines, 1):
+                self._process_line(line, line_num, log_source)
+
+            # Finalize blocks still open at the end of the file
+            self._flush_blocks()
         
         # Sort temporal entities chronologically (handle None timestamps)
         self.temporal_entities.sort(key=lambda e: (
@@ -633,8 +739,90 @@ class EntityExtractor:
         # Build output
         return self._build_output()
     
+    def _register_node(self, name: str):
+        """Create the tracking record for a node the first time it is seen"""
+        if name not in self.nodes:
+            self.nodes[name] = {
+                'node_name': name,
+                'long_uuid': None,
+                'uuid_history': [],
+                'cluster_uuid': None,
+                'node_address': None,
+                'galera_version': None,
+                'mariadb_version': None,
+                'wsrep_version': None,
+                'cluster_name': None
+            }
+
+    def _identify_local_node(self, lines: List[str], file_path) -> Optional[str]:
+        """Find the name of the node that wrote this log file"""
+        own_index = None
+        view_name = None
+        for line in lines:
+            m = re.search(r'WSREP:\s+Server\s+([A-Za-z0-9_.-]+)\s+synced\s+with\s+group', line)
+            if m and m.group(1).lower() not in {'unknown', 'joiner', 'donor'}:
+                return m.group(1)
+            if view_name is None:
+                # wsrep view block: "own_index: N" followed by "N: <uuid>, <name>"
+                m = re.match(r'\s*own_index:\s*(-?\d+)', line)
+                if m:
+                    own_index = int(m.group(1))
+                    continue
+                if own_index is not None and own_index >= 0:
+                    m = re.match(r'\s*(\d+):\s*[a-f0-9-]+,\s*(\S.*?)\s*$', line)
+                    if m and int(m.group(1)) == own_index:
+                        view_name = m.group(2)
+        if view_name:
+            return view_name
+        for line in lines:
+            m = re.search(r"wsrep_node_name\s*[:=]\s*'?([^'\s]+)'?", line, re.IGNORECASE)
+            if m:
+                return m.group(1)
+        # Nothing in the log names the node; fall back to the file name so the
+        # node's state can still be tracked under a stable key.
+        return Path(str(file_path)).name
+
+    def _flush_blocks(self):
+        """Parse or drop multi-line blocks that are still open"""
+        if self.view_buffer is not None:
+            # A gcomm view is only usable when complete
+            if self.view_buffer['lines'][-1].strip().endswith('})'):
+                self._parse_view_block()
+            self.view_buffer = None
+        if self.wsrep_view_buffer is not None:
+            if self.wsrep_view_buffer.get('confirmed'):
+                self._parse_wsrep_view_block()
+            self.wsrep_view_buffer = None
+        if self.quorum_buffer is not None:
+            self._parse_quorum_block()
+            self.quorum_buffer = None
+
     def _process_line(self, line: str, line_num: int, log_source: str):
         """Process a single log line"""
+        starts_new_entry = bool(_TS_START.match(line))
+        if starts_new_entry:
+            self.last_timestamp = line[:19]
+            # The continuation lines of a multi-line block carry no timestamp.
+            # A timestamped line therefore ends any open block, even one whose
+            # terminator is missing (truncated or filtered logs); without this
+            # a headless block would swallow every following line.
+            if (self.view_buffer is not None or self.quorum_buffer is not None or
+                    (self.wsrep_view_buffer is not None and self.wsrep_view_buffer['confirmed'])):
+                self._flush_blocks()
+
+        # Collect the body of a "Quorum results:" block
+        if self.quorum_buffer is not None:
+            self.quorum_buffer['lines'].append(line)
+            return
+        if starts_new_entry and re.search(r'WSREP:\s+Quorum results:', line):
+            self.quorum_buffer = {
+                'timestamp': line[:19],
+                'lines': [line],
+                'line_num': line_num,
+                'log_source': log_source,
+            }
+            return
+
         # Check if we're in a gcomm view block
         if self.view_buffer is not None:
             # Continue collecting view lines
@@ -731,6 +919,63 @@ class EntityExtractor:
                 self._store_entity(entity)
                 break  # First match wins (patterns are priority-sorted)
     
+    def _parse_quorum_block(self):
+        """Parse a "Quorum results:" block (gcs_group.cpp, group_post_state_exchange).
+
+        This is the outcome of the state exchange that follows a primary
+        component message: whether the group really is PRIMARY, the
+        configuration id, and how many of the members hold the group state.
+        """
+        buf = self.quorum_buffer
+        if not buf:
+            return
+        text = '\n'.join(buf['lines'])
+        fields = dict(re.findall(r'^\s*([A-Za-z_. ]+?)\s*=\s*(.+?),?\s*$', text, re.M))
+        component = (fields.get('component') or '').upper()
+        if component not in ('PRIMARY', 'NON-PRIMARY'):
+            return  # truncated block, nothing reliable to report
+        primary = component == 'PRIMARY'
+        timestamp = buf['timestamp']
+        entity = {
+            'entity_type': 'quorum',
+            'entity_id': f"quorum_{buf['line_num']}",
+            'timestamp': timestamp,
+            'timestamp_index': self.timestamp_indices[timestamp],
+            'event_type': 'QUORUM_RESULT',
+            'event_text': f"Quorum results: component = {component}",
+            'component': 'PRIMARY' if primary else 'NON_PRIMARY',
+            'quorum_status': primary,
+            'severity': 'INFO' if primary else 'CRITICAL',
+            'raw_line': text.strip(),
+            'line_number': buf['line_num'],
+            'log_source': buf['log_source'],
+            'confidence': 0.99,
+            'pattern_name': 'quorum_results_multiline',
+            'extraction_method': 'multiline_parse',
+        }
+        self.timestamp_indices[timestamp] += 1
+        m = re.match(r'(-?\d+)', fields.get('conf_id', ''))
+        if m:
+            entity['conf_id'] = int(m.group(1))
+        m = re.match(r'(\d+)/(\d+)', fields.get('members', ''))
+        if m:
+            entity['members_joined'] = int(m.group(1))
+            entity['member_count'] = int(m.group(2))
+        m = re.match(r'([a-f0-9-]{36})', fields.get('group UUID', ''))
+        if m:
+            entity['group_uuid'] = m.group(1)
+            if m.group(1) != '00000000-0000-0000-0000-000000000000':
+                entity['cluster_uuid'] = m.group(1)
+                entity['cluster_ref'] = f"cluster_{m.group(1)[:8]}"
+        if 'cluster_ref' not in entity and self.cluster_uuid:
+            entity['cluster_uuid'] = self.cluster_uuid
+            entity['cluster_ref'] = f"cluster_{self.cluster_uuid[:8]}"
+        if self.local_node_name:
+            entity['node_name'] = self.local_node_name
+            if self.local_node_uuid:
+                entity['node_uuid'] = self.local_node_uuid
+        self.temporal_entities.append(entity)
+
     def _parse_view_block(self):
         """Parse a complete view block"""
         if not self.view_buffer:
@@ -971,19 +1216,7 @@ class EntityExtractor:
                 name = match.group(1).strip()
                 if name.lower() not in {'unknown', 'joiner', 'donor'}:
                     self.local_node_name = name
-                    # Initialize node if first time seen
-                    if name not in self.nodes:
-                        self.nodes[name] = {
-                            'node_name': name,
-                            'long_uuid': None,
-                            'uuid_history': [],
-                            'cluster_uuid': None,
-                            'node_address': None,
-                            'galera_version': None,
-                            'mariadb_version': None,
-                            'wsrep_version': None,
-                            'cluster_name': None
-                        }
+                    self._register_node(name)
                     break
         
         # UUID pattern - track history
@@ -1124,6 +1357,26 @@ class EntityExtractor:
                 entity['inferred_cluster_size'] = 0
                 entity['fc_status'] = 'disabled'
         
+        # Component message: typed fields and a readable status
+        if pattern.pattern_id == 'component_change':
+            primary = entity.pop('component_primary', 'no').lower() == 'yes'
+            entity['component'] = 'PRIMARY' if primary else 'NON_PRIMARY'
+            entity['quorum_status'] = primary
+            entity['severity'] = 'INFO' if primary else 'CRITICAL'
+            entity['bootstrap'] = entity.get('bootstrap', 'no').lower() == 'yes'
+            entity['my_idx'] = int(entity.get('my_idx', -1))
+            entity['member_count'] = int(entity.get('member_count', 0))
+
+        # Lines without a leading timestamp (SST script output): use the time
+        # the script printed, else the time of the preceding log entry.
+        if not entity.get('timestamp'):
+            m = _TS_SST_SCRIPT.search(line)
+            if m:
+                entity['timestamp'] = (f"{m.group(1)}-{m.group(2)}-{m.group(3)} "
+                                       f"{m.group(4).zfill(2)}:{m.group(5)}")
+            elif self.last_timestamp:
+                entity['timestamp'] = self.last_timestamp
+
         # Add timestamp index for frame ordering
         timestamp = entity.get('timestamp')
         if timestamp:

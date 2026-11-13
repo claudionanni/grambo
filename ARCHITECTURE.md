@@ -118,8 +118,13 @@ Each pattern carries:
 **Purpose:** Build temporal timeline from entities
 
 Reconstructs cluster state evolution:
-- **Frame concept:** A snapshot of cluster state at a specific moment
-- **Event-driven:** Each significant event creates a new frame
+- **State machine:** The cluster state is a set of variables per node: Galera
+  state, node UUID, component status and size, flow-control interval, and the
+  node's wsrep view
+- **Frame concept:** A snapshot of that state. A new frame is emitted only when
+  at least one variable changes, and it lists what changed (`changes`)
+- **Non-state events:** Errors, warnings, transfer progress and repeated
+  messages change no variable and therefore create no frame
 - **State propagation:** Carries forward unchanged state
 - **Multi-node synthesis:** Combines events from all nodes
 

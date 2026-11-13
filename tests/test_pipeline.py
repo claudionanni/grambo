@@ -95,8 +95,11 @@ def summarize(out_dir):
             "last_timestamp": last.get("event", {}).get("timestamp"),
             "by_event_type": dict(sorted(collections.Counter(
                 f.get("event", {}).get("entity_type") for f in frames).items())),
+            "changes_by_variable": dict(sorted(collections.Counter(
+                c["variable"].split(":")[-1]
+                for f in frames for c in f.get("changes", [])).items())),
             "final_node_states": {
-                name: node.get("node_state")
+                name: [node.get("to_state"), node.get("component"), node.get("member_count")]
                 for name, node in sorted(last.get("nodes", {}).items())
             },
         },
@@ -134,6 +137,161 @@ class PipelineGoldenTest(unittest.TestCase):
 
     def test_unittest_run2(self):
         self.check_fixture("unittest_run2")
+
+
+def load_tool(name):
+    """Import one of the extension-less tool scripts as a module."""
+    loader = importlib.machinery.SourceFileLoader(name, str(ROOT / name))
+    spec = importlib.util.spec_from_loader(name, loader)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module  # dataclasses look the module up while it loads
+    loader.exec_module(module)
+    return module
+
+
+# A small hand-written two-node log pair. It needs no sample data, so these
+# tests also run on a fresh clone.
+NODE_A_LOG = """\
+250513  1:00:00 mysqld_safe WSREP: Running position recovery with --disable-log-error  --pid-file='/tmp/a.pid'
+2025-05-13  1:00:01 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-05-13  1:00:02 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 1
+2025-05-13  1:00:02 0 [Note] WSREP: Quorum results:
+\tversion    = 6,
+\tcomponent  = PRIMARY,
+\tconf_id    = 0,
+\tmembers    = 1/1 (joined/total),
+\tact_id     = 0,
+\tlast_appl. = 0,
+\tprotocols  = 5/11/4 (gcs/repl/appl),
+\tvote policy= 0,
+\tgroup UUID = 11111111-2222-3333-4444-555555555555
+2025-05-13  1:00:02 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-05-13  1:00:02 0 [Note] WSREP: Restored state OPEN -> JOINED (1)
+2025-05-13  1:00:02 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 1)
+2025-05-13  1:00:03 2 [Note] WSREP: Server node-a synced with group
+2025-05-13  1:00:04 0 [Warning] Access denied for user 'x'@'y' (using password: YES)
+2025-05-13  1:00:05 0 [Warning] WSREP: last inactive check more than PT1.5S ago (PT2S), skipping check
+2025-05-13  1:00:06 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-05-13  1:00:07 0 [Note] WSREP: view(view_id(PRIM,aaaaaaaa-0001,2) memb {
+2025-05-13  1:00:08 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 0, memb_num = 2
+2025-05-13  1:00:08 0 [Note] WSREP: Flow-control interval: [23, 23]
+2025-05-13  1:00:09 0 [Note] WSREP: Member 1.0 (node-b) requested state transfer from '*any*'. Selected 0.0 (node-a)(SYNCED) as donor.
+2025-05-13  1:00:09 0 [Note] WSREP: Shifting SYNCED -> DONOR/DESYNCED (TO: 5)
+WSREP_SST: [ERROR] mariadb-backup finished with error: 1. Check syslog for details (20250513 01:00:10.123)
+2025-05-13  1:00:11 0 [Warning] WSREP: 0.0 (node-a): State transfer to 1.0 (node-b) failed: Invalid argument
+2025-05-13  1:00:11 0 [Note] WSREP: Shifting DONOR/DESYNCED -> JOINED (TO: 5)
+2025-05-13  1:00:12 0 [Note] WSREP: Member 0.0 (node-a) synced with group.
+2025-05-13  1:00:12 0 [Note] WSREP: Shifting JOINED -> SYNCED (TO: 5)
+2025-05-13  1:00:20 0 [Note] WSREP: New COMPONENT: primary = no, bootstrap = no, my_idx = 0, memb_num = 1
+2025-05-13  1:00:20 0 [Note] WSREP: Flow-control interval: [16, 16]
+2025-05-13  1:00:20 0 [Note] WSREP: Received NON-PRIMARY.
+2025-05-13  1:00:20 0 [Note] WSREP: Shifting SYNCED -> OPEN (TO: 5)
+"""
+
+NODE_B_LOG = """\
+2025-05-13  1:00:08 0 [Note] WSREP: Shifting CLOSED -> OPEN (TO: 0)
+2025-05-13  1:00:08 0 [Note] WSREP: New COMPONENT: primary = yes, bootstrap = no, my_idx = 1, memb_num = 2
+2025-05-13  1:00:08 0 [Note] WSREP: Shifting OPEN -> PRIMARY (TO: 5)
+2025-05-13  1:00:09 0 [Note] WSREP: Shifting PRIMARY -> JOINER (TO: 5)
+2025-05-13  1:00:30 2 [Note] WSREP: Server node-b synced with group
+"""
+
+
+class SyntheticLogTest(unittest.TestCase):
+    """Parsing and state-machine rules, checked on a hand-written log pair."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        a, b = Path(cls.tmp.name) / "a.log", Path(cls.tmp.name) / "b.log"
+        a.write_text(NODE_A_LOG)
+        b.write_text(NODE_B_LOG)
+        extractor = load_tool("grap3").EntityExtractor()
+        cls.grap = extractor.process_files([a, b])
+        cls.entities = cls.grap["entities"]
+        cls.frames = load_tool("graf3").build_frames(cls.grap)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def by_pattern(self, name):
+        return [e for e in self.entities if e.get("pattern_name") == name]
+
+    def test_single_digit_hours_are_parsed(self):
+        shifts = self.by_pattern("node_state_shifting")
+        self.assertEqual(len(shifts), 9)
+        self.assertEqual(shifts[0]["timestamp"], "2025-05-13 01:00:01")
+
+    def test_entities_belong_to_the_node_that_logged_them(self):
+        # node-b only names itself in the last line of its log
+        for e in self.entities:
+            if e.get("pattern_name") in ("node_state_shifting", "component_change"):
+                expected = "node-a" if e["log_source"].endswith("a.log") else "node-b"
+                self.assertEqual(e.get("node_name"), expected, e["raw_line"])
+
+    def test_headless_view_block_does_not_swallow_lines(self):
+        # the view( header at 01:00:07 has no body; the lines after it must survive
+        self.assertEqual(len(self.by_pattern("component_change")), 4)
+        self.assertEqual([e for e in self.entities if e["entity_type"] == "view"], [])
+
+    def test_quorum_comes_from_component_messages(self):
+        components = [(e["node_name"], e["component"], e["member_count"])
+                      for e in self.by_pattern("component_change")]
+        self.assertEqual(components, [
+            ("node-a", "PRIMARY", 1), ("node-a", "PRIMARY", 2),
+            ("node-b", "PRIMARY", 2), ("node-a", "NON_PRIMARY", 1)])
+        result = self.by_pattern("quorum_results_multiline")
+        self.assertEqual(len(result), 1)
+        self.assertEqual((result[0]["component"], result[0]["conf_id"],
+                          result[0]["members_joined"], result[0]["member_count"]),
+                         ("PRIMARY", 0, 1, 1))
+
+    def test_mysqld_safe_option_name_is_not_an_error(self):
+        self.assertEqual(self.by_pattern("error_safe_log"), [])
+
+    def test_sst_script_errors_are_captured_with_their_own_time(self):
+        errors = self.by_pattern("error_sst_script")
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0]["timestamp"], "2025-05-13 01:00:10")
+        self.assertIn("mariadb-backup finished with error", errors[0]["message"])
+
+    def test_sst_failure_is_an_sst_entity(self):
+        failed = self.by_pattern("sst_transfer_failed")
+        self.assertEqual(len(failed), 1)
+        self.assertEqual((failed[0]["donor_name"], failed[0]["joiner_name"],
+                          failed[0]["failure_reason"]),
+                         ("node-a", "node-b", "Invalid argument"))
+
+    def test_every_frame_is_a_state_change(self):
+        self.assertGreater(len(self.frames), 0)
+        for frame in self.frames[1:]:
+            self.assertTrue(frame["changes"], frame["event"])
+
+    def test_non_state_events_do_not_create_frames(self):
+        types = {f["event"]["entity_type"] for f in self.frames}
+        self.assertEqual(types - {"node_state", "quorum", "flow_control", "wsrep_view", "cluster"}, set())
+        # "Access denied", the WSREP warning and the repeated [16, 16]
+        # flow-control line at 01:00:06 change nothing
+        stamps = [f["event"]["timestamp"] for f in self.frames]
+        for quiet in ("2025-05-13T01:00:04", "2025-05-13T01:00:05", "2025-05-13T01:00:06"):
+            self.assertNotIn(quiet, stamps)
+
+    def test_state_is_tracked_per_node(self):
+        last = self.frames[-1]["nodes"]
+        self.assertEqual((last["node-a"]["to_state"], last["node-a"]["component"],
+                          last["node-a"]["member_count"], last["node-a"]["flow_control"]),
+                         ("OPEN", "NON_PRIMARY", 1, [16, 16]))
+        self.assertEqual((last["node-b"]["to_state"], last["node-b"]["component"],
+                          last["node-b"]["member_count"]),
+                         ("JOINER", "PRIMARY", 2))
+
+    def test_changes_name_the_variable_that_changed(self):
+        changes = [(c["variable"], c["from"], c["to"])
+                   for f in self.frames for c in f["changes"]]
+        self.assertIn(("node:node-a:to_state", "SYNCED", "DONOR/DESYNCED"), changes)
+        self.assertIn(("node:node-a:component", "PRIMARY", "NON_PRIMARY"), changes)
+        self.assertIn(("node:node-a:flow_control", [16, 16], [23, 23]), changes)
 
 
 class GrafDeterminismTest(unittest.TestCase):

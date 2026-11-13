@@ -104,13 +104,26 @@ This affects all cards displaying node-level information.
 
 ## Quorum State
 
-**Purpose:** Tracks cluster quorum status and component state over time.
+**Purpose:** Shows the most recent component status reported by a node.
+
+**Where it comes from:** Galera's group communication layer (gcs) logs two
+messages for every membership change a node takes part in:
+
+- `New COMPONENT: primary = yes|no, bootstrap = ..., my_idx = N, memb_num = N`
+  states whether the node's component is primary and how many members it has.
+  Event type `COMPONENT`.
+- `Quorum results:` followed by `component = PRIMARY|NON-PRIMARY`, `conf_id`,
+  `members = joined/total` and the group UUID. This is the outcome of the state
+  exchange that follows a primary component message. Event type `QUORUM_RESULT`.
+
+Both are what one node observed about its own component, so the card names the
+node. During a partition different nodes legitimately report different values;
+the per-node value is in the Nodes card (`component`, `member_count`).
 
 **Key Features:**
-- Current quorum status (True/False)
-- Event type (QUORUM_LOST, QUORUM_REGAINED)
-- Severity indicators
-- Timestamp of last quorum change
+- Component status (PRIMARY / NON_PRIMARY) and quorum status (True/False)
+- Member count, and for quorum results the joined count and configuration id
+- The node that reported it and when
 
 **Important Notes:**
 - Quorum loss triggers read-only mode
@@ -119,8 +132,8 @@ This affects all cards displaying node-level information.
 - Quorum regained requires proper cluster rejoining
 
 **Critical Events:**
-- QUORUM_LOST: Immediate attention required
-- QUORUM_REGAINED: Cluster recovered, but verify all nodes
+- `component = NON_PRIMARY`: the node lost quorum and refuses writes
+- A `member_count` lower than the cluster size: the component is degraded
 
 ---
 

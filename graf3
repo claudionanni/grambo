@@ -451,6 +451,44 @@ def reduce_cluster(world: WorldState, e: Dict[str, Any]):
 # Frame builder
 # -----------------------------
 
+# The cluster is modelled as a state machine. Its state is a set of variables
+# per node; a frame is emitted only when at least one of them changes. Events
+# that change none of them (errors, warnings, transfer progress, repeated
+# messages) never produce a frame.
+#
+# Per-node state variables, and the log evidence each one comes from:
+#   to_state        Galera state         "Shifting A -> B", "Restored state",
+#                                        "Member N.N (name) synced with group"
+#   node_uuid       node incarnation     "My UUID: ..." (changes on restart)
+#   component       PRIMARY/NON_PRIMARY  "New COMPONENT: primary = yes|no",
+#                                        confirmed by "Quorum results:"
+#   member_count    component size       same two messages
+#   flow_control    [lower, upper]       "Flow-control interval: [l, u]"
+#   wsrep_view      id, status, members  the "View:" block
+NODE_STATE_VARIABLES = ("to_state", "node_uuid", "component", "member_count", "flow_control")
+VIEW_STATE_VARIABLES = ("view_id", "status", "members", "own_index")
+
+# How many of a node's most recent UUIDs are repeated in each frame
+UUID_HISTORY_IN_FRAME = 10
+
+# Entity types that can change the state above. Everything else is skipped.
+STATE_ENTITY_TYPES = {"node", "cluster", "node_state", "wsrep_view", "quorum", "flow_control"}
+
+
+def state_signature(frame_nodes: Dict[str, Any], frame_node_views: Dict[str, Any],
+                    frame_clusters: Dict[str, Any]) -> Dict[str, Any]:
+    """The state-machine state of a frame, as a flat {variable path: value} map."""
+    sig: Dict[str, Any] = {}
+    for name, node in frame_nodes.items():
+        for var in NODE_STATE_VARIABLES:
+            sig[f"node:{name}:{var}"] = node.get(var)
+    for name, view in frame_node_views.items():
+        for var in VIEW_STATE_VARIABLES:
+            sig[f"node:{name}:wsrep_view.{var}"] = view.get(var)
+    for key in frame_clusters:
+        sig[f"cluster:{key}"] = True
+    return sig
+
 def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     entities = grap_json.get("entities") or []
     entities = sort_entities(entities)
@@ -465,6 +503,11 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     cluster_immutable = {}
     # State machine for quorum events (per cluster key)
     # state_machine['quorum'][cluster_key] = latest quorum event dict
+
+    # Per-node variables that are carried forward until the next change:
+    # component status (from quorum entities) and flow-control interval.
+    node_dynamic: Dict[str, Dict[str, Any]] = {}
+    last_signature: Optional[Dict[str, Any]] = None
 
     frames: List[Dict[str, Any]] = []
     timestamps = []
@@ -504,6 +547,20 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 elif k not in ("raw_line", "log_source", "line_number"):
                     merged[k] = None
             state_machine["quorum"][key] = merged
+            # Component status is observed by one node about its own component
+            if e.get("node_name") and e.get("component"):
+                dyn = node_dynamic.setdefault(e["node_name"], {})
+                dyn["component"] = e["component"]
+                if e.get("member_count") is not None:
+                    dyn["member_count"] = e["member_count"]
+                if e.get("members_joined") is not None:
+                    dyn["members_joined"] = e["members_joined"]
+                if e.get("conf_id") is not None:
+                    dyn["conf_id"] = e["conf_id"]
+
+        if et == "flow_control" and e.get("node_name"):
+            node_dynamic.setdefault(e["node_name"], {})["flow_control"] = [
+                e.get("lower_limit"), e.get("upper_limit")]
 
         # --- Update state machine for time-varying entities ---
         if et not in state_machine:
@@ -597,6 +654,11 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                 node_wsrep_sm[nv_key]["latest_view"] = payload
         # Add other time-varying entity types as needed
 
+        # Only entities that can change the state machine are candidates for a
+        # frame, and a frame needs a point in time.
+        if et not in STATE_ENTITY_TYPES or ts is None:
+            continue
+
         # --- Build frame: join latest state for all entities up to this timestamp ---
 
         def filter_props(d):
@@ -608,16 +670,13 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             if not node_states:
                 return {}
             
-            # Find the most recent state at or before the target timestamp
-            applicable_state = {}
-            for timestamped_state in node_states:
+            # Entities arrive in chronological order, so the applicable state is
+            # the most recently recorded one; scan backwards and stop at once.
+            for timestamped_state in reversed(node_states):
                 state_ts = parse_iso(timestamped_state["timestamp"])
                 if state_ts and state_ts <= target_ts:
-                    applicable_state = timestamped_state["state"]
-                else:
-                    break  # States are ordered by timestamp
-            
-            return applicable_state
+                    return timestamped_state["state"]
+            return {}
 
         def get_node_uuid_at_timestamp(node_key: str, target_ts: datetime) -> Optional[str]:
             """Get the node UUID that was active at the given timestamp."""
@@ -625,20 +684,22 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             if not node_uuids:
                 return None
                 
-            # Find the most recent UUID at or before the target timestamp
-            applicable_uuid = None
-            for timestamped_uuid in node_uuids:
+            for timestamped_uuid in reversed(node_uuids):
                 uuid_ts = parse_iso(timestamped_uuid["timestamp"])
                 if uuid_ts and uuid_ts <= target_ts:
-                    applicable_uuid = timestamped_uuid["uuid"]
-                else:
-                    break  # UUIDs are ordered by timestamp
-            
-            return applicable_uuid
+                    return timestamped_uuid["uuid"]
+            return None
 
         frame_nodes = {}
         for node_key, node_core in node_immutable.items():
             node_state = filter_props(dict(node_core))  # Make a deep copy
+            # A node that restarted thousands of times has thousands of past
+            # UUIDs; repeating them all in every frame made the output grow
+            # quadratically. The complete history stays in the grap output.
+            history = node_state.get("uuid_history")
+            if isinstance(history, list) and len(history) > UUID_HISTORY_IN_FRAME:
+                node_state["uuid_history"] = history[-UUID_HISTORY_IN_FRAME:]
+                node_state["uuid_history_total"] = len(history)
             # Overlay node_state properties that were active at this timestamp
             if ts is not None:
                 ns = get_node_state_at_timestamp(node_key, ts)
@@ -652,13 +713,15 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
                     node_state['node_state'] = ns['to_state']
                 
                 # Override UUID with time-aware UUID - ONLY for this specific node
+                # The core record holds the node's last UUID; before the first
+                # UUID is seen in the log the incarnation is simply not known.
                 time_aware_uuid = get_node_uuid_at_timestamp(node_key, ts)
-                if time_aware_uuid:
-                    node_state["node_uuid"] = time_aware_uuid
+                node_state["node_uuid"] = time_aware_uuid
                 # Debug: print UUID assignment
                 # if to_iso_string(ts) == "2025-09-23T10:30:56":
                 #     print(f"DEBUG: Assigning UUID {time_aware_uuid} to node {node_key} at {to_iso_string(ts)}")
             node_state = filter_props(node_state)
+            node_state.update(node_dynamic.get(node_key, {}))
             # Overlay latest node view snapshot if available
             nv = state_machine.get("node_view", {}).get(node_key)
             if not nv and node_state.get("node_uuid"):
@@ -707,12 +770,13 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             view_history = node_view_data.get("view_history", [])
             if view_history and ts is not None:
                 # Find the most recent wsrep view at or before this timestamp
+                # The latest view logged so far (history is chronological)
                 applicable_view = None
-                for view_entry in view_history:
+                for view_entry in reversed(view_history):
                     view_ts = parse_iso(view_entry.get("timestamp"))
                     if view_ts and view_ts <= ts:
-                        if applicable_view is None or view_ts > parse_iso(applicable_view.get("timestamp")):
-                            applicable_view = view_entry
+                        applicable_view = view_entry
+                        break
                 
                 if applicable_view:
                     wsrep_filtered = filter_props(dict(applicable_view))
@@ -878,8 +942,21 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
         if node_component_non_primary:
             hotspots["node_component_non_primary"] = node_component_non_primary
 
+        # --- State machine step: emit a frame only if the state changed ---
+        signature = state_signature(frame_nodes, frame_node_views, frame_clusters)
+        if signature == last_signature:
+            continue
+        changes = []
+        if last_signature is not None:
+            for var in sorted(set(signature) | set(last_signature)):
+                before, after = last_signature.get(var), signature.get(var)
+                if before != after:
+                    changes.append({"variable": var, "from": before, "to": after})
+        last_signature = signature
+
         frame = {
-            "index": idx,
+            "index": len(frames),
+            "changes": changes,
             "event": {
                 "entity_type": et,
                 "entity_id": eid,

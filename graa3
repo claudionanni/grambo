@@ -24,6 +24,22 @@ import re
 from collections import defaultdict
 
 __version__ = "1.0.0-alpha1"
+
+
+# MariaDB pads the hour with a space before 10:00 ("2025-05-13  1:56:24").
+# Lines are rewritten to "YYYY-MM-DD HH:MM:SS" on input so every timestamp
+# match in this file sees one format (grap3 does the same).
+_TS_PADDED = re.compile(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}:\d{2})')
+
+
+def _normalize_lines(lines):
+    out = []
+    for line in lines:
+        m = _TS_PADDED.match(line)
+        if m:
+            line = f"{m.group(1)} {m.group(2).zfill(2)}:{m.group(3)}{line[m.end():]}"
+        out.append(line)
+    return out
 __author__ = "Claudio Nanni"
 __description__ = "Galera Log Analysis Summary Tool - processes grap output"
 
@@ -166,10 +182,10 @@ class SSTSessionTracker:
         try:
             try:
                 with open(self.log_file_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
+                    lines = _normalize_lines(f.readlines())
             except UnicodeDecodeError:
                 with open(self.log_file_path, 'r', encoding='latin-1') as f:
-                    lines = f.readlines()
+                    lines = _normalize_lines(f.readlines())
         except (FileNotFoundError, IOError):
             return sessions
         
@@ -276,10 +292,10 @@ class SSTSessionTracker:
             try:
                 try:
                     with open(log_file, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
+                        lines = _normalize_lines(f.readlines())
                 except UnicodeDecodeError:
                     with open(log_file, 'r', encoding='latin-1') as f:
-                        lines = f.readlines()
+                        lines = _normalize_lines(f.readlines())
                         
                 for line_num, line in enumerate(lines, 1):
                     line = line.strip()
@@ -515,10 +531,10 @@ class SSTSessionTracker:
             # Try UTF-8 first, fall back to latin-1 if that fails
             try:
                 with open(self.log_file_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
+                    lines = _normalize_lines(f.readlines())
             except UnicodeDecodeError:
                 with open(self.log_file_path, 'r', encoding='latin-1') as f:
-                    lines = f.readlines()
+                    lines = _normalize_lines(f.readlines())
             
             for line in lines:
                     line = line.strip()
@@ -2067,10 +2083,10 @@ def _collect_ist_events_from_log(log_file_path: Optional[str]) -> List[Dict[str,
     try:
         try:
             with open(log_file_path, 'r', encoding='utf-8') as handle:
-                lines = handle.readlines()
+                lines = _normalize_lines(handle.readlines())
         except UnicodeDecodeError:
             with open(log_file_path, 'r', encoding='latin-1') as handle:
-                lines = handle.readlines()
+                lines = _normalize_lines(handle.readlines())
     except (FileNotFoundError, IOError):
         return []
 

@@ -2774,7 +2774,7 @@
                     const quorumDiv = document.getElementById('quorum-section');
                     quorumDiv.innerHTML = '';
                     const quorumEntities = Object.entries(entities).filter(([key]) => key.startsWith('quorum:'));
-                    const quorumFields = ['timestamp', 'event_type', 'event_text', 'quorum_status', 'severity'];
+                    const quorumFields = ['timestamp', 'node_name', 'component', 'member_count', 'members_joined', 'conf_id', 'event_type', 'event_text', 'quorum_status', 'severity'];
                     if (quorumEntities.length === 0) {
                         quorumDiv.innerHTML = `<div class="empty-state">No quorum events in this frame</div>`;
                     } else {
@@ -2788,11 +2788,6 @@
                             block += '</div>';
                             quorumDiv.innerHTML += block;
                         });
-                    }
-                    // Grey out quorum text values (quorum messages are not reliable)
-                    if (quorumDiv) {
-                        quorumDiv.style.opacity = '0.5';
-                        quorumDiv.style.fontStyle = 'italic';
                     }
 
                     // Nodes card
