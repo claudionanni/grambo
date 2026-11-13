@@ -12,12 +12,14 @@ Usage:
     # Show supported formats
     ./gralc
 
-    # Convert a log file
-    ./gralc --format=1 source.log > canonical.log
+    # Convert a log file (format is detected per line)
+    ./gralc source.log > canonical.log
+
+    # Force a specific format
     ./gralc -f 1 source.log > canonical.log
 
     # Pipe through
-    cat source.log | ./gralc --format=1 > canonical.log
+    cat source.log | ./gralc > canonical.log
 """
 
 import sys
@@ -34,14 +36,14 @@ FORMATS = [
         "name": "MySQL 8.0 with Error Codes (ISO8601 timestamp)",
         "description": "MySQL 8.0 style logs with [MY-XXXXXX] error codes and ISO8601 timestamps",
         "example": "2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] [WSREP] P: Shifting SYNCED -> OPEN (TO: 10344464)",
-        "pattern": r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:\d{2})\s+(\d+)\s+\[(System|Note|Warning|ERROR)\]\s+\[MY-\d+\]\s+\[([^\]]+)\]\s+(.*)$',
+        "pattern": r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:Z|[+-]\d{2}:\d{2}))\s+(\d+)\s+\[(System|Note|Warning|ERROR)\]\s+\[MY-\d+\]\s+\[([^\]]+)\]\s+(.*)$',
     },
     {
         "id": 2,
         "name": "MySQL 8.0 without WSREP prefix",
         "description": "MySQL 8.0 style with ISO8601 timestamps, missing [WSREP] tag but WSREP content",
         "example": "2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] P: Shifting SYNCED -> OPEN (TO: 10344464)",
-        "pattern": r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:\d{2})\s+(\d+)\s+\[(System|Note|Warning|ERROR)\]\s+\[MY-\d+\]\s+(.*)$',
+        "pattern": r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:Z|[+-]\d{2}:\d{2}))\s+(\d+)\s+\[(System|Note|Warning|ERROR)\]\s+\[MY-\d+\]\s+(.*)$',
     },
     {
         "id": 3,
@@ -146,29 +148,39 @@ def show_formats():
     print("  2025-09-22 20:46:30 0 [Note] WSREP: Shifting SYNCED -> CLOSED (TO: 2)")
     print()
     print("Usage:")
-    print("  ./gralc --format=1 source.log > canonical.log")
-    print("  cat source.log | ./gralc -f 2 > canonical.log")
+    print("  ./gralc source.log > canonical.log            # auto-detect per line")
+    print("  ./gralc --format=1 source.log > canonical.log # force one format")
+    print("  cat source.log | ./gralc | ./grax3")
     print()
+
+
+AUTO = 0  # format_id meaning "detect the format of each line"
+
+COMPILED = {fmt["id"]: re.compile(fmt["pattern"]) for fmt in FORMATS}
 
 
 def canonicalize_line(line: str, format_id: int) -> str:
     """
     Convert a single log line to canonical format.
     Returns the original line if it doesn't match the pattern.
+
+    With format_id AUTO each line is tried against the formats in order
+    (most specific first), so logs mixing tagged and untagged lines work.
     """
-    if format_id not in CONVERTERS:
+    if format_id == AUTO:
+        candidates = [fmt["id"] for fmt in FORMATS]
+    elif format_id in CONVERTERS:
+        candidates = [format_id]
+    else:
         return line
-    
-    fmt = FORMATS[format_id - 1]  # format_id is 1-based
-    pattern = re.compile(fmt['pattern'])
-    
-    match = pattern.match(line)
-    if not match:
-        # Line doesn't match pattern, return as-is
-        return line
-    
-    converter = CONVERTERS[format_id]
-    return converter(match)
+
+    for fid in candidates:
+        match = COMPILED[fid].match(line)
+        if match:
+            return CONVERTERS[fid](match)
+
+    # Line doesn't match any pattern, return as-is
+    return line
 
 
 def process_stream(input_stream, output_stream, format_id: int):
@@ -204,19 +216,22 @@ Examples:
   # Show supported formats
   ./gralc
 
-  # Convert a log file
+  # Convert a log file (format is detected per line)
+  ./gralc mysql8-error.log > canonical.log
+
+  # Force a specific format
   ./gralc --format=1 mysql8-error.log > canonical.log
-  
-  # Pipe through
-  cat source.log | ./gralc -f 1 > canonical.log
+
+  # Pipe straight into the analysis
+  ./gralc mysql8-error.log | ./grax3
         """
     )
     
     parser.add_argument(
         '-f', '--format',
-        type=int,
         metavar='N',
-        help=f"Format ID to use for conversion (1-{len(FORMATS)})"
+        help=f"Format ID to use for conversion (1-{len(FORMATS)}), or 'auto' to "
+             "detect the format of each line (default when input is given)"
     )
     
     parser.add_argument(
@@ -227,15 +242,22 @@ Examples:
     
     args = parser.parse_args()
     
-    # If no format specified, show formats and exit
-    if args.format is None:
+    # With no format and no input, show formats and exit
+    if args.format is None and not args.input_file and sys.stdin.isatty():
         show_formats()
         return 0
-    
-    # Validate format ID
-    if args.format < 1 or args.format > len(FORMATS):
-        print(f"Error: Invalid format ID {args.format}. Valid range: 1-{len(FORMATS)}", file=sys.stderr)
-        return 1
+
+    # Resolve the format: auto-detect unless a specific ID was requested
+    if args.format is None or args.format.lower() == "auto":
+        args.format = AUTO
+    else:
+        try:
+            args.format = int(args.format)
+        except ValueError:
+            args.format = -1
+        if args.format < 1 or args.format > len(FORMATS):
+            print(f"Error: Invalid format ID. Valid: 1-{len(FORMATS)} or 'auto'", file=sys.stderr)
+            return 1
     
     # Determine input source
     if args.input_file:

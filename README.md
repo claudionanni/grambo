@@ -117,11 +117,14 @@ If your Galera logs are not in the canonical format, use `gralc` to convert them
 # Show supported log formats
 ./gralc
 
-# Convert MySQL 8.0 logs (ISO8601 timestamps with [MY-XXXXXX] codes)
-./gralc --format=1 mysql8-error.log > canonical.log
+# Convert MySQL 8.0 logs (the format is detected line by line)
+./gralc mysql8-error.log > canonical.log
 
 # Convert and analyze in one pipeline
-./gralc -f 1 mysql8-error.log | ./grax3
+./gralc mysql8-error.log | ./grax3
+
+# Force a specific format instead of auto-detecting
+./gralc --format=1 mysql8-error.log > canonical.log
 ```
 
 **Canonical format expected by Grambo:**

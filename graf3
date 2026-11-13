@@ -496,8 +496,9 @@ def build_frames(grap_json: Dict[str, Any]) -> List[Dict[str, Any]]:
             new_keys = set(k for k in e.keys() if k not in ("raw_line", "log_source", "line_number"))
             all_keys = prev_keys | new_keys
             state_machine["_quorum_keys"].setdefault(key, set()).update(all_keys)
-            # Update with new values, even if they are None or empty (explicit clear)
-            for k in all_keys:
+            # Update with new values, even if they are None or empty (explicit clear).
+            # Sorted so the key order of the output does not vary between runs.
+            for k in sorted(all_keys):
                 if k in e and k not in ("raw_line", "log_source", "line_number"):
                     merged[k] = e[k]
                 elif k not in ("raw_line", "log_source", "line_number"):

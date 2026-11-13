@@ -446,6 +446,8 @@ if __name__ == '__main__':
     parser.add_argument('--logs', type=str, nargs='*', help='source log files to make available for context viewing')
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=5000)
+    parser.add_argument('--debug', action='store_true',
+                        help='run Flask in debug mode (auto-reload and interactive debugger; never use on a non-local host)')
     args = parser.parse_args()
 
     # Set paths BEFORE loading frames and refreshing cache
@@ -466,4 +468,4 @@ if __name__ == '__main__':
             for log_path in args.logs
             if os.path.exists(log_path)
         ]
-    app.run(debug=True, host=args.host, port=args.port)
+    app.run(debug=args.debug, host=args.host, port=args.port)

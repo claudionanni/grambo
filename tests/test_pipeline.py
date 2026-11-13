@@ -136,6 +136,27 @@ class PipelineGoldenTest(unittest.TestCase):
         self.check_fixture("unittest_run2")
 
 
+class GrafDeterminismTest(unittest.TestCase):
+    LOGS = FIXTURES["cl407"]
+
+    def test_frames_are_byte_identical_across_hash_seeds(self):
+        if any(not (ROOT / p).exists() for p in self.LOGS):
+            self.skipTest("sample logs not present")
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = run_grax(tmp, self.LOGS)
+            self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
+            outputs = set()
+            for seed in ("1", "2", "3"):
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "graf3"),
+                     str(Path(tmp) / "grap_output.json"), "--ndjson"],
+                    capture_output=True, cwd=ROOT,
+                    env={**os.environ, "PYTHONHASHSEED": seed})
+                self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
+                outputs.add(proc.stdout)
+            self.assertEqual(len(outputs), 1)
+
+
 class StdinTest(unittest.TestCase):
     LOG = "cl407/error.31407.log"
 
@@ -177,6 +198,29 @@ class GralcTest(unittest.TestCase):
         line = ("2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] "
                 "P: Shifting SYNCED -> OPEN (TO: 10344464)\n")
         self.assertEqual(self.convert(2, line), self.CANONICAL)
+
+    def test_auto_detects_each_line(self):
+        mixed = (
+            "2025-09-09T07:41:41.832615+02:00 0 [System] [MY-000000] [WSREP] "
+            "P: Shifting SYNCED -> OPEN (TO: 10344464)\n"
+            "2025-09-09T07:41:41.832615Z 0 [System] [MY-000000] "
+            "P: Shifting SYNCED -> OPEN (TO: 10344464)\n"
+            "2025-09-22 20:46:30 0 [Warning] WSREP: Failed to prepare for incremental state transfer\n"
+            "not a log line\n"
+        )
+        expected = (self.CANONICAL * 2 +
+                    "2025-09-22 20:46:30 0 [Warning] WSREP: Failed to prepare for incremental state transfer\n"
+                    "not a log line\n")
+        self.assertEqual(self.convert("auto", mixed), expected)
+        # auto is also the default when input is piped
+        proc = subprocess.run([sys.executable, str(ROOT / "gralc")],
+                              input=mixed, capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(proc.stdout, expected)
+
+    def test_invalid_format_is_rejected(self):
+        proc = subprocess.run([sys.executable, str(ROOT / "gralc"), "-f", "9"],
+                              input="x\n", capture_output=True, text=True, cwd=ROOT)
+        self.assertNotEqual(proc.returncode, 0)
 
     def test_format_3_mariadb_is_unchanged(self):
         line = "2025-09-22 20:46:30 0 [Warning] WSREP: Failed to prepare for incremental state transfer\n"

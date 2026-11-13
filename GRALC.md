@@ -60,8 +60,19 @@ Canonical format (target):
 
 ### Convert a Log File
 
+By default `gralc` detects the format of each line, so no format ID is needed
+and logs that mix tagged and untagged lines convert correctly. Lines that match
+no known format are passed through unchanged. Use `--format=N` only to force a
+single format.
+
 ```bash
-# Convert to canonical format
+# Convert to canonical format (auto-detect)
+./gralc mysql8-error.log > canonical.log
+
+# Convert and analyze in one step
+./gralc mysql8-error.log | ./grax3
+
+# Force a specific format
 ./gralc --format=1 mysql8-error.log > canonical.log
 
 # Short form
@@ -232,9 +243,9 @@ head -5 mysql8-error.log
 ./gralc
 
 # 3. Convert logs
-./gralc -f 1 node1.log > canonical_node1.log
-./gralc -f 1 node2.log > canonical_node2.log
-./gralc -f 1 node3.log > canonical_node3.log
+./gralc node1.log > canonical_node1.log
+./gralc node2.log > canonical_node2.log
+./gralc node3.log > canonical_node3.log
 
 # 4. Analyze with grambo
 ./grax3 canonical_node*.log
